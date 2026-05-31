@@ -167,11 +167,12 @@ func CreatePayment(ctx context.Context, cfg *Config, input CreateInput) (*Create
 			resp.PayURL, timestamp, newNonceStr, newSign)
 		if input.ReturnURL != "" {
 			// Globepay 把 redirect 值直接拼在自己域名后面，只能传路径不能传完整 URL
+			// 路径里的 & 需要 encode，否则 Globepay 会把参数当成独立 query params
 			redirectPath := input.ReturnURL
 			if parsed, err := url.Parse(input.ReturnURL); err == nil && parsed.Host != "" {
 				redirectPath = parsed.RequestURI()
 			}
-			payURL += "&redirect=" + redirectPath
+			payURL += "&redirect=" + url.QueryEscape(redirectPath)
 		}
 		result.PayURL = payURL
 	}
