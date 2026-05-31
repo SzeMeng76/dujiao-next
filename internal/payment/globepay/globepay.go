@@ -11,7 +11,6 @@ import (
 	"io"
 	"math/rand"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 )
@@ -125,16 +124,9 @@ func CreatePayment(ctx context.Context, cfg *Config, input CreateInput) (*Create
 			baseURL, cfg.PartnerCode, input.OrderNo, query)
 		params["channel"] = "Wechat"
 	case "alipay":
-		if input.InteractionMode == "wap" {
-			// 手机端用 h5_payment
-			apiURL = fmt.Sprintf("%s/api/v1.0/h5_payment/partners/%s/orders/%s%s",
-				baseURL, cfg.PartnerCode, input.OrderNo, query)
-			params["channel"] = "Alipay"
-		} else {
-			// PC 端用 alipay
-			apiURL = fmt.Sprintf("%s/api/v1.0/alipay/partners/%s/orders/%s%s",
-				baseURL, cfg.PartnerCode, input.OrderNo, query)
-		}
+		apiURL = fmt.Sprintf("%s/api/v1.0/h5_payment/partners/%s/orders/%s%s",
+			baseURL, cfg.PartnerCode, input.OrderNo, query)
+		params["channel"] = "Alipay"
 	case "alipayhk", "tng", "dana", "gcash":
 		apiURL = fmt.Sprintf("%s/api/v1.0/h5_payment/partners/%s/orders/%s%s",
 			baseURL, cfg.PartnerCode, input.OrderNo, query)
