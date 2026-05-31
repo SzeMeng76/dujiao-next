@@ -11,6 +11,7 @@ import (
 	"io"
 	"math/rand"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -169,7 +170,7 @@ func CreatePayment(ctx context.Context, cfg *Config, input CreateInput) (*Create
 		newNonceStr := randString(30)
 		newSign := generateSign(cfg.PartnerCode, timestamp, newNonceStr, cfg.CredentialCode)
 		redirectQuery := fmt.Sprintf("?time=%d&nonce_str=%s&sign=%s&redirect=%s",
-			timestamp, newNonceStr, newSign, input.ReturnURL)
+			timestamp, newNonceStr, newSign, url.QueryEscape(input.ReturnURL))
 		result.PayURL = resp.PayURL + redirectQuery
 	}
 	return result, nil
