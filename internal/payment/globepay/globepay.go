@@ -162,8 +162,12 @@ func CreatePayment(ctx context.Context, cfg *Config, input CreateInput) (*Create
 		// redirect 参数告诉 Globepay 支付完后跳回哪里（带 globepay_return=1 marker）
 		newNonceStr := randString(30)
 		newSign := generateSign(cfg.PartnerCode, timestamp, newNonceStr, cfg.CredentialCode)
-		result.PayURL = fmt.Sprintf("%s?time=%d&nonce_str=%s&sign=%s",
+		payURL := fmt.Sprintf("%s?time=%d&nonce_str=%s&sign=%s",
 			resp.PayURL, timestamp, newNonceStr, newSign)
+		if input.ReturnURL != "" {
+			payURL += "&redirect=" + input.ReturnURL
+		}
+		result.PayURL = payURL
 	}
 	return result, nil
 }
