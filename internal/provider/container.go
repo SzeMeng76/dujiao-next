@@ -146,6 +146,7 @@ func NewContainer(cfg *config.Config) *Container {
 	paymentRegistry.Register(constants.PaymentProviderBepusdt, "", paymentprovider.NewBepusdtAdapter())
 	paymentRegistry.Register(constants.PaymentProviderTokenpay, "", paymentprovider.NewTokenpayAdapter())
 	paymentRegistry.Register(constants.PaymentProviderOkpay, "", paymentprovider.NewOkpayAdapter())
+	paymentRegistry.Register(constants.PaymentProviderGlobepay, "", paymentprovider.NewGlobepayAdapter())
 
 	c := &Container{
 		Config:                  cfg,

@@ -46,6 +46,7 @@ const (
 	PaymentProviderBepusdt  = "bepusdt"
 	PaymentProviderOkpay    = "okpay"
 	PaymentProviderTokenpay = "tokenpay"
+	PaymentProviderGlobepay = "globepay"
 	PaymentProviderWallet   = "wallet"
 )
 
