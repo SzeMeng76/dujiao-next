@@ -38,12 +38,13 @@ type Config struct {
 
 // CreateInput 创建支付输入
 type CreateInput struct {
-	OrderNo     string
-	Amount      string
-	Subject     string
-	ChannelType string
-	NotifyURL   string
-	ReturnURL   string
+	OrderNo         string
+	Amount          string
+	Subject         string
+	ChannelType     string
+	InteractionMode string
+	NotifyURL       string
+	ReturnURL       string
 }
 
 // CreateResult 创建支付结果
@@ -123,8 +124,16 @@ func CreatePayment(ctx context.Context, cfg *Config, input CreateInput) (*Create
 			baseURL, cfg.PartnerCode, input.OrderNo, query)
 		params["channel"] = "Wechat"
 	case "alipay":
-		apiURL = fmt.Sprintf("%s/api/v1.0/alipay/partners/%s/orders/%s%s",
-			baseURL, cfg.PartnerCode, input.OrderNo, query)
+		if input.InteractionMode == "wap" {
+			// 手机端用 h5_payment
+			apiURL = fmt.Sprintf("%s/api/v1.0/h5_payment/partners/%s/orders/%s%s",
+				baseURL, cfg.PartnerCode, input.OrderNo, query)
+			params["channel"] = "Alipay"
+		} else {
+			// PC 端用 alipay
+			apiURL = fmt.Sprintf("%s/api/v1.0/alipay/partners/%s/orders/%s%s",
+				baseURL, cfg.PartnerCode, input.OrderNo, query)
+		}
 	case "alipayhk", "tng", "dana", "gcash":
 		apiURL = fmt.Sprintf("%s/api/v1.0/h5_payment/partners/%s/orders/%s%s",
 			baseURL, cfg.PartnerCode, input.OrderNo, query)
@@ -156,7 +165,12 @@ func CreatePayment(ctx context.Context, cfg *Config, input CreateInput) (*Create
 		result.QRCode = resp.CodeURL
 		result.PayURL = resp.CodeURL
 	} else {
-		result.PayURL = resp.PayURL
+		// 重新生成 nonce_str 和 sign 拼到 pay_url 后面（参考原 PHP 实现）
+		newNonceStr := randString(30)
+		newSign := generateSign(cfg.PartnerCode, timestamp, newNonceStr, cfg.CredentialCode)
+		redirectQuery := fmt.Sprintf("?time=%d&nonce_str=%s&sign=%s&redirect=%s",
+			timestamp, newNonceStr, newSign, input.ReturnURL)
+		result.PayURL = resp.PayURL + redirectQuery
 	}
 	return result, nil
 }

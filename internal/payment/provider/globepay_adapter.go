@@ -57,13 +57,15 @@ func (a *globepayAdapter) CreatePayment(ctx context.Context, raw models.JSON, in
 	}
 	returnURL = appendQueryParams(returnURL, input.ReturnURLQuery)
 
+	interactionMode, _ := input.Extra["interaction_mode"].(string)
 	native := globepay.CreateInput{
-		OrderNo:     input.OrderNo,
-		Amount:      input.Amount.Decimal.String(),
-		Subject:     input.Subject,
-		ChannelType: input.ChannelType,
-		NotifyURL:   notifyURL,
-		ReturnURL:   returnURL,
+		OrderNo:         input.OrderNo,
+		Amount:          input.Amount.Decimal.String(),
+		Subject:         input.Subject,
+		ChannelType:     input.ChannelType,
+		InteractionMode: interactionMode,
+		NotifyURL:       notifyURL,
+		ReturnURL:       returnURL,
 	}
 
 	result, err := globepay.CreatePayment(ctx, cfg, native)
