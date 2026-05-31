@@ -11,6 +11,7 @@ import (
 	"io"
 	"math/rand"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -165,7 +166,12 @@ func CreatePayment(ctx context.Context, cfg *Config, input CreateInput) (*Create
 		payURL := fmt.Sprintf("%s?time=%d&nonce_str=%s&sign=%s",
 			resp.PayURL, timestamp, newNonceStr, newSign)
 		if input.ReturnURL != "" {
-			payURL += "&redirect=" + input.ReturnURL
+			// Globepay 把 redirect 值直接拼在自己域名后面，只能传路径不能传完整 URL
+			redirectPath := input.ReturnURL
+			if parsed, err := url.Parse(input.ReturnURL); err == nil && parsed.Host != "" {
+				redirectPath = parsed.RequestURI()
+			}
+			payURL += "&redirect=" + redirectPath
 		}
 		result.PayURL = payURL
 	}
