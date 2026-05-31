@@ -22,6 +22,11 @@ func (h *Handler) HandleGlobepayCallback(c *gin.Context) bool {
 	}
 	c.Request.Body = io.NopCloser(bytes.NewBuffer(body))
 
+	// Globepay 回调 content_type 可能为空，强制设置为 form 格式以确保 ParseForm 能解析 body
+	if strings.TrimSpace(c.Request.Header.Get("Content-Type")) == "" {
+		c.Request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	}
+
 	// 特征检测：globepay 回调包含 partner_order_id + sign + time + nonce_str
 	form, parseErr := parseCallbackForm(c)
 	if parseErr != nil {
