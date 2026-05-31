@@ -158,7 +158,11 @@ func CreatePayment(ctx context.Context, cfg *Config, input CreateInput) (*Create
 		result.QRCode = resp.CodeURL
 		result.PayURL = resp.CodeURL
 	} else {
-		result.PayURL = resp.PayURL
+		// Globepay 返回的 pay_url 是中转页面，需要拼签名参数才能访问
+		newNonceStr := randString(30)
+		newSign := generateSign(cfg.PartnerCode, timestamp, newNonceStr, cfg.CredentialCode)
+		result.PayURL = fmt.Sprintf("%s?time=%d&nonce_str=%s&sign=%s",
+			resp.PayURL, timestamp, newNonceStr, newSign)
 	}
 	return result, nil
 }
