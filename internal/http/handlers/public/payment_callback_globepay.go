@@ -2,6 +2,7 @@ package public
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
@@ -22,17 +23,27 @@ func (h *Handler) HandleGlobepayCallback(c *gin.Context) bool {
 	}
 	c.Request.Body = io.NopCloser(bytes.NewBuffer(body))
 
-	// Globepay 回调 content_type 可能为空，强制设置为 form 格式以确保 ParseForm 能解析 body
-	if strings.TrimSpace(c.Request.Header.Get("Content-Type")) == "" {
-		c.Request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	// Globepay 回调是 JSON 格式，从 JSON body 解析字段
+	var jsonData map[string]interface{}
+	form := make(map[string][]string)
+	contentType := strings.ToLower(strings.TrimSpace(c.Request.Header.Get("Content-Type")))
+	if strings.Contains(contentType, "application/json") || contentType == "" {
+		if err := json.Unmarshal(body, &jsonData); err == nil {
+			for k, v := range jsonData {
+				form[k] = []string{fmt.Sprintf("%v", v)}
+			}
+		}
+	}
+	// 兼容 form 格式
+	if len(form) == 0 {
+		var parseErr error
+		form, parseErr = parseCallbackForm(c)
+		if parseErr != nil {
+			return false
+		}
 	}
 
-	// 特征检测：globepay 回调包含 partner_order_id + sign + time + nonce_str
-	form, parseErr := parseCallbackForm(c)
-	if parseErr != nil {
-		return false
-	}
-
+	// 特征检测：globepay 回调包含 partner_order_id + sign
 	partnerOrderID := strings.TrimSpace(getFirstValue(form, "partner_order_id"))
 	sign := strings.TrimSpace(getFirstValue(form, "sign"))
 	if partnerOrderID == "" || sign == "" {
