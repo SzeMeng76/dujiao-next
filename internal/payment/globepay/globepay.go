@@ -233,7 +233,7 @@ func sendRequest(ctx context.Context, url string, params map[string]interface{})
 }
 
 func exchangeCNYtoGBP(ctx context.Context, amountCNY string) (string, error) {
-	url := fmt.Sprintf("https://api.frankfurter.app/latest?amount=%s&from=CNY&to=GBP",
+	url := fmt.Sprintf("https://api.frankfurter.dev/v1/latest?amount=%s&from=CNY&to=GBP",
 		strings.TrimSpace(amountCNY))
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
