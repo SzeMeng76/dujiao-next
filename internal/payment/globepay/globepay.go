@@ -166,12 +166,7 @@ func CreatePayment(ctx context.Context, cfg *Config, input CreateInput) (*Create
 		result.QRCode = resp.CodeURL
 		result.PayURL = resp.CodeURL
 	} else {
-		// 重新生成 nonce_str 和 sign 拼到 pay_url 后面（参考原 PHP 实现）
-		newNonceStr := randString(30)
-		newSign := generateSign(cfg.PartnerCode, timestamp, newNonceStr, cfg.CredentialCode)
-		redirectQuery := fmt.Sprintf("?time=%d&nonce_str=%s&sign=%s&redirect=%s",
-			timestamp, newNonceStr, newSign, url.QueryEscape(input.ReturnURL))
-		result.PayURL = resp.PayURL + redirectQuery
+		result.PayURL = resp.PayURL
 	}
 	return result, nil
 }
