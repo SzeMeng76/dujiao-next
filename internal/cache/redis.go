@@ -3,6 +3,7 @@ package cache
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -121,11 +122,17 @@ func SetNX(ctx context.Context, key string, value interface{}, ttl time.Duration
 	if !Enabled() {
 		return true, nil
 	}
-	result, err := redisClient.SetNX(ctx, buildKey(key), value, ttl).Result()
+	_, err := redisClient.SetArgs(ctx, buildKey(key), value, redis.SetArgs{
+		Mode: "NX",
+		TTL:  ttl,
+	}).Result()
+	if errors.Is(err, redis.Nil) {
+		return false, nil
+	}
 	if err != nil {
 		return false, err
 	}
-	return result, nil
+	return true, nil
 }
 
 func buildKey(key string) string {

@@ -428,9 +428,11 @@ const (
 	SettingKeyWalletConfig        = "wallet_config"
 	SettingFieldWalletOnlyPayment = "wallet_only_payment"
 
-	SettingKeyRegistrationConfig         = "registration_config"
-	SettingFieldRegistrationEnabled      = "registration_enabled"
-	SettingFieldEmailVerificationEnabled = "email_verification_enabled"
+	SettingKeyRegistrationConfig            = "registration_config"
+	SettingFieldRegistrationEnabled         = "registration_enabled"
+	SettingFieldEmailVerificationEnabled    = "email_verification_enabled"
+	SettingFieldEmailDomainAllowlistEnabled = "email_domain_allowlist_enabled"
+	SettingFieldAllowedEmailDomains         = "allowed_email_domains"
 
 	SettingKeyOrderRiskControlConfig = "order_risk_control_config"
 

@@ -76,6 +76,38 @@ func TestFindOrCreateTelegramUserRespectsRegistrationSetting(t *testing.T) {
 	}
 }
 
+func TestFindOrCreateTelegramUserIgnoresEmailDomainAllowlist(t *testing.T) {
+	svc, db := setupTelegramOAuthTestService(t)
+	if _, err := svc.settingService.Update(constants.SettingKeyRegistrationConfig, map[string]interface{}{
+		constants.SettingFieldRegistrationEnabled:         true,
+		constants.SettingFieldEmailDomainAllowlistEnabled: true,
+		constants.SettingFieldAllowedEmailDomains:         []interface{}{"qq.com"},
+	}); err != nil {
+		t.Fatalf("update registration config failed: %v", err)
+	}
+
+	user, err := svc.findOrCreateTelegramUser(&TelegramIdentityVerified{
+		Provider:       constants.UserOAuthProviderTelegram,
+		ProviderUserID: "allowlist_tg_10001",
+		Username:       "allowlist_tg",
+		AuthAt:         time.Now(),
+	})
+	if err != nil {
+		t.Fatalf("telegram user creation should ignore email domain allowlist: %v", err)
+	}
+	if user == nil || !telegramidentity.IsPlaceholderEmail(user.Email) {
+		t.Fatalf("expected telegram placeholder email user, got %+v", user)
+	}
+
+	var count int64
+	if err := db.Model(&models.User{}).Count(&count).Error; err != nil {
+		t.Fatalf("count users failed: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("expected one telegram user, got %d", count)
+	}
+}
+
 func TestLoginWithTelegramAllowsExistingIdentityWhenRegistrationDisabled(t *testing.T) {
 	svc, db := setupTelegramOAuthTestService(t)
 

@@ -2,7 +2,6 @@ package public
 
 import (
 	"errors"
-	"strconv"
 	"strings"
 
 	"github.com/dujiao-next/internal/constants"
@@ -398,9 +397,7 @@ func (h *Handler) ListOrders(c *gin.Context) {
 		return
 	}
 
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	page, pageSize = shared.NormalizePagination(page, pageSize)
+	page, pageSize := shared.ParsePagination(c)
 
 	status := strings.TrimSpace(c.Query("status"))
 	orderNo := strings.TrimSpace(c.Query("order_no"))

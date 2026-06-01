@@ -3,10 +3,10 @@ package channel
 import (
 	"fmt"
 	"math"
-	"strconv"
 	"strings"
 
 	"github.com/dujiao-next/internal/constants"
+	"github.com/dujiao-next/internal/http/handlers/shared"
 	"github.com/dujiao-next/internal/logger"
 	"github.com/dujiao-next/internal/models"
 	"github.com/dujiao-next/internal/service"
@@ -94,15 +94,7 @@ func (h *Handler) GetProducts(c *gin.Context) {
 	locale := c.DefaultQuery("locale", "zh-CN")
 	defaultLocale := "zh-CN"
 	categoryID := c.DefaultQuery("category_id", "")
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "5"))
-
-	if page < 1 {
-		page = 1
-	}
-	if pageSize < 1 || pageSize > 20 {
-		pageSize = 5
-	}
+	page, pageSize := shared.ParsePaginationWithBounds(c, "page", "page_size", 5, 20)
 	exact := c.DefaultQuery("exact", "") == "1"
 
 	var products []models.Product

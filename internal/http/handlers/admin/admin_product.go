@@ -18,9 +18,7 @@ import (
 
 // GetAdminProducts 获取商品列表 (Admin)
 func (h *Handler) GetAdminProducts(c *gin.Context) {
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	page, pageSize = shared.NormalizePagination(page, pageSize)
+	page, pageSize := shared.ParsePagination(c)
 	categoryID := c.Query("category_id")
 	search := c.Query("search")
 	fulfillmentType := strings.TrimSpace(c.Query("fulfillment_type"))

@@ -7,11 +7,11 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/dujiao-next/internal/constants"
+	"github.com/dujiao-next/internal/http/handlers/shared"
 	"github.com/dujiao-next/internal/logger"
 	"github.com/dujiao-next/internal/models"
 	"github.com/dujiao-next/internal/provider"
@@ -211,14 +211,7 @@ type upstreamSKU struct {
 
 // ListProducts GET /api/v1/upstream/products
 func (h *Handler) ListProducts(c *gin.Context) {
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	if page < 1 {
-		page = 1
-	}
-	if pageSize < 1 || pageSize > 50 {
-		pageSize = 50
-	}
+	page, pageSize := shared.ParsePaginationWithBounds(c, "page", "page_size", 50, 50)
 
 	// 是否包含下架商品：下游同步任务用此参数识别上游下架/删除状态
 	includeInactive := c.Query("include_inactive") == "true"
@@ -510,13 +503,13 @@ func (h *Handler) GetOrder(c *gin.Context) {
 		return
 	}
 
-	orderID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	orderID, err := shared.ParseParamUint(c, "id")
 	if err != nil {
 		errorResponse(c, http.StatusBadRequest, "bad_request", "invalid order id")
 		return
 	}
 
-	order, err := h.OrderService.GetOrderByUser(uint(orderID), userID)
+	order, err := h.OrderService.GetOrderByUser(orderID, userID)
 	if err != nil {
 		if errors.Is(err, service.ErrOrderNotFound) {
 			errorResponse(c, http.StatusNotFound, "order_not_found", "order not found")
@@ -611,13 +604,13 @@ func (h *Handler) CancelOrder(c *gin.Context) {
 		return
 	}
 
-	orderID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	orderID, err := shared.ParseParamUint(c, "id")
 	if err != nil {
 		errorResponse(c, http.StatusBadRequest, "bad_request", "invalid order id")
 		return
 	}
 
-	order, err := h.OrderService.CancelOrder(uint(orderID), userID)
+	order, err := h.OrderService.CancelOrder(orderID, userID)
 	if err != nil {
 		if errors.Is(err, service.ErrOrderNotFound) {
 			errorResponse(c, http.StatusNotFound, "order_not_found", "order not found")

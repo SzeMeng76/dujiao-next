@@ -575,13 +575,9 @@ func collectRefundItems(order *models.Order) []models.OrderItem {
 		return nil
 	}
 	result := make([]models.OrderItem, 0, len(order.Items))
-	for i := range order.Items {
-		result = append(result, order.Items[i])
-	}
+	result = append(result, order.Items...)
 	for i := range order.Children {
-		for j := range order.Children[i].Items {
-			result = append(result, order.Children[i].Items[j])
-		}
+		result = append(result, order.Children[i].Items...)
 	}
 	return result
 }

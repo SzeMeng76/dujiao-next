@@ -2,7 +2,6 @@ package public
 
 import (
 	"errors"
-	"strconv"
 	"strings"
 
 	"github.com/dujiao-next/internal/constants"
@@ -86,9 +85,7 @@ func (h *Handler) GetMyWalletTransactions(c *gin.Context) {
 	if !ok {
 		return
 	}
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	page, pageSize = shared.NormalizePagination(page, pageSize)
+	page, pageSize := shared.ParsePagination(c)
 
 	transactions, total, err := h.WalletService.ListTransactions(repository.WalletTransactionListFilter{
 		Page:     page,
@@ -195,9 +192,7 @@ func (h *Handler) ListMyWalletRecharges(c *gin.Context) {
 	if !ok {
 		return
 	}
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	page, pageSize = shared.NormalizePagination(page, pageSize)
+	page, pageSize := shared.ParsePagination(c)
 	status := strings.TrimSpace(c.Query("status"))
 	rechargeNo := strings.TrimSpace(c.Query("recharge_no"))
 

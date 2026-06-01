@@ -2,7 +2,6 @@ package admin
 
 import (
 	"errors"
-	"strconv"
 	"strings"
 	"time"
 
@@ -77,18 +76,6 @@ func buildCardSecretListInput(filter *CardSecretQueryRequest) service.ListCardSe
 	}
 }
 
-func parseOptionalBoolForm(value string) (*bool, error) {
-	trimmed := strings.TrimSpace(value)
-	if trimmed == "" {
-		return nil, nil
-	}
-	parsed, err := strconv.ParseBool(trimmed)
-	if err != nil {
-		return nil, err
-	}
-	return &parsed, nil
-}
-
 // CreateCardSecretBatch 批量录入卡密
 func (h *Handler) CreateCardSecretBatch(c *gin.Context) {
 	adminID, ok := shared.GetAdminID(c)
@@ -161,7 +148,7 @@ func (h *Handler) ImportCardSecretCSV(c *gin.Context) {
 	}
 	batchNo := strings.TrimSpace(c.PostForm("batch_no"))
 	note := strings.TrimSpace(c.PostForm("note"))
-	deduplicate, err := parseOptionalBoolForm(c.PostForm("deduplicate"))
+	deduplicate, err := shared.ParseOptionalBoolValue(c.PostForm("deduplicate"))
 	if err != nil {
 		shared.RespondError(c, response.CodeBadRequest, "error.card_secret_invalid", nil)
 		return
@@ -235,9 +222,7 @@ func (h *Handler) GetCardSecrets(c *gin.Context) {
 		}
 		batchID = parsed
 	}
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	page, pageSize = shared.NormalizePagination(page, pageSize)
+	page, pageSize := shared.ParsePagination(c)
 	status := strings.TrimSpace(c.Query("status"))
 	secret := strings.TrimSpace(c.Query("secret"))
 	batchNo := strings.TrimSpace(c.Query("batch_no"))
@@ -435,9 +420,7 @@ func (h *Handler) GetCardSecretBatches(c *gin.Context) {
 		shared.RespondError(c, response.CodeBadRequest, "error.card_secret_invalid", nil)
 		return
 	}
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	page, pageSize = shared.NormalizePagination(page, pageSize)
+	page, pageSize := shared.ParsePagination(c)
 	skuID, err := shared.ParseQueryUint(c.DefaultQuery("sku_id", "0"), false)
 	if err != nil {
 		shared.RespondError(c, response.CodeBadRequest, "error.card_secret_invalid", nil)
