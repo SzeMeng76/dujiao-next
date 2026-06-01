@@ -11,7 +11,6 @@ import (
 	"io"
 	"math/rand"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 )
@@ -159,17 +158,10 @@ func CreatePayment(ctx context.Context, cfg *Config, input CreateInput) (*Create
 		result.QRCode = resp.CodeURL
 		result.PayURL = resp.CodeURL
 	} else {
-		// Globepay 返回的 pay_url 是中转页面，需要拼签名参数才能访问
-		// redirect 参数只传 order_no，避免多个 & 参数被 Globepay 错误解析
-		// 后端 /api/v1/payments/globepay/return 路由负责跳回前端支付页面
 		newNonceStr := randString(30)
 		newSign := generateSign(cfg.PartnerCode, timestamp, newNonceStr, cfg.CredentialCode)
-		payURL := fmt.Sprintf("%s?time=%d&nonce_str=%s&sign=%s",
+		result.PayURL = fmt.Sprintf("%s?time=%d&nonce_str=%s&sign=%s",
 			resp.PayURL, timestamp, newNonceStr, newSign)
-		if input.ReturnURL != "" {
-			payURL += "&redirect=" + buildGlobepayReturnURL(input.ReturnURL, input.OrderNo)
-		}
-		result.PayURL = payURL
 	}
 	return result, nil
 }
@@ -213,28 +205,6 @@ func parseAmountToCents(amountStr string) int {
 	var amount float64
 	fmt.Sscanf(strings.TrimSpace(amountStr), "%f", &amount)
 	return int(amount * 100)
-}
-
-// buildGlobepayReturnURL 从 returnURL 里提取 base URL，构建只有 order_no 一个参数的 return URL
-// 避免多个 & 参数被 Globepay 错误解析
-func buildGlobepayReturnURL(returnURL, orderNo string) string {
-	parsed, err := url.Parse(returnURL)
-	if err != nil || parsed.Host == "" {
-		return returnURL
-	}
-	base := fmt.Sprintf("%s://%s/api/v1/payments/globepay/return", parsed.Scheme, parsed.Host)
-	if orderNo != "" {
-		base += "?order_no=" + orderNo
-	}
-	// 如果原来有 guest=1 参数，保留
-	if parsed.Query().Get("guest") == "1" {
-		if orderNo != "" {
-			base += "&guest=1"
-		} else {
-			base += "?guest=1"
-		}
-	}
-	return base
 }
 
 func sendRequest(ctx context.Context, url string, params map[string]interface{}) (*APIResponse, error) {
