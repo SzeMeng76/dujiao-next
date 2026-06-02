@@ -11,6 +11,10 @@ import (
 
 // ====================  素材管理  ====================
 
+type BatchDeleteMediaRequest struct {
+	IDs []uint `json:"ids" binding:"required,min=1"`
+}
+
 // GetAdminMedia 素材列表
 func (h *Handler) GetAdminMedia(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
@@ -52,6 +56,22 @@ func (h *Handler) UpdateMedia(c *gin.Context) {
 	}
 
 	response.Success(c, nil)
+}
+
+// BatchDeleteMedia 批量删除素材
+func (h *Handler) BatchDeleteMedia(c *gin.Context) {
+	var req BatchDeleteMediaRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		shared.RespondBindError(c, err)
+		return
+	}
+
+	successCount, failedIDs := h.MediaService.BatchDelete(req.IDs)
+	response.Success(c, gin.H{
+		"total":         len(req.IDs),
+		"success_count": successCount,
+		"failed_ids":    failedIDs,
+	})
 }
 
 // DeleteMedia 删除素材

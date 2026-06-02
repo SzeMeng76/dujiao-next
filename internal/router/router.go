@@ -374,6 +374,7 @@ func SetupRouter(cfg *config.Config, c *provider.Container) *gin.Engine {
 
 				// 素材管理
 				authorized.GET("/media", adminHandler.GetAdminMedia)
+				authorized.POST("/media/batch-delete", adminHandler.BatchDeleteMedia)
 				authorized.PUT("/media/:id", adminHandler.UpdateMedia)
 				authorized.DELETE("/media/:id", adminHandler.DeleteMedia)
 
