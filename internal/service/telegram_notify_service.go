@@ -31,6 +31,8 @@ type TelegramSendOptions struct {
 	DisableWebPagePreview bool
 	AttachmentURL         string
 	AttachmentDisplayName string
+	// ReplyMarkup Telegram inline 键盘等附加结构（如补货通知的「立即购买」按钮）。
+	ReplyMarkup map[string]interface{}
 }
 
 // TelegramNotifyService Telegram 通知发送服务
@@ -53,6 +55,15 @@ func NewTelegramNotifyService(settingService *SettingService, defaultCfg config.
 
 // SendMessage 发送 Telegram 消息
 func (s *TelegramNotifyService) SendMessage(ctx context.Context, chatID, message string) error {
+	return s.SendMessageWithOptions(ctx, TelegramSendOptions{
+		ChatID:                chatID,
+		Message:               message,
+		DisableWebPagePreview: true,
+	})
+}
+
+// SendMessageWithOptions 使用默认配置的 bot token 发送 Telegram 消息（支持 inline 按钮等附加项）。
+func (s *TelegramNotifyService) SendMessageWithOptions(ctx context.Context, options TelegramSendOptions) error {
 	token, err := s.resolveBotToken()
 	if err != nil {
 		return err
@@ -60,11 +71,7 @@ func (s *TelegramNotifyService) SendMessage(ctx context.Context, chatID, message
 	if token == "" {
 		return ErrNotificationConfigInvalid
 	}
-	return s.SendWithBotToken(ctx, token, TelegramSendOptions{
-		ChatID:                chatID,
-		Message:               message,
-		DisableWebPagePreview: true,
-	})
+	return s.SendWithBotToken(ctx, token, options)
 }
 
 // SendWithBotToken 使用显式 bot token 发送 Telegram 消息。
@@ -113,6 +120,9 @@ func (s *TelegramNotifyService) SendWithBotToken(ctx context.Context, botToken s
 	}
 	if parseMode := strings.TrimSpace(options.ParseMode); parseMode != "" {
 		payload["parse_mode"] = parseMode
+	}
+	if len(options.ReplyMarkup) > 0 {
+		payload["reply_markup"] = options.ReplyMarkup
 	}
 	return s.sendJSONRequest(ctx, botToken, "sendMessage", payload)
 }

@@ -297,6 +297,8 @@ func (c *Container) initServices() {
 	c.NotificationLogService = service.NewNotificationLogService(c.NotificationLogRepo)
 	c.DashboardService = service.NewDashboardService(c.DashboardRepo, c.SettingService)
 	c.NotificationService = service.NewNotificationService(c.SettingService, c.EmailService, c.QueueClient, c.DashboardService, c.NotificationLogService, c.Config.TelegramAuth)
+	c.CardSecretService.SetRestockNotifier(c.NotificationService, c.SettingService)
+	c.ProductService.SetRestockNotifier(c.NotificationService, c.SettingService)
 	c.ApiCredentialService = service.NewApiCredentialService(c.ApiCredentialRepo)
 	c.SiteConnectionService = service.NewSiteConnectionService(c.SiteConnectionRepo, c.Config.App.SecretKey, "uploads")
 	c.ProductMappingService = service.NewProductMappingService(c.ProductMappingRepo, c.SKUMappingRepo, c.ProductRepo, c.ProductSKURepo, c.CategoryRepo, c.SiteConnectionService)

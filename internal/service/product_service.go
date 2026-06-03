@@ -25,6 +25,18 @@ type ProductService struct {
 	productMappingRepo   repository.ProductMappingRepository
 	orderRepo            repository.OrderRepository
 	paymentChannelRepo   repository.PaymentChannelRepository
+	restock              *restockNotifier
+}
+
+// SetRestockNotifier 注入补货通知依赖（在容器构建 NotificationService 之后调用）。
+func (s *ProductService) SetRestockNotifier(notificationSvc *NotificationService, settingService *SettingService) {
+	if s == nil {
+		return
+	}
+	s.restock = &restockNotifier{
+		notificationSvc: notificationSvc,
+		settingService:  settingService,
+	}
 }
 
 // NewProductService 创建商品服务
@@ -383,6 +395,9 @@ func (s *ProductService) Update(id string, input CreateProductInput) (*models.Pr
 	if product == nil {
 		return nil, ErrNotFound
 	}
+	// 记录补货检测所需的更新前手动库存与交付类型。
+	previousManualStockTotal := product.ManualStockTotal
+	previousFulfillmentType := strings.TrimSpace(product.FulfillmentType)
 	if err := validateProductCategoryAssignment(s.categoryRepo, input.CategoryID, product.CategoryID); err != nil {
 		return nil, err
 	}
@@ -528,7 +543,27 @@ func (s *ProductService) Update(id string, input CreateProductInput) (*models.Pr
 	}); err != nil {
 		return nil, err
 	}
+
+	s.notifyManualRestock(product, previousFulfillmentType, previousManualStockTotal)
+
 	return s.repo.GetByID(id)
+}
+
+// notifyManualRestock 在人工交付商品手动库存增加时投递补货通知。
+// 仅当更新前后均为人工交付、且库存从有限值上调（new > old，且均 >= 0）时触发。
+func (s *ProductService) notifyManualRestock(product *models.Product, previousFulfillmentType string, previousStock int) {
+	if s == nil || s.restock == nil || product == nil {
+		return
+	}
+	if previousFulfillmentType != constants.FulfillmentTypeManual ||
+		strings.TrimSpace(product.FulfillmentType) != constants.FulfillmentTypeManual {
+		return
+	}
+	newStock := product.ManualStockTotal
+	if previousStock < 0 || newStock < 0 || newStock <= previousStock {
+		return
+	}
+	s.restock.enqueueRestockNotification(product, newStock-previousStock, int64(newStock))
 }
 
 func syncSingleProductSKU(skuRepo repository.ProductSKURepository, productID uint, priceAmount decimal.Decimal, costPriceAmount decimal.Decimal, manualStockTotal int, createWhenMissing bool) error {

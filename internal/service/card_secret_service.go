@@ -25,6 +25,7 @@ type CardSecretService struct {
 	batchRepo      repository.CardSecretBatchRepository
 	productRepo    repository.ProductRepository
 	productSKURepo repository.ProductSKURepository
+	restock        *restockNotifier
 }
 
 // NewCardSecretService 创建卡密库存服务
@@ -34,6 +35,17 @@ func NewCardSecretService(secretRepo repository.CardSecretRepository, batchRepo 
 		batchRepo:      batchRepo,
 		productRepo:    productRepo,
 		productSKURepo: productSKURepo,
+	}
+}
+
+// SetRestockNotifier 注入补货通知依赖（在容器构建 NotificationService 之后调用）。
+func (s *CardSecretService) SetRestockNotifier(notificationSvc *NotificationService, settingService *SettingService) {
+	if s == nil {
+		return
+	}
+	s.restock = &restockNotifier{
+		notificationSvc: notificationSvc,
+		settingService:  settingService,
 	}
 }
 
@@ -131,7 +143,25 @@ func (s *CardSecretService) CreateCardSecretBatch(input CreateCardSecretBatchInp
 		}
 		return nil, 0, ErrCardSecretCreateFailed
 	}
+
+	// 卡密入库成功即视为补货，投递补货通知（失败不影响入库结果）。
+	s.notifyRestock(product, sku.ID, batch.TotalCount)
+
 	return batch, batch.TotalCount, nil
+}
+
+// notifyRestock 在卡密入库后投递补货通知，可用库存取该商品（含 SKU）当前可用卡密数。
+func (s *CardSecretService) notifyRestock(product *models.Product, skuID uint, addedCount int) {
+	if s == nil || s.restock == nil || product == nil || addedCount <= 0 {
+		return
+	}
+	var available int64 = -1
+	if s.secretRepo != nil {
+		if _, avail, _, err := s.secretRepo.CountByProduct(product.ID, skuID); err == nil {
+			available = avail
+		}
+	}
+	s.restock.enqueueRestockNotification(product, addedCount, available)
 }
 
 // ImportCardSecretCSVInput 导入 CSV 输入

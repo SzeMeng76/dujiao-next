@@ -304,6 +304,7 @@ const (
 	NotificationEventWalletRechargeSuccess    = "wallet_recharge_success"
 	NotificationEventOrderPaidSuccess         = "order_paid_success"
 	NotificationEventManualFulfillmentPending = "manual_fulfillment_pending"
+	NotificationEventRestockSuccess           = "restock_success"
 	NotificationEventExceptionAlert           = "exception_alert"
 	NotificationEventExceptionAlertCheck      = "exception_alert_check"
 )
@@ -478,6 +479,7 @@ const (
 	NotificationBizTypePaymentCallback = "payment_callback"
 	NotificationBizTypeProcurement     = "procurement"
 	NotificationBizTypeReconciliation  = "reconciliation"
+	NotificationBizTypeRestock         = "restock"
 )
 
 // 对账差异类型常量

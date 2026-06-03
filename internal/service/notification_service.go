@@ -110,6 +110,9 @@ func (s *NotificationService) Dispatch(ctx context.Context, payload queue.Notifi
 	if eventType == constants.NotificationEventExceptionAlertCheck {
 		return s.dispatchExceptionAlertCheck(ctx, setting, payload)
 	}
+	if eventType == constants.NotificationEventRestockSuccess {
+		return s.dispatchRestockBroadcast(ctx, setting, payload)
+	}
 	return s.dispatchSingleEvent(ctx, setting, payload)
 }
 
@@ -240,6 +243,76 @@ func (s *NotificationService) dispatchExceptionAlertCheck(ctx context.Context, s
 		}
 	}
 	return firstErr
+}
+
+// dispatchRestockBroadcast 处理补货通知：仅向管理员配置的单个广播频道/群组 chat_id 发送，
+// 带「立即购买」inline 按钮。不走邮件，也不发给通知收件人列表。
+func (s *NotificationService) dispatchRestockBroadcast(ctx context.Context, setting NotificationCenterSetting, payload queue.NotificationDispatchPayload) error {
+	chatID := strings.TrimSpace(setting.RestockBroadcast.ChatID)
+	if chatID == "" {
+		// 未配置广播频道，静默跳过。
+		return nil
+	}
+
+	if !payload.Force {
+		ok, err := acquireNotificationDedupe(ctx, setting.DedupeTTLSeconds, payload)
+		if err != nil {
+			logger.Warnw("notification_dedupe_failed", "event_type", payload.EventType, "error", err)
+		}
+		if err == nil && !ok {
+			return nil
+		}
+	}
+
+	locale := resolveNotificationLocale(payload.Locale, setting.DefaultLocale)
+	template := setting.Templates.TemplateByEvent(payload.EventType).ResolveLocaleTemplate(locale)
+	variables := buildNotificationTemplateVariables(payload)
+	title := renderNotificationTemplate(template.Title, variables)
+	body := renderNotificationTemplate(template.Body, variables)
+	if strings.TrimSpace(body) == "" {
+		body = title
+	}
+	if strings.TrimSpace(title) == "" {
+		title = "Notification"
+	}
+
+	message := composeTelegramMessage(title, body)
+	replyMarkup := buildTelegramInlineButton(locale, variables)
+
+	var sendErr error
+	if s.telegramSender == nil {
+		sendErr = ErrNotificationSendFailed
+	} else {
+		sendErr = s.telegramSender.SendMessageWithOptions(ctx, TelegramSendOptions{
+			ChatID:                chatID,
+			Message:               message,
+			DisableWebPagePreview: true,
+			ReplyMarkup:           replyMarkup,
+		})
+	}
+	s.recordSendAttempt(notificationSendAttempt{
+		eventType: payload.EventType,
+		bizType:   payload.BizType,
+		bizID:     payload.BizID,
+		channel:   "telegram",
+		recipient: chatID,
+		locale:    locale,
+		title:     title,
+		body:      body,
+		variables: variables,
+		sendErr:   sendErr,
+	})
+	if sendErr != nil {
+		logger.Warnw("notification_restock_broadcast_failed",
+			"event_type", payload.EventType,
+			"biz_type", payload.BizType,
+			"biz_id", payload.BizID,
+			"chat_id", chatID,
+			"error", sendErr,
+		)
+		return fmt.Errorf("%w: %v", ErrNotificationSendFailed, sendErr)
+	}
+	return nil
 }
 
 func (s *NotificationService) dispatchSingleEvent(ctx context.Context, setting NotificationCenterSetting, payload queue.NotificationDispatchPayload) error {
@@ -406,6 +479,7 @@ func isNotificationEventSupported(eventType string) bool {
 	case constants.NotificationEventWalletRechargeSuccess,
 		constants.NotificationEventOrderPaidSuccess,
 		constants.NotificationEventManualFulfillmentPending,
+		constants.NotificationEventRestockSuccess,
 		constants.NotificationEventExceptionAlert,
 		constants.NotificationEventExceptionAlertCheck:
 		return true
@@ -474,6 +548,29 @@ func resolveNotificationLocale(locale, fallback string) string {
 		return locale
 	}
 	return constants.LocaleZhCN
+}
+
+// buildTelegramInlineButton 根据通知变量构建 Telegram inline 按钮（目前用于补货通知的「立即购买」）。
+// 仅当变量中存在合法的 product_url 时才返回按钮，否则返回 nil。
+func buildTelegramInlineButton(locale string, variables map[string]interface{}) map[string]interface{} {
+	if len(variables) == 0 {
+		return nil
+	}
+	rawURL := strings.TrimSpace(fmt.Sprintf("%v", variables["product_url"]))
+	if rawURL == "" || rawURL == "<nil>" {
+		return nil
+	}
+	if !strings.HasPrefix(rawURL, "http://") && !strings.HasPrefix(rawURL, "https://") {
+		return nil
+	}
+	buttonText := localizedNotificationText(locale, "🛒 立即购买", "🛒 立即購買", "🛒 Buy now")
+	return map[string]interface{}{
+		"inline_keyboard": [][]map[string]interface{}{
+			{
+				{"text": buttonText, "url": rawURL},
+			},
+		},
+	}
 }
 
 func composeTelegramMessage(title, body string) string {
@@ -991,6 +1088,13 @@ func buildNotificationTestVariables(scene, locale string) map[string]interface{}
 			"order_status":              constants.OrderStatusPaid,
 			"fulfillment_items_summary": buildNotificationTestFulfillmentItems(locale),
 			"delivery_summary":          buildNotificationDeliverySummary(locale, notificationOrderItemCounts{Total: 2, Auto: 1, Manual: 1}),
+		}
+	case constants.NotificationEventRestockSuccess:
+		return map[string]interface{}{
+			"product_title":   localizedNotificationText(locale, "Netflix 年付", "Netflix 年付", "Netflix Annual"),
+			"stock_added":     "100",
+			"stock_available": "120",
+			"product_url":     "https://example.com/products/netflix-annual",
 		}
 	default:
 		return map[string]interface{}{

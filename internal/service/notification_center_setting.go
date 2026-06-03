@@ -43,11 +43,18 @@ type NotificationChannelsSetting struct {
 	Telegram NotificationChannelSetting `json:"telegram"`
 }
 
+// NotificationRestockBroadcastSetting 补货广播配置。
+// 补货通知不走通知收件人列表，而是单独发送到此处配置的频道/群组 chat_id。
+type NotificationRestockBroadcastSetting struct {
+	ChatID string `json:"chat_id"`
+}
+
 // NotificationSceneSetting 通知场景开关
 type NotificationSceneSetting struct {
 	WalletRechargeSuccess    bool `json:"wallet_recharge_success"`
 	OrderPaidSuccess         bool `json:"order_paid_success"`
 	ManualFulfillmentPending bool `json:"manual_fulfillment_pending"`
+	RestockSuccess           bool `json:"restock_success"`
 	ExceptionAlert           bool `json:"exception_alert"`
 }
 
@@ -69,6 +76,7 @@ type NotificationTemplatesSetting struct {
 	WalletRechargeSuccess    NotificationSceneTemplate `json:"wallet_recharge_success"`
 	OrderPaidSuccess         NotificationSceneTemplate `json:"order_paid_success"`
 	ManualFulfillmentPending NotificationSceneTemplate `json:"manual_fulfillment_pending"`
+	RestockSuccess           NotificationSceneTemplate `json:"restock_success"`
 	ExceptionAlert           NotificationSceneTemplate `json:"exception_alert"`
 }
 
@@ -78,6 +86,7 @@ type NotificationCenterSetting struct {
 	Channels                         NotificationChannelsSetting  `json:"channels"`
 	Scenes                           NotificationSceneSetting     `json:"scenes"`
 	Templates                        NotificationTemplatesSetting `json:"templates"`
+	RestockBroadcast                 NotificationRestockBroadcastSetting `json:"restock_broadcast"`
 	DedupeTTLSeconds                 int                          `json:"dedupe_ttl_seconds"`
 	InventoryAlertIntervalSeconds    int                          `json:"inventory_alert_interval_seconds"`
 	PaymentOrderAlertIntervalSeconds int                          `json:"payment_order_alert_interval_seconds"`
@@ -91,6 +100,7 @@ type NotificationCenterSettingPatch struct {
 	Channels                         *NotificationChannelsPatch  `json:"channels"`
 	Scenes                           *NotificationScenePatch     `json:"scenes"`
 	Templates                        *NotificationTemplatesPatch `json:"templates"`
+	RestockBroadcast                 *NotificationRestockBroadcastPatch `json:"restock_broadcast"`
 	DedupeTTLSeconds                 *int                        `json:"dedupe_ttl_seconds"`
 	InventoryAlertIntervalSeconds    *int                        `json:"inventory_alert_interval_seconds"`
 	PaymentOrderAlertIntervalSeconds *int                        `json:"payment_order_alert_interval_seconds"`
@@ -110,11 +120,17 @@ type NotificationChannelPatch struct {
 	Recipients *[]string `json:"recipients"`
 }
 
+// NotificationRestockBroadcastPatch 补货广播补丁
+type NotificationRestockBroadcastPatch struct {
+	ChatID *string `json:"chat_id"`
+}
+
 // NotificationScenePatch 通知场景补丁
 type NotificationScenePatch struct {
 	WalletRechargeSuccess    *bool `json:"wallet_recharge_success"`
 	OrderPaidSuccess         *bool `json:"order_paid_success"`
 	ManualFulfillmentPending *bool `json:"manual_fulfillment_pending"`
+	RestockSuccess           *bool `json:"restock_success"`
 	ExceptionAlert           *bool `json:"exception_alert"`
 }
 
@@ -123,6 +139,7 @@ type NotificationTemplatesPatch struct {
 	WalletRechargeSuccess    *NotificationSceneTemplatePatch `json:"wallet_recharge_success"`
 	OrderPaidSuccess         *NotificationSceneTemplatePatch `json:"order_paid_success"`
 	ManualFulfillmentPending *NotificationSceneTemplatePatch `json:"manual_fulfillment_pending"`
+	RestockSuccess           *NotificationSceneTemplatePatch `json:"restock_success"`
 	ExceptionAlert           *NotificationSceneTemplatePatch `json:"exception_alert"`
 }
 
@@ -157,6 +174,7 @@ func NotificationCenterDefaultSetting() NotificationCenterSetting {
 			WalletRechargeSuccess:    true,
 			OrderPaidSuccess:         true,
 			ManualFulfillmentPending: true,
+			RestockSuccess:           true,
 			ExceptionAlert:           true,
 		},
 		Templates: NotificationTemplatesSetting{
@@ -202,6 +220,20 @@ func NotificationCenterDefaultSetting() NotificationCenterSetting {
 					Body:  "Customer: {{customer_label}}\nEmail: {{customer_email}}\nOrder No: {{order_no}}\nOrder Status: {{order_status}}\nPending Items:\n{{fulfillment_items_summary}}\nDelivery Summary: {{delivery_summary}}",
 				},
 			},
+			RestockSuccess: NotificationSceneTemplate{
+				ZHCN: NotificationLocalizedTemplate{
+					Title: "🛎 商品补货通知",
+					Body:  "商品名称：{{product_title}}\n补货数量：{{stock_added}}\n当前库存：{{stock_available}}",
+				},
+				ZHTW: NotificationLocalizedTemplate{
+					Title: "🛎 商品補貨通知",
+					Body:  "商品名稱：{{product_title}}\n補貨數量：{{stock_added}}\n當前庫存：{{stock_available}}",
+				},
+				ENUS: NotificationLocalizedTemplate{
+					Title: "🛎 Product Restocked",
+					Body:  "Product: {{product_title}}\nRestocked: {{stock_added}}\nAvailable: {{stock_available}}",
+				},
+			},
 			ExceptionAlert: NotificationSceneTemplate{
 				ZHCN: NotificationLocalizedTemplate{
 					Title: "系统异常告警",
@@ -221,6 +253,7 @@ func NotificationCenterDefaultSetting() NotificationCenterSetting {
 		InventoryAlertIntervalSeconds:    notificationInventoryAlertIntervalDefaultSeconds,
 		PaymentOrderAlertIntervalSeconds: notificationPaymentOrderAlertIntervalDefaultSeconds,
 		PaymentOrderAlertCheckSeconds:    notificationPaymentOrderAlertCheckDefaultSeconds,
+		RestockBroadcast:                 NotificationRestockBroadcastSetting{ChatID: ""},
 		IgnoredProductIDs:                []uint{},
 	})
 }
@@ -235,6 +268,7 @@ func NormalizeNotificationCenterSetting(setting NotificationCenterSetting) Notif
 	setting.PaymentOrderAlertIntervalSeconds = normalizeNotificationPaymentOrderAlertInterval(setting.PaymentOrderAlertIntervalSeconds)
 	setting.PaymentOrderAlertCheckSeconds = normalizeNotificationPaymentOrderAlertCheck(setting.PaymentOrderAlertCheckSeconds)
 	setting.IgnoredProductIDs = normalizeNotificationIgnoredProductIDs(setting.IgnoredProductIDs)
+	setting.RestockBroadcast.ChatID = strings.TrimSpace(setting.RestockBroadcast.ChatID)
 	setting.Templates = normalizeNotificationTemplates(setting.Templates)
 	return setting
 }
@@ -279,6 +313,9 @@ func ValidateNotificationCenterSetting(setting NotificationCenterSetting) error 
 	if normalized.PaymentOrderAlertCheckSeconds < notificationPaymentOrderAlertCheckMinSeconds || normalized.PaymentOrderAlertCheckSeconds > notificationPaymentOrderAlertCheckMaxSeconds {
 		return fmt.Errorf("%w: 支付订单告警检查区间需在 60-604800 秒之间", ErrNotificationConfigInvalid)
 	}
+	if normalized.RestockBroadcast.ChatID != "" && !telegramChatIDPattern.MatchString(normalized.RestockBroadcast.ChatID) {
+		return fmt.Errorf("%w: 补货广播频道ID格式不合法", ErrNotificationConfigInvalid)
+	}
 	return nil
 }
 
@@ -301,19 +338,24 @@ func NotificationCenterSettingToMap(setting NotificationCenterSetting) map[strin
 			"wallet_recharge_success":    normalized.Scenes.WalletRechargeSuccess,
 			"order_paid_success":         normalized.Scenes.OrderPaidSuccess,
 			"manual_fulfillment_pending": normalized.Scenes.ManualFulfillmentPending,
+			"restock_success":            normalized.Scenes.RestockSuccess,
 			"exception_alert":            normalized.Scenes.ExceptionAlert,
 		},
 		"templates": map[string]interface{}{
 			"wallet_recharge_success":    notificationSceneTemplateToMap(normalized.Templates.WalletRechargeSuccess),
 			"order_paid_success":         notificationSceneTemplateToMap(normalized.Templates.OrderPaidSuccess),
 			"manual_fulfillment_pending": notificationSceneTemplateToMap(normalized.Templates.ManualFulfillmentPending),
+			"restock_success":            notificationSceneTemplateToMap(normalized.Templates.RestockSuccess),
 			"exception_alert":            notificationSceneTemplateToMap(normalized.Templates.ExceptionAlert),
 		},
 		"dedupe_ttl_seconds":                         normalized.DedupeTTLSeconds,
 		"inventory_alert_interval_seconds":           normalized.InventoryAlertIntervalSeconds,
 		"payment_order_alert_interval_seconds":       normalized.PaymentOrderAlertIntervalSeconds,
 		"payment_order_alert_check_interval_seconds": normalized.PaymentOrderAlertCheckSeconds,
-		"ignored_product_ids":                        cloneUintSlice(normalized.IgnoredProductIDs),
+		"restock_broadcast": map[string]interface{}{
+			"chat_id": normalized.RestockBroadcast.ChatID,
+		},
+		"ignored_product_ids": cloneUintSlice(normalized.IgnoredProductIDs),
 	}
 }
 
@@ -363,6 +405,11 @@ func (s *SettingService) PatchNotificationCenterSetting(patch NotificationCenter
 	if patch.IgnoredProductIDs != nil {
 		next.IgnoredProductIDs = cloneUintSlice(*patch.IgnoredProductIDs)
 	}
+	if patch.RestockBroadcast != nil {
+		if patch.RestockBroadcast.ChatID != nil {
+			next.RestockBroadcast.ChatID = strings.TrimSpace(*patch.RestockBroadcast.ChatID)
+		}
+	}
 	if patch.Channels != nil {
 		if patch.Channels.Email != nil {
 			if patch.Channels.Email.Enabled != nil {
@@ -391,6 +438,9 @@ func (s *SettingService) PatchNotificationCenterSetting(patch NotificationCenter
 		if patch.Scenes.ManualFulfillmentPending != nil {
 			next.Scenes.ManualFulfillmentPending = *patch.Scenes.ManualFulfillmentPending
 		}
+		if patch.Scenes.RestockSuccess != nil {
+			next.Scenes.RestockSuccess = *patch.Scenes.RestockSuccess
+		}
 		if patch.Scenes.ExceptionAlert != nil {
 			next.Scenes.ExceptionAlert = *patch.Scenes.ExceptionAlert
 		}
@@ -404,6 +454,9 @@ func (s *SettingService) PatchNotificationCenterSetting(patch NotificationCenter
 		}
 		if patch.Templates.ManualFulfillmentPending != nil {
 			applyNotificationSceneTemplatePatch(&next.Templates.ManualFulfillmentPending, patch.Templates.ManualFulfillmentPending)
+		}
+		if patch.Templates.RestockSuccess != nil {
+			applyNotificationSceneTemplatePatch(&next.Templates.RestockSuccess, patch.Templates.RestockSuccess)
 		}
 		if patch.Templates.ExceptionAlert != nil {
 			applyNotificationSceneTemplatePatch(&next.Templates.ExceptionAlert, patch.Templates.ExceptionAlert)
@@ -429,6 +482,8 @@ func (s NotificationSceneSetting) IsSceneEnabled(eventType string) bool {
 		return s.OrderPaidSuccess
 	case constants.NotificationEventManualFulfillmentPending:
 		return s.ManualFulfillmentPending
+	case constants.NotificationEventRestockSuccess:
+		return s.RestockSuccess
 	case constants.NotificationEventExceptionAlert, constants.NotificationEventExceptionAlertCheck:
 		return s.ExceptionAlert
 	default:
@@ -445,6 +500,8 @@ func (s NotificationTemplatesSetting) TemplateByEvent(eventType string) Notifica
 		return s.OrderPaidSuccess
 	case constants.NotificationEventManualFulfillmentPending:
 		return s.ManualFulfillmentPending
+	case constants.NotificationEventRestockSuccess:
+		return s.RestockSuccess
 	case constants.NotificationEventExceptionAlert, constants.NotificationEventExceptionAlertCheck:
 		return s.ExceptionAlert
 	default:
@@ -478,6 +535,10 @@ func notificationCenterSettingFromJSON(raw models.JSON, fallback NotificationCen
 	next.PaymentOrderAlertCheckSeconds = readInt(raw, "payment_order_alert_check_interval_seconds", next.PaymentOrderAlertCheckSeconds)
 	next.IgnoredProductIDs = readUintList(raw, "ignored_product_ids", next.IgnoredProductIDs)
 
+	if restockMap := toStringAnyMap(raw["restock_broadcast"]); restockMap != nil {
+		next.RestockBroadcast.ChatID = readString(restockMap, "chat_id", next.RestockBroadcast.ChatID)
+	}
+
 	if channelsMap := toStringAnyMap(raw["channels"]); channelsMap != nil {
 		if emailMap := toStringAnyMap(channelsMap["email"]); emailMap != nil {
 			next.Channels.Email.Enabled = readBool(emailMap, "enabled", next.Channels.Email.Enabled)
@@ -493,6 +554,7 @@ func notificationCenterSettingFromJSON(raw models.JSON, fallback NotificationCen
 		next.Scenes.WalletRechargeSuccess = readBool(scenesMap, "wallet_recharge_success", next.Scenes.WalletRechargeSuccess)
 		next.Scenes.OrderPaidSuccess = readBool(scenesMap, "order_paid_success", next.Scenes.OrderPaidSuccess)
 		next.Scenes.ManualFulfillmentPending = readBool(scenesMap, "manual_fulfillment_pending", next.Scenes.ManualFulfillmentPending)
+		next.Scenes.RestockSuccess = readBool(scenesMap, "restock_success", next.Scenes.RestockSuccess)
 		next.Scenes.ExceptionAlert = readBool(scenesMap, "exception_alert", next.Scenes.ExceptionAlert)
 	}
 
@@ -505,6 +567,9 @@ func notificationCenterSettingFromJSON(raw models.JSON, fallback NotificationCen
 		}
 		if sceneMap := toStringAnyMap(templatesMap["manual_fulfillment_pending"]); sceneMap != nil {
 			next.Templates.ManualFulfillmentPending = notificationSceneTemplateFromMap(sceneMap, next.Templates.ManualFulfillmentPending)
+		}
+		if sceneMap := toStringAnyMap(templatesMap["restock_success"]); sceneMap != nil {
+			next.Templates.RestockSuccess = notificationSceneTemplateFromMap(sceneMap, next.Templates.RestockSuccess)
 		}
 		if sceneMap := toStringAnyMap(templatesMap["exception_alert"]); sceneMap != nil {
 			next.Templates.ExceptionAlert = notificationSceneTemplateFromMap(sceneMap, next.Templates.ExceptionAlert)
@@ -560,6 +625,7 @@ func normalizeNotificationTemplates(templates NotificationTemplatesSetting) Noti
 	templates.WalletRechargeSuccess = normalizeNotificationSceneTemplate(templates.WalletRechargeSuccess)
 	templates.OrderPaidSuccess = normalizeNotificationSceneTemplate(templates.OrderPaidSuccess)
 	templates.ManualFulfillmentPending = normalizeNotificationSceneTemplate(templates.ManualFulfillmentPending)
+	templates.RestockSuccess = normalizeNotificationSceneTemplate(templates.RestockSuccess)
 	templates.ExceptionAlert = normalizeNotificationSceneTemplate(templates.ExceptionAlert)
 	return templates
 }
