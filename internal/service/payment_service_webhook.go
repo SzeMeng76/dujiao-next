@@ -332,11 +332,19 @@ func (s *PaymentService) HandleWechatWebhook(input WebhookCallbackInput) (*model
 }
 
 // HandleStripeWebhook 处理 Stripe webhook。
-// P1.2c Task 6: 退化为 thin wrapper，通过 handleWebhookViaRegistry 路由解析。
 func (s *PaymentService) HandleStripeWebhook(input WebhookCallbackInput) (*models.Payment, string, error) {
 	return s.handleWebhookViaRegistry(
 		input,
 		constants.PaymentProviderOfficial,
 		constants.PaymentChannelTypeStripe,
+	)
+}
+
+// HandleBinancepayWebhook 处理 Binance Pay webhook。
+func (s *PaymentService) HandleBinancepayWebhook(input WebhookCallbackInput) (*models.Payment, string, error) {
+	return s.handleWebhookViaRegistry(
+		input,
+		constants.PaymentProviderOfficial,
+		constants.PaymentChannelTypeBinancepay,
 	)
 }

@@ -40,6 +40,11 @@ type StripeWebhookQuery struct {
 	ChannelID uint `form:"channel_id"`
 }
 
+// BinancepayWebhookQuery Binance Pay webhook 查询参数。
+type BinancepayWebhookQuery struct {
+	ChannelID uint `form:"channel_id"`
+}
+
 const callbackLogValueLimit = 4096
 
 // CreatePayment 创建支付单

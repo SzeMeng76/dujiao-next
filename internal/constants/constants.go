@@ -62,7 +62,13 @@ const (
 	PaymentChannelTypeUsdtTrc20 = "usdt-trc20"
 	PaymentChannelTypeUsdcTrc20 = "usdc-trc20"
 	PaymentChannelTypeTrx       = "trx"
-	PaymentChannelTypeBalance   = "balance"
+	PaymentChannelTypeBalance    = "balance"
+	PaymentChannelTypeBinancepay = "binancepay"
+)
+
+// Binance Pay 回调常量
+const (
+	BinancepayCallbackSuccess = `{"returnCode":"SUCCESS","returnMessage":null}`
 )
 
 // 支付渠道付款角色常量
@@ -446,14 +452,16 @@ const (
 	SettingKeyHomeAnnouncement   = "home_announcement"
 	SettingFieldPaymentCallback  = "payment_callback"
 	SettingFieldPaypalWebhook    = "paypal_webhook"
-	SettingFieldStripeWebhook    = "stripe_webhook"
+	SettingFieldStripeWebhook      = "stripe_webhook"
+	SettingFieldBinancepayWebhook  = "binancepay_webhook"
 	SettingFieldUpstreamCallback = "upstream_callback"
 
 	// 默认回调路由路径
-	DefaultPaymentCallbackPath  = "/api/v1/payments/callback"
-	DefaultPaypalWebhookPath    = "/api/v1/payments/webhook/paypal"
-	DefaultStripeWebhookPath    = "/api/v1/payments/webhook/stripe"
-	DefaultUpstreamCallbackPath = "/api/v1/upstream/callback"
+	DefaultPaymentCallbackPath    = "/api/v1/payments/callback"
+	DefaultPaypalWebhookPath      = "/api/v1/payments/webhook/paypal"
+	DefaultStripeWebhookPath      = "/api/v1/payments/webhook/stripe"
+	DefaultBinancepayWebhookPath  = "/api/v1/payments/webhook/binancepay"
+	DefaultUpstreamCallbackPath   = "/api/v1/upstream/callback"
 )
 
 // 币种常量
