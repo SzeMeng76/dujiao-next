@@ -145,23 +145,27 @@ func (s *CardSecretService) CreateCardSecretBatch(input CreateCardSecretBatchInp
 	}
 
 	// 卡密入库成功即视为补货，投递补货通知（失败不影响入库结果）。
-	s.notifyRestock(product, sku.ID, batch.TotalCount)
+	s.notifyRestock(product, sku, batch.TotalCount)
 
 	return batch, batch.TotalCount, nil
 }
 
 // notifyRestock 在卡密入库后投递补货通知，可用库存取该商品（含 SKU）当前可用卡密数。
-func (s *CardSecretService) notifyRestock(product *models.Product, skuID uint, addedCount int) {
+func (s *CardSecretService) notifyRestock(product *models.Product, sku *models.ProductSKU, addedCount int) {
 	if s == nil || s.restock == nil || product == nil || addedCount <= 0 {
 		return
 	}
 	var available int64 = -1
 	if s.secretRepo != nil {
+		skuID := uint(0)
+		if sku != nil {
+			skuID = sku.ID
+		}
 		if _, avail, _, err := s.secretRepo.CountByProduct(product.ID, skuID); err == nil {
 			available = avail
 		}
 	}
-	s.restock.enqueueRestockNotification(product, addedCount, available)
+	s.restock.enqueueRestockNotification(product, sku, addedCount, available)
 }
 
 // ImportCardSecretCSVInput 导入 CSV 输入

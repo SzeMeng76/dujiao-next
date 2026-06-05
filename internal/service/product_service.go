@@ -563,7 +563,7 @@ func (s *ProductService) notifyManualRestock(product *models.Product, previousFu
 	if previousStock < 0 || newStock < 0 || newStock <= previousStock {
 		return
 	}
-	s.restock.enqueueRestockNotification(product, newStock-previousStock, int64(newStock))
+	s.restock.enqueueRestockNotification(product, nil, newStock-previousStock, int64(newStock))
 }
 
 func syncSingleProductSKU(skuRepo repository.ProductSKURepository, productID uint, priceAmount decimal.Decimal, costPriceAmount decimal.Decimal, manualStockTotal int, createWhenMissing bool) error {

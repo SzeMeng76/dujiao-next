@@ -16,9 +16,10 @@ type restockNotifier struct {
 }
 
 // enqueueRestockNotification 在商品补货时投递补货通知事件。
-// product 为补货的商品；stockAdded 为本次新增的数量；stockAvailable 为补货后的可用库存（<0 表示未知/无限，将省略）。
+// product 为补货的商品；sku 为补货的 SKU（nil 表示无 SKU 或单规格商品）；
+// stockAdded 为本次新增的数量；stockAvailable 为补货后的可用库存（<0 表示未知/无限，将省略）。
 // 投递失败仅记录日志，不影响主流程。
-func (n *restockNotifier) enqueueRestockNotification(product *models.Product, stockAdded int, stockAvailable int64) {
+func (n *restockNotifier) enqueueRestockNotification(product *models.Product, sku *models.ProductSKU, stockAdded int, stockAvailable int64) {
 	if n == nil || n.notificationSvc == nil || product == nil {
 		return
 	}
@@ -42,11 +43,30 @@ func (n *restockNotifier) enqueueRestockNotification(product *models.Product, st
 		title = localizedNotificationText(locale, "未命名商品", "未命名商品", "Unnamed item")
 	}
 
+	skuTitle := ""
+	if sku != nil {
+		skuTitle = notificationInterfaceText(sku.SpecValuesJSON, locale, constants.LocaleZhCN)
+		if skuTitle == "" {
+			skuTitle = strings.TrimSpace(sku.SKUCode)
+		}
+		if strings.EqualFold(skuTitle, models.DefaultSKUCode) {
+			skuTitle = ""
+		}
+	}
+
+	productTitleWithSKU := title
+	if skuTitle != "" {
+		productTitleWithSKU = title + " · " + skuTitle
+	}
+
 	data := models.JSON{
 		"product_id":    strconv.FormatUint(uint64(product.ID), 10),
-		"product_title": title,
+		"product_title": productTitleWithSKU,
 		"product_slug":  strings.TrimSpace(product.Slug),
 		"stock_added":   strconv.Itoa(stockAdded),
+	}
+	if skuTitle != "" {
+		data["sku_title"] = skuTitle
 	}
 	if stockAvailable >= 0 {
 		data["stock_available"] = strconv.FormatInt(stockAvailable, 10)
