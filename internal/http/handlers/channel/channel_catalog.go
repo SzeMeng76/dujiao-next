@@ -170,6 +170,7 @@ func (h *Handler) GetProducts(c *gin.Context) {
 		StockStatus     string                  `json:"stock_status"`
 		StockCount      int64                   `json:"stock_count"`
 		CategoryName    string                  `json:"category_name"`
+		FulfillmentType string                  `json:"fulfillment_type"`
 	}
 
 	items := make([]productItem, 0, len(products))
@@ -200,6 +201,7 @@ func (h *Handler) GetProducts(c *gin.Context) {
 			StockStatus:     computeStockStatus(ft, p.AutoStockAvailable, p.ManualStockTotal),
 			StockCount:      computeStockCount(ft, p.AutoStockAvailable, p.ManualStockTotal),
 			CategoryName:    resolveLocalizedJSON(p.Category.NameJSON, locale, defaultLocale),
+			FulfillmentType: ft,
 		}
 
 		// 计算会员价
