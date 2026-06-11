@@ -1133,3 +1133,144 @@ func TestProductServiceUpdateWholesalePricesOptionalSemantics(t *testing.T) {
 		t.Fatalf("expected wholesale prices cleared, got %+v", cleared.WholesalePrices)
 	}
 }
+
+func TestProductServiceUpdateWholesalePricesOnlyTouchesWholesaleField(t *testing.T) {
+	svc, db := newProductServiceForTest(t)
+
+	category := models.Category{
+		Slug:     "wholesale-narrow-category",
+		NameJSON: models.JSON{"zh-CN": "wholesale-narrow-category"},
+		IsActive: true,
+	}
+	if err := db.Create(&category).Error; err != nil {
+		t.Fatalf("create category failed: %v", err)
+	}
+
+	product := models.Product{
+		CategoryID:       category.ID,
+		Slug:             "wholesale-narrow-product",
+		TitleJSON:        models.JSON{"zh-CN": "原商品名"},
+		PriceAmount:      models.NewMoneyFromDecimal(decimal.NewFromInt(100)),
+		CostPriceAmount:  models.NewMoneyFromDecimal(decimal.NewFromInt(30)),
+		PurchaseType:     constants.ProductPurchaseMember,
+		FulfillmentType:  constants.FulfillmentTypeManual,
+		ManualStockTotal: 8,
+		IsActive:         true,
+		SortOrder:        9,
+	}
+	if err := db.Create(&product).Error; err != nil {
+		t.Fatalf("create product failed: %v", err)
+	}
+
+	updated, err := svc.UpdateWholesalePrices(strconv.FormatUint(uint64(product.ID), 10), []WholesalePriceInput{
+		{MinQuantity: 10, UnitPrice: decimal.RequireFromString("70.00")},
+		{MinQuantity: 5, UnitPrice: decimal.RequireFromString("80.00")},
+	})
+	if err != nil {
+		t.Fatalf("update wholesale prices failed: %v", err)
+	}
+	if len(updated.WholesalePrices) != 2 {
+		t.Fatalf("expected 2 wholesale tiers, got %+v", updated.WholesalePrices)
+	}
+	if updated.WholesalePrices[0].MinQuantity != 5 || updated.WholesalePrices[0].UnitPrice.String() != "80.00" {
+		t.Fatalf("expected first tier sorted as min=5 price=80.00, got %+v", updated.WholesalePrices[0])
+	}
+	if updated.WholesalePrices[1].MinQuantity != 10 || updated.WholesalePrices[1].UnitPrice.String() != "70.00" {
+		t.Fatalf("expected second tier sorted as min=10 price=70.00, got %+v", updated.WholesalePrices[1])
+	}
+
+	var got models.Product
+	if err := db.First(&got, product.ID).Error; err != nil {
+		t.Fatalf("reload product failed: %v", err)
+	}
+	if got.Slug != product.Slug || got.CategoryID != product.CategoryID || got.ManualStockTotal != product.ManualStockTotal || got.SortOrder != product.SortOrder || got.IsActive != product.IsActive {
+		t.Fatalf("non-wholesale fields changed unexpectedly: got=%+v product=%+v", got, product)
+	}
+	if getTitle := got.TitleJSON["zh-CN"]; getTitle != "原商品名" {
+		t.Fatalf("expected title to stay unchanged, got %v", getTitle)
+	}
+}
+
+func TestProductServiceUpdateWholesalePricesClearsTiers(t *testing.T) {
+	svc, db := newProductServiceForTest(t)
+
+	product := models.Product{
+		CategoryID:  1,
+		Slug:        "wholesale-clear-product",
+		TitleJSON:   models.JSON{"zh-CN": "wholesale-clear-product"},
+		PriceAmount: models.NewMoneyFromDecimal(decimal.NewFromInt(100)),
+		WholesalePrices: models.WholesalePriceTiers{
+			{MinQuantity: 5, UnitPrice: models.NewMoneyFromDecimal(decimal.NewFromInt(80))},
+		},
+		IsActive: true,
+	}
+	if err := db.Create(&product).Error; err != nil {
+		t.Fatalf("create product failed: %v", err)
+	}
+
+	updated, err := svc.UpdateWholesalePrices(strconv.FormatUint(uint64(product.ID), 10), []WholesalePriceInput{})
+	if err != nil {
+		t.Fatalf("clear wholesale prices failed: %v", err)
+	}
+	if len(updated.WholesalePrices) != 0 {
+		t.Fatalf("expected wholesale prices cleared, got %+v", updated.WholesalePrices)
+	}
+}
+
+func TestProductServiceUpdateWholesalePricesRejectsInvalidInputs(t *testing.T) {
+	svc, db := newProductServiceForTest(t)
+
+	product := models.Product{
+		CategoryID:  1,
+		Slug:        "wholesale-invalid-product",
+		TitleJSON:   models.JSON{"zh-CN": "wholesale-invalid-product"},
+		PriceAmount: models.NewMoneyFromDecimal(decimal.NewFromInt(100)),
+		WholesalePrices: models.WholesalePriceTiers{
+			{MinQuantity: 5, UnitPrice: models.NewMoneyFromDecimal(decimal.NewFromInt(80))},
+		},
+		IsActive: true,
+	}
+	if err := db.Create(&product).Error; err != nil {
+		t.Fatalf("create product failed: %v", err)
+	}
+
+	cases := []struct {
+		name   string
+		inputs []WholesalePriceInput
+	}{
+		{name: "zero quantity", inputs: []WholesalePriceInput{{MinQuantity: 0, UnitPrice: decimal.NewFromInt(80)}}},
+		{name: "zero price", inputs: []WholesalePriceInput{{MinQuantity: 5, UnitPrice: decimal.Zero}}},
+		{name: "duplicate quantity", inputs: []WholesalePriceInput{
+			{MinQuantity: 5, UnitPrice: decimal.NewFromInt(80)},
+			{MinQuantity: 5, UnitPrice: decimal.NewFromInt(70)},
+		}},
+	}
+
+	idStr := strconv.FormatUint(uint64(product.ID), 10)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := svc.UpdateWholesalePrices(idStr, tc.inputs)
+			if !errors.Is(err, ErrWholesalePriceInvalid) {
+				t.Fatalf("expected ErrWholesalePriceInvalid, got %v", err)
+			}
+			var got models.Product
+			if err := db.First(&got, product.ID).Error; err != nil {
+				t.Fatalf("reload product failed: %v", err)
+			}
+			if len(got.WholesalePrices) != 1 || got.WholesalePrices[0].UnitPrice.String() != "80.00" {
+				t.Fatalf("expected existing wholesale prices preserved after invalid update, got %+v", got.WholesalePrices)
+			}
+		})
+	}
+}
+
+func TestProductServiceUpdateWholesalePricesReturnsNotFound(t *testing.T) {
+	svc, _ := newProductServiceForTest(t)
+
+	_, err := svc.UpdateWholesalePrices("999999", []WholesalePriceInput{
+		{MinQuantity: 5, UnitPrice: decimal.NewFromInt(80)},
+	})
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+}

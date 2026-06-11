@@ -1108,6 +1108,26 @@ func (s *ProductService) QuickUpdate(id string, fields map[string]interface{}) (
 	return s.repo.GetByID(id)
 }
 
+// UpdateWholesalePrices 更新商品批发价阶梯，不修改商品其他字段。
+func (s *ProductService) UpdateWholesalePrices(id string, inputs []WholesalePriceInput) (*models.Product, error) {
+	product, err := s.repo.GetAdminByID(id)
+	if err != nil {
+		return nil, err
+	}
+	if product == nil {
+		return nil, ErrNotFound
+	}
+
+	wholesalePrices, err := normalizeWholesalePriceInputs(inputs)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.repo.QuickUpdate(id, map[string]interface{}{"wholesale_prices": wholesalePrices}); err != nil {
+		return nil, err
+	}
+	return s.repo.GetAdminByID(id)
+}
+
 func isQuickUpdateActivatingProduct(fields map[string]interface{}) bool {
 	raw, ok := fields["is_active"]
 	if !ok {

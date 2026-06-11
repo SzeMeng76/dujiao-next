@@ -372,6 +372,42 @@ type QuickUpdateProductRequest struct {
 	CategoryID *uint `json:"category_id"`
 }
 
+type UpdateWholesalePricesRequest struct {
+	WholesalePrices *[]WholesalePriceRequest `json:"wholesale_prices" binding:"required"`
+}
+
+// UpdateProductWholesalePrices 更新商品批发价阶梯。
+func (h *Handler) UpdateProductWholesalePrices(c *gin.Context) {
+	id := c.Param("id")
+
+	var req UpdateWholesalePricesRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		shared.RespondBindError(c, err)
+		return
+	}
+	inputs := toWholesalePriceInputs(req.WholesalePrices)
+	if inputs == nil {
+		shared.RespondError(c, response.CodeBadRequest, "error.bad_request", nil)
+		return
+	}
+
+	product, err := h.ProductService.UpdateWholesalePrices(id, *inputs)
+	if err != nil {
+		if errors.Is(err, service.ErrNotFound) {
+			shared.RespondError(c, response.CodeNotFound, "error.product_not_found", nil)
+			return
+		}
+		if errors.Is(err, service.ErrWholesalePriceInvalid) {
+			shared.RespondError(c, response.CodeBadRequest, "error.wholesale_price_invalid", nil)
+			return
+		}
+		shared.RespondError(c, response.CodeInternal, "error.product_update_failed", err)
+		return
+	}
+
+	response.Success(c, product)
+}
+
 // QuickUpdateProduct 快速更新商品（状态/排序/分类）
 func (h *Handler) QuickUpdateProduct(c *gin.Context) {
 	id := c.Param("id")

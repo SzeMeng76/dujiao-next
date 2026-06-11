@@ -32,6 +32,7 @@ func BuiltinRoleSeeds() []RoleSeed {
 			Policies: []Policy{
 				{Object: "/admin/products", Action: "*"},
 				{Object: "/admin/products/:id", Action: "*"},
+				{Object: "/admin/products/:id/wholesale-prices", Action: "PATCH"},
 				{Object: "/admin/categories", Action: "*"},
 				{Object: "/admin/categories/:id", Action: "*"},
 				{Object: "/admin/categories/:id/active", Action: "PATCH"},
