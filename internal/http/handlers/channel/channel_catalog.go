@@ -263,6 +263,7 @@ func (h *Handler) GetProductDetail(c *gin.Context) {
 	}
 
 	title := resolveLocalizedJSON(product.TitleJSON, locale, defaultLocale)
+	subtitle := resolveLocalizedJSON(product.DescriptionJSON, locale, defaultLocale)
 	description := stripHTML(resolveLocalizedJSON(product.ContentJSON, locale, defaultLocale))
 
 	var imageURL string
@@ -326,6 +327,7 @@ func (h *Handler) GetProductDetail(c *gin.Context) {
 	respondChannelSuccess(c, gin.H{
 		"id":                    product.ID,
 		"title":                 title,
+		"subtitle":              subtitle,
 		"description":           description,
 		"image_url":             imageURL,
 		"price_from":            product.PriceAmount.String(),
