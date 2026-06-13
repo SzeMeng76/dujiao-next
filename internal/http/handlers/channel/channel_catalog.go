@@ -164,6 +164,7 @@ func (h *Handler) GetProducts(c *gin.Context) {
 		Summary         string                  `json:"summary"`
 		ImageURL        string                  `json:"image_url"`
 		PriceFrom       string                  `json:"price_from"`
+		PriceTo         string                  `json:"price_to,omitempty"`
 		MemberPriceFrom string                  `json:"member_price_from,omitempty"`
 		WholesalePrices []channelWholesalePrice `json:"wholesale_prices,omitempty"`
 		Currency        string                  `json:"currency"`
@@ -209,6 +210,19 @@ func (h *Handler) GetProducts(c *gin.Context) {
 			memberPrice, _ := h.MemberLevelService.ResolveMemberPrice(memberLevelID, p.ID, 0, p.PriceAmount.Decimal)
 			if memberPrice.LessThan(p.PriceAmount.Decimal) {
 				item.MemberPriceFrom = models.NewMoneyFromDecimal(memberPrice).String()
+			}
+		}
+
+		// 多 SKU 时计算最高价
+		if len(p.SKUs) > 1 {
+			maxPrice := p.PriceAmount.Decimal
+			for _, sku := range p.SKUs {
+				if sku.PriceAmount.Decimal.GreaterThan(maxPrice) {
+					maxPrice = sku.PriceAmount.Decimal
+				}
+			}
+			if maxPrice.GreaterThan(p.PriceAmount.Decimal) {
+				item.PriceTo = models.NewMoneyFromDecimal(maxPrice).String()
 			}
 		}
 
