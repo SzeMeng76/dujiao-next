@@ -900,12 +900,18 @@ func buildChannelPaymentResponse(order *models.Order, payment *models.Payment) g
 		"created_at":       payment.CreatedAt,
 		"updated_at":       payment.UpdatedAt,
 	}
-	if addr, chainAmount := dto.ExtractUSDTWalletInfo(payment.ProviderType, payment.InteractionMode, payment.ProviderPayload); addr != "" || chainAmount != "" {
-		if addr != "" {
-			resp["wallet_address"] = addr
+	if info := dto.ExtractCryptoWalletInfo(payment.ProviderType, payment.InteractionMode, payment.ProviderPayload); info.HasAny() {
+		if info.Address != "" {
+			resp["wallet_address"] = info.Address
 		}
-		if chainAmount != "" {
-			resp["chain_amount"] = chainAmount
+		if info.ChainAmount != "" {
+			resp["chain_amount"] = info.ChainAmount
+		}
+		if info.Chain != "" {
+			resp["chain"] = info.Chain
+		}
+		if info.TokenID != "" {
+			resp["token_id"] = info.TokenID
 		}
 	}
 	if order != nil {

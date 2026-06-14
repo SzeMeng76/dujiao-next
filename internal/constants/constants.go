@@ -44,6 +44,7 @@ const (
 	PaymentProviderEpay     = "epay"
 	PaymentProviderEpusdt   = "epusdt"
 	PaymentProviderBepusdt  = "bepusdt"
+	PaymentProviderDujiaoPay = "dujiaopay"
 	PaymentProviderOkpay    = "okpay"
 	PaymentProviderTokenpay = "tokenpay"
 	PaymentProviderGlobepay = "globepay"
@@ -451,6 +452,7 @@ const (
 
 	SettingKeyHomeAnnouncement   = "home_announcement"
 	SettingFieldPaymentCallback  = "payment_callback"
+	SettingFieldDujiaoPayWebhook = "dujiaopay_webhook"
 	SettingFieldPaypalWebhook    = "paypal_webhook"
 	SettingFieldStripeWebhook      = "stripe_webhook"
 	SettingFieldBinancepayWebhook  = "binancepay_webhook"
@@ -458,6 +460,7 @@ const (
 
 	// 默认回调路由路径
 	DefaultPaymentCallbackPath    = "/api/v1/payments/callback"
+	DefaultDujiaoPayWebhookPath   = "/api/v1/payments/webhook/dujiaopay"
 	DefaultPaypalWebhookPath      = "/api/v1/payments/webhook/paypal"
 	DefaultStripeWebhookPath      = "/api/v1/payments/webhook/stripe"
 	DefaultBinancepayWebhookPath  = "/api/v1/payments/webhook/binancepay"

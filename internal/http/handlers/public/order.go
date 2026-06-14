@@ -377,12 +377,18 @@ func (h *Handler) CreateOrderAndPay(c *gin.Context) {
 		resp["interaction_mode"] = result.Payment.InteractionMode
 		resp["pay_url"] = result.Payment.PayURL
 		resp["qr_code"] = result.Payment.QRCode
-		if addr, chainAmount := dto.ExtractUSDTWalletInfo(result.Payment.ProviderType, result.Payment.InteractionMode, result.Payment.ProviderPayload); addr != "" || chainAmount != "" {
-			if addr != "" {
-				resp["wallet_address"] = addr
+		if info := dto.ExtractCryptoWalletInfo(result.Payment.ProviderType, result.Payment.InteractionMode, result.Payment.ProviderPayload); info.HasAny() {
+			if info.Address != "" {
+				resp["wallet_address"] = info.Address
 			}
-			if chainAmount != "" {
-				resp["chain_amount"] = chainAmount
+			if info.ChainAmount != "" {
+				resp["chain_amount"] = info.ChainAmount
+			}
+			if info.Chain != "" {
+				resp["chain"] = info.Chain
+			}
+			if info.TokenID != "" {
+				resp["token_id"] = info.TokenID
 			}
 		}
 		resp["expires_at"] = result.Payment.ExpiredAt

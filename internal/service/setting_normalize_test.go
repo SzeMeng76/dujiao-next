@@ -33,6 +33,72 @@ func TestUpdateOrderSettingNormalized(t *testing.T) {
 	}
 }
 
+func TestUpdateCallbackRoutesSettingIncludesDujiaoPayWebhook(t *testing.T) {
+	repo := newMockSettingRepo()
+	svc := NewSettingService(repo)
+
+	result, err := svc.Update(constants.SettingKeyCallbackRoutesConfig, map[string]interface{}{
+		constants.SettingFieldPaymentCallback:  " /api/custom/payment ",
+		constants.SettingFieldDujiaoPayWebhook: " /api/custom/dujiaopay?ignored=1 ",
+		constants.SettingFieldPaypalWebhook:    " /api/custom/paypal/ ",
+		constants.SettingFieldStripeWebhook:    " /api/custom/paypal ",
+		constants.SettingFieldUpstreamCallback: " /api/v1/upstream/custom ",
+		"unexpected_field_should_be_dropped":   "/api/custom/extra",
+	})
+	if err != nil {
+		t.Fatalf("update callback routes failed: %v", err)
+	}
+
+	if result[constants.SettingFieldPaymentCallback] != "/api/custom/payment" {
+		t.Fatalf("payment_callback = %v", result[constants.SettingFieldPaymentCallback])
+	}
+	if result[constants.SettingFieldDujiaoPayWebhook] != "/api/custom/dujiaopay" {
+		t.Fatalf("dujiaopay_webhook = %v", result[constants.SettingFieldDujiaoPayWebhook])
+	}
+	if result[constants.SettingFieldPaypalWebhook] != "/api/custom/paypal" {
+		t.Fatalf("paypal_webhook = %v", result[constants.SettingFieldPaypalWebhook])
+	}
+	if result[constants.SettingFieldStripeWebhook] != "" {
+		t.Fatalf("duplicate stripe_webhook should be cleared, got %v", result[constants.SettingFieldStripeWebhook])
+	}
+	if _, ok := result["unexpected_field_should_be_dropped"]; ok {
+		t.Fatalf("unexpected field kept in callback route setting")
+	}
+}
+
+func TestUpdateCallbackRoutesSettingIncludesDujiaoPayWebhook(t *testing.T) {
+	repo := newMockSettingRepo()
+	svc := NewSettingService(repo)
+
+	result, err := svc.Update(constants.SettingKeyCallbackRoutesConfig, map[string]interface{}{
+		constants.SettingFieldPaymentCallback:  " /api/custom/payment ",
+		constants.SettingFieldDujiaoPayWebhook: " /api/custom/dujiaopay?ignored=1 ",
+		constants.SettingFieldPaypalWebhook:    " /api/custom/paypal/ ",
+		constants.SettingFieldStripeWebhook:    " /api/custom/paypal ",
+		constants.SettingFieldUpstreamCallback: " /api/v1/upstream/custom ",
+		"unexpected_field_should_be_dropped":   "/api/custom/extra",
+	})
+	if err != nil {
+		t.Fatalf("update callback routes failed: %v", err)
+	}
+
+	if result[constants.SettingFieldPaymentCallback] != "/api/custom/payment" {
+		t.Fatalf("payment_callback = %v", result[constants.SettingFieldPaymentCallback])
+	}
+	if result[constants.SettingFieldDujiaoPayWebhook] != "/api/custom/dujiaopay" {
+		t.Fatalf("dujiaopay_webhook = %v", result[constants.SettingFieldDujiaoPayWebhook])
+	}
+	if result[constants.SettingFieldPaypalWebhook] != "/api/custom/paypal" {
+		t.Fatalf("paypal_webhook = %v", result[constants.SettingFieldPaypalWebhook])
+	}
+	if result[constants.SettingFieldStripeWebhook] != "" {
+		t.Fatalf("duplicate stripe_webhook should be cleared, got %v", result[constants.SettingFieldStripeWebhook])
+	}
+	if _, ok := result["unexpected_field_should_be_dropped"]; ok {
+		t.Fatalf("unexpected field kept in callback route setting")
+	}
+}
+
 func TestGetSiteBrand(t *testing.T) {
 	repo := newMockSettingRepo()
 	svc := NewSettingService(repo)

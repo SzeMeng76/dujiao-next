@@ -216,12 +216,18 @@ func (h *Handler) CreateWalletRecharge(c *gin.Context) {
 		"qr_code":          result.Payment.QRCode,
 		"expires_at":       result.Payment.ExpiredAt,
 	}
-	if addr, chainAmount := dto.ExtractUSDTWalletInfo(result.Payment.ProviderType, result.Payment.InteractionMode, result.Payment.ProviderPayload); addr != "" || chainAmount != "" {
-		if addr != "" {
-			paymentBlock["wallet_address"] = addr
+	if info := dto.ExtractCryptoWalletInfo(result.Payment.ProviderType, result.Payment.InteractionMode, result.Payment.ProviderPayload); info.HasAny() {
+		if info.Address != "" {
+			paymentBlock["wallet_address"] = info.Address
 		}
-		if chainAmount != "" {
-			paymentBlock["chain_amount"] = chainAmount
+		if info.ChainAmount != "" {
+			paymentBlock["chain_amount"] = info.ChainAmount
+		}
+		if info.Chain != "" {
+			paymentBlock["chain"] = info.Chain
+		}
+		if info.TokenID != "" {
+			paymentBlock["token_id"] = info.TokenID
 		}
 	}
 

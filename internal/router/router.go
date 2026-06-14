@@ -246,6 +246,7 @@ func SetupRouter(cfg *config.Config, c *provider.Container) *gin.Engine {
 
 		apiV1.POST("/payments/callback", publicHandler.PaymentCallback)
 		apiV1.GET("/payments/callback", publicHandler.PaymentCallback)
+		apiV1.POST("/payments/webhook/dujiaopay", publicHandler.DujiaoPayWebhook)
 		apiV1.POST("/payments/webhook/paypal", publicHandler.PaypalWebhook)
 		apiV1.POST("/payments/webhook/stripe", publicHandler.StripeWebhook)
 		apiV1.POST("/payments/webhook/binancepay", publicHandler.BinancepayWebhook)
