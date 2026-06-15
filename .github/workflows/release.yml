@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout api
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -21,14 +21,14 @@ jobs:
       # admin/user 仓库为 public，无需 PAT。要求三仓库已用 scripts/tag-and-push.sh
       # 打过同名 tag。
       - name: Checkout admin (cross-repo)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: dujiao-next/admin
           ref: ${{ github.ref_name }}
           path: admin-src
 
       - name: Checkout user (cross-repo)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: dujiao-next/user
           ref: ${{ github.ref_name }}
