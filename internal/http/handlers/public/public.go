@@ -19,7 +19,6 @@ import (
 )
 
 const (
-	publicConfigCacheKey = "public:config"
 	publicConfigCacheTTL = 60 * time.Second
 	publicLowStockLimit  = 5
 )
@@ -283,8 +282,11 @@ func (h *Handler) GetConfig(c *gin.Context) {
 		"scripts": make([]interface{}, 0),
 	}
 
+	tenant, _ := service.TenantFromContext(c.Request.Context())
+	cacheKey := cache.PublicConfigCacheKey(tenant.ResellerID)
+
 	var cached map[string]interface{}
-	if hit, err := cache.GetJSON(c.Request.Context(), publicConfigCacheKey, &cached); err == nil && hit {
+	if hit, err := cache.GetJSON(c.Request.Context(), cacheKey, &cached); err == nil && hit {
 		cached["server_time"] = time.Now().UnixMilli()
 		cached["app_version"] = version.Version
 		response.Success(c, cached)
@@ -377,7 +379,18 @@ func (h *Handler) GetConfig(c *gin.Context) {
 		data["announcement"] = announcement
 	}
 
-	_ = cache.SetJSON(c.Request.Context(), publicConfigCacheKey, data, publicConfigCacheTTL)
+	if h.ResellerSiteConfigService != nil {
+		overlaid, overlayErr := h.ResellerSiteConfigService.ApplyPublicConfigOverlay(c.Request.Context(), tenant, data)
+		if overlayErr != nil {
+			shared.RespondError(c, response.CodeInternal, "error.config_fetch_failed", overlayErr)
+			return
+		}
+		data = overlaid
+	} else if tenant.ResellerID == nil {
+		data["tenant"] = map[string]interface{}{"mode": "main", "host": tenant.Host}
+	}
+
+	_ = cache.SetJSON(c.Request.Context(), cacheKey, data, publicConfigCacheTTL)
 	data["server_time"] = time.Now().UnixMilli()
 	data["app_version"] = version.Version
 	response.Success(c, data)
@@ -416,8 +429,9 @@ func (h *Handler) GetProducts(c *gin.Context) {
 	// 获取筛选参数
 	categoryID := c.Query("category_id")
 	search := strings.TrimSpace(c.Query("search"))
+	tenant := tenantFromRequest(c)
 
-	products, total, err := h.ProductService.ListPublic(categoryID, search, page, pageSize)
+	products, total, err := h.ProductService.ListPublicForTenant(tenant, h.ResellerRepo, categoryID, search, page, pageSize)
 	if err != nil {
 		shared.RespondError(c, response.CodeInternal, "error.product_fetch_failed", err)
 		return
@@ -433,10 +447,26 @@ func (h *Handler) GetProducts(c *gin.Context) {
 		return
 	}
 
+	var resellerBatch *service.ResellerDisplayPricingBatch
+	if isResellerTenant(tenant) {
+		if h.ResellerPricingResolver == nil {
+			shared.RespondError(c, response.CodeNotFound, "error.product_not_found", nil)
+			return
+		}
+		resellerBatch, err = h.ResellerPricingResolver.LoadDisplayPricingBatch(tenant, products)
+		if err != nil {
+			shared.RespondError(c, response.CodeInternal, "error.product_fetch_failed", err)
+			return
+		}
+	}
+
 	decorated := make([]dto.ProductResp, 0, len(products))
 	for i := range products {
-		item, derr := h.decoratePublicProduct(&products[i], promotionService)
+		item, derr := h.decoratePublicProductForTenant(&products[i], promotionService, tenant, resellerBatch)
 		if derr != nil {
+			if errors.Is(derr, service.ErrResellerProductNotListed) {
+				continue
+			}
 			shared.RespondError(c, response.CodeInternal, "error.product_fetch_failed", derr)
 			return
 		}
@@ -451,8 +481,9 @@ func (h *Handler) GetProducts(c *gin.Context) {
 // GetProductBySlug 根据 slug 获取商品详情
 func (h *Handler) GetProductBySlug(c *gin.Context) {
 	slug := c.Param("slug")
+	tenant := tenantFromRequest(c)
 
-	product, err := h.ProductService.GetPublicBySlug(slug)
+	product, err := h.ProductService.GetPublicBySlugForTenant(tenant, h.ResellerRepo, slug)
 	if err != nil {
 		if errors.Is(err, service.ErrNotFound) {
 			shared.RespondError(c, response.CodeNotFound, "error.product_not_found", nil)
@@ -474,8 +505,25 @@ func (h *Handler) GetProductBySlug(c *gin.Context) {
 	}
 	*product = temp[0]
 
-	decorated, derr := h.decoratePublicProduct(product, promotionService)
+	var resellerBatch *service.ResellerDisplayPricingBatch
+	if isResellerTenant(tenant) {
+		if h.ResellerPricingResolver == nil {
+			shared.RespondError(c, response.CodeNotFound, "error.product_not_found", nil)
+			return
+		}
+		resellerBatch, err = h.ResellerPricingResolver.LoadDisplayPricingBatch(tenant, []models.Product{*product})
+		if err != nil {
+			shared.RespondError(c, response.CodeInternal, "error.product_fetch_failed", err)
+			return
+		}
+	}
+
+	decorated, derr := h.decoratePublicProductForTenant(product, promotionService, tenant, resellerBatch)
 	if derr != nil {
+		if errors.Is(derr, service.ErrResellerProductNotListed) {
+			shared.RespondError(c, response.CodeNotFound, "error.product_not_found", nil)
+			return
+		}
 		shared.RespondError(c, response.CodeInternal, "error.product_fetch_failed", derr)
 		return
 	}
@@ -488,6 +536,26 @@ func (h *Handler) GetProductBySlug(c *gin.Context) {
 }
 
 const publicRelatedPostsLimit = 6
+
+func tenantFromRequest(c *gin.Context) service.TenantContext {
+	if c != nil && c.Request != nil {
+		if tenant, ok := service.TenantFromContext(c.Request.Context()); ok {
+			return tenant
+		}
+	}
+	return service.MainTenantContext("")
+}
+
+func isResellerTenant(tenant service.TenantContext) bool {
+	return tenant.ResellerID != nil && !tenant.IsMain && !tenant.Unavailable
+}
+
+func isResellerDisplayHiddenError(err error) bool {
+	return errors.Is(err, service.ErrResellerProductNotListed) ||
+		errors.Is(err, service.ErrResellerPriceBelowBase) ||
+		errors.Is(err, service.ErrResellerMarkupExceeded) ||
+		errors.Is(err, service.ErrResellerPricingModeInvalid)
+}
 
 func (h *Handler) decoratePublicProduct(product *models.Product, promotionService *service.PromotionService, userMemberLevelID ...uint) (dto.ProductResp, error) {
 	if product == nil {
@@ -585,6 +653,61 @@ func (h *Handler) decoratePublicProduct(product *models.Product, promotionServic
 		item.PromotionPriceAmount = displayPromotionPrice
 	}
 
+	return item.toProductResp(), nil
+}
+
+func (h *Handler) decoratePublicProductForTenant(
+	product *models.Product,
+	promotionService *service.PromotionService,
+	tenant service.TenantContext,
+	resellerBatch *service.ResellerDisplayPricingBatch,
+	userMemberLevelID ...uint,
+) (dto.ProductResp, error) {
+	if !isResellerTenant(tenant) {
+		return h.decoratePublicProduct(product, promotionService, userMemberLevelID...)
+	}
+	if product == nil {
+		return dto.ProductResp{}, nil
+	}
+	if h == nil || h.ResellerPricingResolver == nil {
+		return dto.ProductResp{}, service.ErrResellerProductNotListed
+	}
+	display, err := h.ResellerPricingResolver.ResolveDisplayPrices(tenant, product, resellerBatch)
+	if err != nil {
+		if isResellerDisplayHiddenError(err) {
+			return dto.ProductResp{}, service.ErrResellerProductNotListed
+		}
+		return dto.ProductResp{}, err
+	}
+	if display == nil || !display.Visible {
+		return dto.ProductResp{}, service.ErrResellerProductNotListed
+	}
+
+	productCopy := *product
+	productCopy.PriceAmount = display.DisplayPrice
+	productCopy.WholesalePrices = nil
+	filteredSKUs := make([]models.ProductSKU, 0, len(product.SKUs))
+	for _, sku := range product.SKUs {
+		if !sku.IsActive || display.HiddenSKUIDs[sku.ID] {
+			continue
+		}
+		if price, ok := display.SKUPrices[sku.ID]; ok {
+			sku.PriceAmount = price
+		}
+		filteredSKUs = append(filteredSKUs, sku)
+	}
+	if len(product.SKUs) > 0 && len(filteredSKUs) == 0 {
+		return dto.ProductResp{}, service.ErrResellerProductNotListed
+	}
+	productCopy.SKUs = filteredSKUs
+
+	item := publicProductView{Product: productCopy}
+	h.decorateProductStock(&productCopy, &item)
+	skuViews := make([]publicSKUView, 0, len(productCopy.SKUs))
+	for _, sku := range productCopy.SKUs {
+		skuViews = append(skuViews, publicSKUView{ProductSKU: sku})
+	}
+	item.PublicSKUs = skuViews
 	return item.toProductResp(), nil
 }
 
@@ -929,6 +1052,7 @@ func (h *Handler) CreateGuestOrder(c *gin.Context) {
 		Email:               req.Email,
 		OrderPassword:       req.OrderPassword,
 		Locale:              i18n.ResolveLocale(c),
+		Tenant:              tenantFromRequest(c),
 		Items:               items,
 		CouponCode:          req.CouponCode,
 		AffiliateCode:       req.AffiliateCode,
@@ -996,6 +1120,7 @@ func (h *Handler) CreateGuestOrderAndPay(c *gin.Context) {
 		Email:               req.Email,
 		OrderPassword:       req.OrderPassword,
 		Locale:              i18n.ResolveLocale(c),
+		Tenant:              tenantFromRequest(c),
 		Items:               items,
 		CouponCode:          req.CouponCode,
 		AffiliateCode:       req.AffiliateCode,
@@ -1089,6 +1214,7 @@ func (h *Handler) PreviewGuestOrder(c *gin.Context) {
 		Email:               req.Email,
 		OrderPassword:       req.OrderPassword,
 		Locale:              i18n.ResolveLocale(c),
+		Tenant:              tenantFromRequest(c),
 		Items:               items,
 		CouponCode:          req.CouponCode,
 		AffiliateCode:       req.AffiliateCode,
@@ -1118,7 +1244,7 @@ func (h *Handler) ListGuestOrders(c *gin.Context) {
 	}
 
 	if orderNo != "" {
-		order, err := h.OrderService.GetOrderByGuestOrderNo(orderNo, email, password)
+		order, err := h.OrderService.GetOrderByGuestOrderNoForTenant(tenantFromRequest(c), orderNo, email, password)
 		if err != nil {
 			if errors.Is(err, service.ErrGuestOrderNotFound) {
 				pagination := response.Pagination{
@@ -1145,7 +1271,7 @@ func (h *Handler) ListGuestOrders(c *gin.Context) {
 
 	page, pageSize := shared.ParsePagination(c)
 
-	orders, total, err := h.OrderService.ListOrdersByGuest(email, password, page, pageSize)
+	orders, total, err := h.OrderService.ListOrdersByGuestForTenant(tenantFromRequest(c), email, password, page, pageSize)
 	if err != nil {
 		shared.RespondError(c, response.CodeInternal, "error.order_fetch_failed", err)
 		return
@@ -1171,7 +1297,7 @@ func (h *Handler) GetGuestOrderByOrderNo(c *gin.Context) {
 		shared.RespondError(c, response.CodeBadRequest, "error.order_item_invalid", nil)
 		return
 	}
-	order, err := h.OrderService.GetOrderByGuestOrderNo(orderNo, email, password)
+	order, err := h.OrderService.GetOrderByGuestOrderNoForTenant(tenantFromRequest(c), orderNo, email, password)
 	if err != nil {
 		if errors.Is(err, service.ErrGuestOrderNotFound) {
 			shared.RespondError(c, response.CodeNotFound, "error.guest_order_not_found", nil)
@@ -1200,8 +1326,12 @@ func (h *Handler) DownloadGuestFulfillment(c *gin.Context) {
 		shared.RespondError(c, response.CodeBadRequest, "error.order_item_invalid", nil)
 		return
 	}
-	order, err := h.OrderRepo.GetAnyByOrderNoAndGuest(orderNo, email, password)
+	order, err := h.OrderService.GetAnyOrderByGuestOrderNoForTenant(tenantFromRequest(c), orderNo, email, password)
 	if err != nil {
+		if errors.Is(err, service.ErrGuestOrderNotFound) {
+			shared.RespondError(c, response.CodeNotFound, "error.guest_order_not_found", nil)
+			return
+		}
 		shared.RespondError(c, response.CodeInternal, "error.order_fetch_failed", err)
 		return
 	}
@@ -1243,7 +1373,7 @@ func (h *Handler) CreateGuestPayment(c *gin.Context) {
 		shared.RespondError(c, response.CodeBadRequest, "error.guest_password_required", nil)
 		return
 	}
-	guestOrder, err := h.OrderService.GetOrderByGuestOrderNo(req.OrderNo, email, password)
+	guestOrder, err := h.OrderService.GetOrderByGuestOrderNoForTenant(tenantFromRequest(c), req.OrderNo, email, password)
 	if err != nil {
 		if errors.Is(err, service.ErrGuestOrderNotFound) {
 			shared.RespondError(c, response.CodeNotFound, "error.guest_order_not_found", nil)
@@ -1304,7 +1434,7 @@ func (h *Handler) CaptureGuestPayment(c *gin.Context) {
 		shared.RespondError(c, response.CodeInternal, "error.payment_fetch_failed", err)
 		return
 	}
-	if _, err := h.OrderService.GetOrderByGuest(payment.OrderID, email, password); err != nil {
+	if _, err := h.OrderService.GetOrderByGuestForTenant(tenantFromRequest(c), payment.OrderID, email, password); err != nil {
 		if errors.Is(err, service.ErrGuestOrderNotFound) {
 			shared.RespondError(c, response.CodeNotFound, "error.guest_order_not_found", nil)
 			return
@@ -1345,7 +1475,7 @@ func (h *Handler) GetGuestLatestPayment(c *gin.Context) {
 		return
 	}
 
-	order, err := h.OrderService.GetOrderByGuestOrderNo(query.OrderNo, email, password)
+	order, err := h.OrderService.GetOrderByGuestOrderNoForTenant(tenantFromRequest(c), query.OrderNo, email, password)
 	if err != nil {
 		if errors.Is(err, service.ErrGuestOrderNotFound) {
 			shared.RespondError(c, response.CodeNotFound, "error.guest_order_not_found", nil)

@@ -18,6 +18,7 @@ type ProductListFilter struct {
 	PageSize           int
 	CategoryID         string
 	CategoryIDs        []uint
+	ExcludeProductIDs  []uint
 	Search             string
 	FulfillmentType    string
 	StockStatus        string
@@ -63,6 +64,120 @@ type OrderListFilter struct {
 	CreatedTo      *time.Time
 	SortBy         string
 	SortOrder      string
+}
+
+// ResellerOrderScope 表示前台订单查询的分销租户范围。
+//
+// ResellerID == nil 明确表示主站范围: orders.reseller_id IS NULL。
+// 后台列表不要使用该结构，后台 nil 语义是“不按分销商过滤”。
+type ResellerOrderScope struct {
+	ResellerID *uint
+}
+
+// ResellerLedgerListFilter 分销商账务流水过滤条件。
+type ResellerLedgerListFilter struct {
+	Page       int
+	PageSize   int
+	ResellerID uint
+	Currency   string
+	Type       string
+	Status     string
+	OrderID    uint
+}
+
+// ResellerAdminLedgerListFilter 管理端分销商账务流水过滤条件。
+type ResellerAdminLedgerListFilter struct {
+	Page        int
+	PageSize    int
+	ResellerID  uint
+	UserID      uint
+	Keyword     string
+	Currency    string
+	Type        string
+	Status      string
+	OrderID     uint
+	OrderNo     string
+	CreatedFrom *time.Time
+	CreatedTo   *time.Time
+}
+
+// ResellerAdminBalanceAccountListFilter 管理端分销商余额账户过滤条件。
+type ResellerAdminBalanceAccountListFilter struct {
+	Page       int
+	PageSize   int
+	ResellerID uint
+	UserID     uint
+	Keyword    string
+	Currency   string
+	Status     string
+}
+
+// ResellerBalanceAccountListFilter 分销商余额账户过滤条件。
+type ResellerBalanceAccountListFilter struct {
+	Page       int
+	PageSize   int
+	ResellerID uint
+	Currency   string
+	Status     string
+}
+
+// ResellerWithdrawListFilter 分销商提现申请过滤条件。
+type ResellerWithdrawListFilter struct {
+	Page       int
+	PageSize   int
+	ResellerID uint
+	Currency   string
+	Status     string
+}
+
+// ResellerAdminWithdrawListFilter 管理端分销商提现过滤条件。
+type ResellerAdminWithdrawListFilter struct {
+	Page        int
+	PageSize    int
+	ResellerID  uint
+	UserID      uint
+	Keyword     string
+	Currency    string
+	Status      string
+	CreatedFrom *time.Time
+	CreatedTo   *time.Time
+}
+
+// ResellerProfileListFilter 管理端分销商资料过滤条件。
+type ResellerProfileListFilter struct {
+	Page             int
+	PageSize         int
+	UserID           uint
+	Status           string
+	SettlementStatus string
+	Keyword          string
+	CreatedFrom      *time.Time
+	CreatedTo        *time.Time
+}
+
+// ResellerDomainListFilter 管理端分销商域名过滤条件。
+type ResellerDomainListFilter struct {
+	Page               int
+	PageSize           int
+	ResellerID         uint
+	UserID             uint
+	Domain             string
+	Type               string
+	Status             string
+	VerificationStatus string
+	Keyword            string
+	CreatedFrom        *time.Time
+	CreatedTo          *time.Time
+}
+
+// ResellerSiteConfigListFilter 分销站点配置列表过滤条件。
+type ResellerSiteConfigListFilter struct {
+	Page        int
+	PageSize    int
+	ResellerID  uint
+	Keyword     string
+	CreatedFrom *time.Time
+	CreatedTo   *time.Time
 }
 
 // PaymentListFilter 查询支付列表的过滤条件

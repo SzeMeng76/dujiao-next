@@ -91,7 +91,7 @@ func (h *Handler) CreatePaymentChannel(c *gin.Context) {
 		shared.RespondError(c, response.CodeInternal, "error.payment_channel_create_failed", err)
 		return
 	}
-	_ = cache.Del(c.Request.Context(), publicConfigCacheKey)
+	_ = cache.DelAllPublicConfig(c.Request.Context())
 
 	response.Success(c, channel)
 }
@@ -206,7 +206,7 @@ func (h *Handler) UpdatePaymentChannel(c *gin.Context) {
 		shared.RespondError(c, response.CodeInternal, "error.payment_channel_update_failed", err)
 		return
 	}
-	_ = cache.Del(c.Request.Context(), publicConfigCacheKey)
+	_ = cache.DelAllPublicConfig(c.Request.Context())
 
 	response.Success(c, channel)
 }
@@ -223,7 +223,7 @@ func (h *Handler) DeletePaymentChannel(c *gin.Context) {
 		shared.RespondError(c, response.CodeInternal, "error.payment_channel_delete_failed", err)
 		return
 	}
-	_ = cache.Del(c.Request.Context(), publicConfigCacheKey)
+	_ = cache.DelAllPublicConfig(c.Request.Context())
 
 	response.Success(c, gin.H{"deleted": true})
 }
