@@ -103,6 +103,7 @@ type Container struct {
 	ResellerSiteConfigService     *service.ResellerSiteConfigService
 	ResellerProductSettingService *service.ResellerProductSettingService
 	ResellerAccountingService     *service.ResellerAccountingService
+	ResellerOrderService          *service.ResellerOrderService
 	ResellerOperationsService     *service.ResellerOperationsService
 	ApiCredentialService          *service.ApiCredentialService
 	SiteConnectionService         *service.SiteConnectionService
@@ -245,6 +246,7 @@ func (c *Container) initServices() {
 	c.ResellerAccountingService = service.NewResellerAccountingService(c.ResellerRepo, service.ResellerAccountingOptions{
 		ConfirmDays: 7,
 	})
+	c.ResellerOrderService = service.NewResellerOrderService(c.ResellerRepo)
 	c.ResellerOperationsService = service.NewResellerOperationsService(c.ResellerOperationsRepo)
 	c.ComplianceService = service.NewComplianceService(c.SettingRepo)
 	smtpSetting, err := c.SettingService.GetSMTPSetting(c.Config.Email)

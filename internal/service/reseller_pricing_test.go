@@ -140,6 +140,18 @@ func (r *resellerPricingRepoStub) GetOrderSnapshotByOrderID(orderID uint) (*mode
 	return nil, nil
 }
 
+func (r *resellerPricingRepoStub) ListOrderSnapshotsByReseller(filter repository.ResellerOrderListFilter) ([]repository.ResellerOrderSnapshotRow, int64, error) {
+	return []repository.ResellerOrderSnapshotRow{}, 0, nil
+}
+
+func (r *resellerPricingRepoStub) StatsOrderSnapshotsByReseller(filter repository.ResellerOrderListFilter) (repository.ResellerOrderStatsRow, error) {
+	return repository.ResellerOrderStatsRow{ByStatus: map[string]int64{}, ByCurrency: map[string]int64{}}, nil
+}
+
+func (r *resellerPricingRepoStub) GetOrderSnapshotByResellerOrderNo(resellerID uint, orderNo string) (*repository.ResellerOrderSnapshotRow, error) {
+	return nil, nil
+}
+
 func (r *resellerPricingRepoStub) CreateLedgerEntryIfNotExists(entry *models.ResellerLedgerEntry) (bool, error) {
 	return false, errors.New("not implemented")
 }

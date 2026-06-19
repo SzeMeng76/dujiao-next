@@ -2,6 +2,7 @@ package public
 
 import (
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
@@ -36,12 +37,22 @@ var userResellerManagementErrorRules = []mappedHandlerError{
 	{target: service.ErrResellerPricingModeInvalid, code: response.CodeBadRequest, key: "error.reseller_price_invalid"},
 }
 
+var userResellerOrderErrorRules = []mappedHandlerError{
+	{target: service.ErrResellerNotOpened, code: response.CodeBadRequest, key: "error.bad_request"},
+	{target: service.ErrResellerProfileInactive, code: response.CodeBadRequest, key: "error.forbidden"},
+	{target: service.ErrOrderNotFound, code: response.CodeNotFound, key: "error.order_not_found"},
+}
+
 func respondUserResellerFinanceError(c *gin.Context, err error, fallbackKey string) {
 	respondWithMappedError(c, err, userResellerFinanceErrorRules, response.CodeInternal, fallbackKey)
 }
 
 func respondUserResellerManagementError(c *gin.Context, err error, fallbackKey string) {
 	respondWithMappedError(c, err, userResellerManagementErrorRules, response.CodeInternal, fallbackKey)
+}
+
+func respondUserResellerOrderError(c *gin.Context, err error, fallbackKey string) {
+	respondWithMappedError(c, err, userResellerOrderErrorRules, response.CodeInternal, fallbackKey)
 }
 
 type ResellerApplyRequest struct {
@@ -363,6 +374,125 @@ func (h *Handler) ResetResellerProductSetting(c *gin.Context) {
 		return
 	}
 	response.Success(c, gin.H{"deleted": true})
+}
+
+// ListResellerOrders 查询当前分销商视角的销售订单。
+func (h *Handler) ListResellerOrders(c *gin.Context) {
+	uid, ok := shared.GetUserID(c)
+	if !ok {
+		return
+	}
+	if h.ResellerOrderService == nil {
+		shared.RespondError(c, response.CodeInternal, "error.order_fetch_failed", nil)
+		return
+	}
+	page, pageSize := shared.ParsePagination(c)
+	input, err := resellerOrderListInputFromQuery(c, page, pageSize)
+	if err != nil {
+		shared.RespondError(c, response.CodeBadRequest, "error.bad_request", err)
+		return
+	}
+	rows, total, err := h.ResellerOrderService.ListUserOrders(uid, input)
+	if err != nil {
+		respondUserResellerOrderError(c, err, "error.order_fetch_failed")
+		return
+	}
+	response.SuccessWithPage(c, dto.NewResellerOrderRespList(rows), response.BuildPagination(page, pageSize, total))
+}
+
+// GetResellerOrderDetail 获取当前分销商视角的销售订单详情。
+func (h *Handler) GetResellerOrderDetail(c *gin.Context) {
+	uid, ok := shared.GetUserID(c)
+	if !ok {
+		return
+	}
+	if h.ResellerOrderService == nil {
+		shared.RespondError(c, response.CodeInternal, "error.order_fetch_failed", nil)
+		return
+	}
+	orderNo := strings.TrimSpace(c.Param("order_no"))
+	if orderNo == "" {
+		shared.RespondError(c, response.CodeBadRequest, "error.bad_request", nil)
+		return
+	}
+	detail, err := h.ResellerOrderService.GetUserOrderDetail(uid, orderNo)
+	if err != nil {
+		respondUserResellerOrderError(c, err, "error.order_fetch_failed")
+		return
+	}
+	response.Success(c, dto.NewResellerOrderDetailResp(detail))
+}
+
+// GetResellerOrderStats 获取当前分销商视角的销售订单统计。
+func (h *Handler) GetResellerOrderStats(c *gin.Context) {
+	uid, ok := shared.GetUserID(c)
+	if !ok {
+		return
+	}
+	if h.ResellerOrderService == nil {
+		shared.RespondError(c, response.CodeInternal, "error.order_fetch_failed", nil)
+		return
+	}
+	input, err := resellerOrderListInputFromQuery(c, 1, 0)
+	if err != nil {
+		shared.RespondError(c, response.CodeBadRequest, "error.bad_request", err)
+		return
+	}
+	stats, err := h.ResellerOrderService.StatsUserOrders(uid, input)
+	if err != nil {
+		respondUserResellerOrderError(c, err, "error.order_fetch_failed")
+		return
+	}
+	response.Success(c, dto.NewResellerOrderStatsResp(stats))
+}
+
+func resellerOrderListInputFromQuery(c *gin.Context, page, pageSize int) (service.ResellerOrderListInput, error) {
+	createdFrom, err := parseResellerOrderTimeQuery(c.Query("created_from"), false)
+	if err != nil {
+		return service.ResellerOrderListInput{}, err
+	}
+	createdTo, err := parseResellerOrderTimeQuery(c.Query("created_to"), true)
+	if err != nil {
+		return service.ResellerOrderListInput{}, err
+	}
+	paidFrom, err := parseResellerOrderTimeQuery(c.Query("paid_from"), false)
+	if err != nil {
+		return service.ResellerOrderListInput{}, err
+	}
+	paidTo, err := parseResellerOrderTimeQuery(c.Query("paid_to"), true)
+	if err != nil {
+		return service.ResellerOrderListInput{}, err
+	}
+	return service.ResellerOrderListInput{
+		Page:        page,
+		PageSize:    pageSize,
+		Status:      strings.TrimSpace(c.Query("status")),
+		OrderNo:     strings.TrimSpace(c.Query("order_no")),
+		Domain:      strings.TrimSpace(c.Query("domain")),
+		Currency:    strings.TrimSpace(c.Query("currency")),
+		CreatedFrom: createdFrom,
+		CreatedTo:   createdTo,
+		PaidFrom:    paidFrom,
+		PaidTo:      paidTo,
+	}, nil
+}
+
+func parseResellerOrderTimeQuery(raw string, endOfDay bool) (*time.Time, error) {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return nil, nil
+	}
+	if parsed, err := time.Parse(time.RFC3339, value); err == nil {
+		return &parsed, nil
+	}
+	parsed, err := time.ParseInLocation("2006-01-02", value, time.Local)
+	if err != nil {
+		return nil, err
+	}
+	if endOfDay {
+		parsed = parsed.Add(24*time.Hour - time.Nanosecond)
+	}
+	return &parsed, nil
 }
 
 func resellerProductSettingDTOInputFromDetail(detail *service.ResellerProductSettingDetail) dto.ResellerProductSettingDTOInput {

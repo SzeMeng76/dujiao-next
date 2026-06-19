@@ -483,6 +483,18 @@ func (r *resellerPricingRepoForPublicTest) GetOrderSnapshotByOrderID(orderID uin
 	return nil, nil
 }
 
+func (r *resellerPricingRepoForPublicTest) ListOrderSnapshotsByReseller(filter repository.ResellerOrderListFilter) ([]repository.ResellerOrderSnapshotRow, int64, error) {
+	return []repository.ResellerOrderSnapshotRow{}, 0, nil
+}
+
+func (r *resellerPricingRepoForPublicTest) StatsOrderSnapshotsByReseller(filter repository.ResellerOrderListFilter) (repository.ResellerOrderStatsRow, error) {
+	return repository.ResellerOrderStatsRow{ByStatus: map[string]int64{}, ByCurrency: map[string]int64{}}, nil
+}
+
+func (r *resellerPricingRepoForPublicTest) GetOrderSnapshotByResellerOrderNo(resellerID uint, orderNo string) (*repository.ResellerOrderSnapshotRow, error) {
+	return nil, nil
+}
+
 func (r *resellerPricingRepoForPublicTest) CreateLedgerEntryIfNotExists(entry *models.ResellerLedgerEntry) (bool, error) {
 	return false, fmt.Errorf("not implemented")
 }
