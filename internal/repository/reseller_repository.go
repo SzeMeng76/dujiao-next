@@ -44,8 +44,11 @@ type ResellerRepository interface {
 	CreateLedgerEntryIfNotExists(entry *models.ResellerLedgerEntry) (bool, error)
 	GetLedgerEntryByIdempotencyKey(key string) (*models.ResellerLedgerEntry, error)
 	MarkDueLedgerEntriesAvailable(now time.Time) (int64, error)
+	ListDueLedgerScopes(now time.Time) ([]ResellerLedgerScope, error)
 	ListLedgerEntries(filter ResellerLedgerListFilter) ([]models.ResellerLedgerEntry, int64, error)
 	SumLedgerAmount(resellerID uint, currency string, statuses []string) (decimal.Decimal, error)
+	SumLedgerAmountByOrderAndType(orderID uint, ledgerType string) (decimal.Decimal, error)
+	SumLedgerAmountGroupedByStatus(resellerID uint, currency string, statuses []string) (map[string]decimal.Decimal, error)
 	GetOrCreateBalanceAccountForUpdate(resellerID uint, currency string) (*models.ResellerBalanceAccount, error)
 	ListBalanceAccounts(filter ResellerBalanceAccountListFilter) ([]models.ResellerBalanceAccount, int64, error)
 	UpdateBalanceAccount(account *models.ResellerBalanceAccount) error
@@ -265,7 +268,9 @@ func (r *GormResellerRepository) FindActiveVerifiedDomain(host string) (*models.
 	}
 	var row models.ResellerDomain
 	err := r.db.Preload("Profile").
-		Where("domain = ? AND status = ? AND verification_status = ?", domain, models.ResellerDomainStatusActive, models.ResellerDomainVerificationVerified).
+		Joins("JOIN reseller_profiles ON reseller_profiles.id = reseller_domains.reseller_id AND reseller_profiles.deleted_at IS NULL").
+		Where("reseller_domains.domain = ? AND reseller_domains.status = ? AND reseller_domains.verification_status = ?", domain, models.ResellerDomainStatusActive, models.ResellerDomainVerificationVerified).
+		Where("reseller_profiles.status = ?", models.ResellerProfileStatusActive).
 		First(&row).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -681,9 +686,18 @@ func (r *GormResellerRepository) GetOrderSnapshotByResellerOrderNo(resellerID ui
 
 func (r *GormResellerRepository) buildResellerOrderSnapshotRows(resellerID uint, snapshots []models.ResellerOrderSnapshot) ([]ResellerOrderSnapshotRow, error) {
 	orderIDs := make([]uint, 0, len(snapshots))
+	buyerUserIDs := make([]uint, 0, len(snapshots))
+	buyerSeen := map[uint]struct{}{}
 	for i := range snapshots {
 		if snapshots[i].OrderID > 0 {
 			orderIDs = append(orderIDs, snapshots[i].OrderID)
+		}
+		buyerUserID := snapshots[i].Order.UserID
+		if buyerUserID > 0 {
+			if _, ok := buyerSeen[buyerUserID]; !ok {
+				buyerSeen[buyerUserID] = struct{}{}
+				buyerUserIDs = append(buyerUserIDs, buyerUserID)
+			}
 		}
 	}
 	ledgerByOrderID := map[uint][]models.ResellerLedgerEntry{}
@@ -701,6 +715,16 @@ func (r *GormResellerRepository) buildResellerOrderSnapshotRows(resellerID uint,
 			ledgerByOrderID[*ledgerRows[i].OrderID] = append(ledgerByOrderID[*ledgerRows[i].OrderID], ledgerRows[i])
 		}
 	}
+	buyerEmailByID := map[uint]string{}
+	if len(buyerUserIDs) > 0 {
+		var users []models.User
+		if err := r.db.Select("id", "email").Where("id IN ?", buyerUserIDs).Find(&users).Error; err != nil {
+			return nil, err
+		}
+		for i := range users {
+			buyerEmailByID[users[i].ID] = users[i].Email
+		}
+	}
 	out := make([]ResellerOrderSnapshotRow, 0, len(snapshots))
 	for i := range snapshots {
 		items := resellerOrderItemsFromParentOrChildren(snapshots[i].Order)
@@ -709,6 +733,7 @@ func (r *GormResellerRepository) buildResellerOrderSnapshotRows(resellerID uint,
 			Order:         snapshots[i].Order,
 			Items:         items,
 			LedgerEntries: ledgerByOrderID[snapshots[i].OrderID],
+			BuyerEmail:    buyerEmailByID[snapshots[i].Order.UserID],
 		})
 	}
 	return out, nil
@@ -783,6 +808,26 @@ func (r *GormResellerRepository) MarkDueLedgerEntriesAvailable(now time.Time) (i
 	return res.RowsAffected, res.Error
 }
 
+// ResellerLedgerScope 表示分销商 + 币种的账户维度，用于到期确认后定位需要刷新的余额账户。
+type ResellerLedgerScope struct {
+	ResellerID uint
+	Currency   string
+}
+
+// ListDueLedgerScopes 列出到期待确认流水涉及的分销商与币种组合。
+func (r *GormResellerRepository) ListDueLedgerScopes(now time.Time) ([]ResellerLedgerScope, error) {
+	scopes := make([]ResellerLedgerScope, 0)
+	err := r.db.Model(&models.ResellerLedgerEntry{}).
+		Where("status = ? AND available_at IS NOT NULL AND available_at <= ?", models.ResellerLedgerStatusPendingConfirm, now).
+		Group("reseller_id, currency").
+		Select("reseller_id, currency").
+		Scan(&scopes).Error
+	if err != nil {
+		return nil, err
+	}
+	return scopes, nil
+}
+
 // ListLedgerEntries 分页列出分销账务流水。
 func (r *GormResellerRepository) ListLedgerEntries(filter ResellerLedgerListFilter) ([]models.ResellerLedgerEntry, int64, error) {
 	rows := make([]models.ResellerLedgerEntry, 0)
@@ -829,6 +874,49 @@ func (r *GormResellerRepository) SumLedgerAmount(resellerID uint, currency strin
 		return decimal.Zero, err
 	}
 	return total.Round(2), nil
+}
+
+// SumLedgerAmountByOrderAndType 汇总指定订单、指定类型的流水金额（含正负号），用于退款扣减的累计上限保护。
+func (r *GormResellerRepository) SumLedgerAmountByOrderAndType(orderID uint, ledgerType string) (decimal.Decimal, error) {
+	ledgerType = strings.TrimSpace(ledgerType)
+	if orderID == 0 || ledgerType == "" {
+		return decimal.Zero, nil
+	}
+	var total decimal.Decimal
+	err := r.db.Model(&models.ResellerLedgerEntry{}).
+		Where("order_id = ? AND type = ?", orderID, ledgerType).
+		Select("COALESCE(SUM(amount), 0)").
+		Scan(&total).Error
+	if err != nil {
+		return decimal.Zero, err
+	}
+	return total.Round(2), nil
+}
+
+// SumLedgerAmountGroupedByStatus 一次性按状态分组汇总分销账务金额，避免逐状态多次查询。
+func (r *GormResellerRepository) SumLedgerAmountGroupedByStatus(resellerID uint, currency string, statuses []string) (map[string]decimal.Decimal, error) {
+	currency = strings.TrimSpace(currency)
+	result := make(map[string]decimal.Decimal, len(statuses))
+	if resellerID == 0 || currency == "" || len(statuses) == 0 {
+		return result, nil
+	}
+	type sumRow struct {
+		Status string
+		Total  decimal.Decimal
+	}
+	var rows []sumRow
+	err := r.db.Model(&models.ResellerLedgerEntry{}).
+		Where("reseller_id = ? AND currency = ? AND status IN ?", resellerID, currency, statuses).
+		Group("status").
+		Select("status, COALESCE(SUM(amount), 0) AS total").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		result[row.Status] = row.Total.Round(2)
+	}
+	return result, nil
 }
 
 // GetOrCreateBalanceAccountForUpdate 获取或创建并锁定同币种余额账户。

@@ -1,6 +1,7 @@
 package public
 
 import (
+	"errors"
 	"strings"
 	"time"
 
@@ -13,14 +14,35 @@ import (
 	"github.com/dujiao-next/internal/service"
 )
 
+// resellerSiteConfigFieldErrorKey 将站点配置字段级校验错误映射为可读的 i18n key，
+// 让分销商在保存失败时能明确知道是哪个字段、应如何修正。
+func resellerSiteConfigFieldErrorKey(field string) string {
+	switch field {
+	case "support_telegram":
+		return "error.reseller_support_telegram_invalid"
+	case "support_whatsapp":
+		return "error.reseller_support_whatsapp_invalid"
+	case "support_email":
+		return "error.reseller_support_email_invalid"
+	case "support_url":
+		return "error.reseller_support_url_invalid"
+	case "image":
+		return "error.reseller_image_invalid"
+	case "link":
+		return "error.reseller_link_invalid"
+	default:
+		return "error.bad_request"
+	}
+}
+
 var userResellerFinanceErrorRules = []mappedHandlerError{
 	{target: service.ErrResellerNotOpened, code: response.CodeBadRequest, key: "error.bad_request"},
-	{target: service.ErrResellerProfileInactive, code: response.CodeBadRequest, key: "error.forbidden"},
-	{target: service.ErrResellerSettlementUnavailable, code: response.CodeBadRequest, key: "error.forbidden"},
-	{target: service.ErrResellerWithdrawAmountInvalid, code: response.CodeBadRequest, key: "error.bad_request"},
-	{target: service.ErrResellerWithdrawCurrencyUnavailable, code: response.CodeBadRequest, key: "error.bad_request"},
-	{target: service.ErrResellerWithdrawInsufficient, code: response.CodeBadRequest, key: "error.bad_request"},
-	{target: service.ErrResellerBalanceAccountFrozen, code: response.CodeBadRequest, key: "error.forbidden"},
+	{target: service.ErrResellerProfileInactive, code: response.CodeBadRequest, key: "error.reseller_profile_inactive"},
+	{target: service.ErrResellerSettlementUnavailable, code: response.CodeBadRequest, key: "error.reseller_settlement_unavailable"},
+	{target: service.ErrResellerWithdrawAmountInvalid, code: response.CodeBadRequest, key: "error.reseller_withdraw_amount_invalid"},
+	{target: service.ErrResellerWithdrawCurrencyUnavailable, code: response.CodeBadRequest, key: "error.reseller_withdraw_currency_unavailable"},
+	{target: service.ErrResellerWithdrawInsufficient, code: response.CodeBadRequest, key: "error.reseller_withdraw_insufficient"},
+	{target: service.ErrResellerBalanceAccountFrozen, code: response.CodeBadRequest, key: "error.reseller_balance_frozen"},
 }
 
 var userResellerManagementErrorRules = []mappedHandlerError{
@@ -72,7 +94,6 @@ type ResellerSiteConfigRequest struct {
 	SEO          service.ResellerSEOInput          `json:"seo"`
 	FooterLinks  []service.ResellerFooterLinkInput `json:"footer_links"`
 	NavConfig    service.ResellerNavConfigInput    `json:"nav_config"`
-	Theme        service.ResellerThemeInput        `json:"theme"`
 }
 
 type ResellerProductSettingRequest struct {
@@ -99,7 +120,6 @@ func (req ResellerSiteConfigRequest) toServiceInput() service.ResellerSiteConfig
 		SEO:          req.SEO,
 		FooterLinks:  req.FooterLinks,
 		NavConfig:    req.NavConfig,
-		Theme:        req.Theme,
 	}
 }
 
@@ -260,10 +280,58 @@ func (h *Handler) UpdateResellerSiteConfig(c *gin.Context) {
 	}
 	row, err := h.ResellerSiteConfigService.UpdateUserSiteConfig(c.Request.Context(), uid, req.toServiceInput())
 	if err != nil {
+		var fieldErr *service.ResellerSiteConfigFieldError
+		if errors.As(err, &fieldErr) {
+			shared.RespondError(c, response.CodeBadRequest, resellerSiteConfigFieldErrorKey(fieldErr.Field), nil)
+			return
+		}
 		respondUserResellerManagementError(c, err, "error.save_failed")
 		return
 	}
 	response.Success(c, dto.NewResellerSiteConfigResp(row))
+}
+
+// UploadResellerImage 分销商上传站点图片（Logo / 图标 / 分享图 / 公告插图）。
+// 仅允许已开通且可编辑站点配置的分销商上传，复用统一的上传校验与存储逻辑。
+func (h *Handler) UploadResellerImage(c *gin.Context) {
+	uid, ok := shared.GetUserID(c)
+	if !ok {
+		return
+	}
+	if h.UploadService == nil || h.ResellerSiteConfigService == nil {
+		shared.RespondError(c, response.CodeInternal, "error.upload_failed", nil)
+		return
+	}
+	// 鉴权：必须是已开通且站点配置可编辑的分销商
+	_, _, canEdit, err := h.ResellerSiteConfigService.GetUserSiteConfig(uid)
+	if err != nil {
+		respondUserResellerManagementError(c, err, "error.forbidden")
+		return
+	}
+	if !canEdit {
+		shared.RespondError(c, response.CodeForbidden, "error.forbidden", nil)
+		return
+	}
+
+	file, err := c.FormFile("file")
+	if err != nil {
+		shared.RespondError(c, response.CodeBadRequest, "error.file_missing", nil)
+		return
+	}
+	result, err := h.UploadService.SaveFileWithMeta(file, "reseller")
+	if err != nil {
+		if service.IsUploadValidationError(err) {
+			shared.RespondErrorWithMsg(c, response.CodeBadRequest, err.Error(), nil)
+			return
+		}
+		shared.RespondError(c, response.CodeInternal, "error.upload_failed", err)
+		return
+	}
+	response.Success(c, gin.H{
+		"url":      result.URL,
+		"filename": result.Filename,
+		"size":     result.Size,
+	})
 }
 
 // ListResellerProductSettings 查询当前用户可配置的分销商品。
@@ -468,8 +536,6 @@ func resellerOrderListInputFromQuery(c *gin.Context, page, pageSize int) (servic
 		PageSize:    pageSize,
 		Status:      strings.TrimSpace(c.Query("status")),
 		OrderNo:     strings.TrimSpace(c.Query("order_no")),
-		Domain:      strings.TrimSpace(c.Query("domain")),
-		Currency:    strings.TrimSpace(c.Query("currency")),
 		CreatedFrom: createdFrom,
 		CreatedTo:   createdTo,
 		PaidFrom:    paidFrom,
@@ -560,7 +626,6 @@ func (h *Handler) ListResellerBalanceAccounts(c *gin.Context) {
 	rows, total, err := h.ResellerAccountingService.ListUserBalanceAccounts(uid, service.ResellerUserBalanceAccountListFilter{
 		Page:     page,
 		PageSize: pageSize,
-		Currency: strings.TrimSpace(c.Query("currency")),
 		Status:   strings.TrimSpace(c.Query("status")),
 	})
 	if err != nil {
@@ -589,7 +654,6 @@ func (h *Handler) ListResellerLedgerEntries(c *gin.Context) {
 	rows, total, err := h.ResellerAccountingService.ListUserLedgerEntries(uid, service.ResellerUserLedgerListFilter{
 		Page:     page,
 		PageSize: pageSize,
-		Currency: strings.TrimSpace(c.Query("currency")),
 		Type:     strings.TrimSpace(c.Query("type")),
 		Status:   strings.TrimSpace(c.Query("status")),
 		OrderID:  orderID,
@@ -615,7 +679,6 @@ func (h *Handler) ListResellerWithdraws(c *gin.Context) {
 	rows, total, err := h.ResellerAccountingService.ListUserWithdrawRequests(uid, service.ResellerUserWithdrawListFilter{
 		Page:     page,
 		PageSize: pageSize,
-		Currency: strings.TrimSpace(c.Query("currency")),
 		Status:   strings.TrimSpace(c.Query("status")),
 	})
 	if err != nil {

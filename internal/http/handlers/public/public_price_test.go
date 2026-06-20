@@ -507,12 +507,24 @@ func (r *resellerPricingRepoForPublicTest) MarkDueLedgerEntriesAvailable(now tim
 	return 0, nil
 }
 
+func (r *resellerPricingRepoForPublicTest) ListDueLedgerScopes(now time.Time) ([]repository.ResellerLedgerScope, error) {
+	return nil, nil
+}
+
 func (r *resellerPricingRepoForPublicTest) ListLedgerEntries(filter repository.ResellerLedgerListFilter) ([]models.ResellerLedgerEntry, int64, error) {
 	return []models.ResellerLedgerEntry{}, 0, nil
 }
 
 func (r *resellerPricingRepoForPublicTest) SumLedgerAmount(resellerID uint, currency string, statuses []string) (decimal.Decimal, error) {
 	return decimal.Zero, nil
+}
+
+func (r *resellerPricingRepoForPublicTest) SumLedgerAmountByOrderAndType(orderID uint, ledgerType string) (decimal.Decimal, error) {
+	return decimal.Zero, nil
+}
+
+func (r *resellerPricingRepoForPublicTest) SumLedgerAmountGroupedByStatus(resellerID uint, currency string, statuses []string) (map[string]decimal.Decimal, error) {
+	return map[string]decimal.Decimal{}, nil
 }
 
 func (r *resellerPricingRepoForPublicTest) GetOrCreateBalanceAccountForUpdate(resellerID uint, currency string) (*models.ResellerBalanceAccount, error) {

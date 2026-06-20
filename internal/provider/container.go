@@ -244,7 +244,7 @@ func (c *Container) initServices() {
 	c.ResellerSiteConfigService = service.NewResellerSiteConfigService(c.ResellerRepo)
 	c.ResellerProductSettingService = service.NewResellerProductSettingService(c.ResellerProductSettingRepo, c.ResellerRepo, c.ProductRepo)
 	c.ResellerAccountingService = service.NewResellerAccountingService(c.ResellerRepo, service.ResellerAccountingOptions{
-		ConfirmDays: 7,
+		ConfirmDays: c.Config.Reseller.SettlementConfirmDays,
 	})
 	c.ResellerOrderService = service.NewResellerOrderService(c.ResellerRepo)
 	c.ResellerOperationsService = service.NewResellerOperationsService(c.ResellerOperationsRepo)
@@ -333,6 +333,7 @@ func (c *Container) initServices() {
 	c.ProductMappingService = service.NewProductMappingService(c.ProductMappingRepo, c.SKUMappingRepo, c.ProductRepo, c.ProductSKURepo, c.CategoryRepo, c.SiteConnectionService)
 	c.ProductMappingService.SetCategoryService(c.CategoryService)
 	c.ProductMappingService.SetSettingService(c.SettingService)
+	c.SiteConnectionService.SetMarkupReapplier(c.ProductMappingService)
 	c.OrderService.SetProductMappingService(c.ProductMappingService)
 	c.DownstreamCallbackService = service.NewDownstreamCallbackService(c.DownstreamOrderRefRepo, c.OrderRepo, c.ApiCredentialRepo, c.QueueClient)
 	c.PaymentService = service.NewPaymentService(service.PaymentServiceOptions{
