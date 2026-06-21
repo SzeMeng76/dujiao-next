@@ -49,10 +49,10 @@ var userResellerManagementErrorRules = []mappedHandlerError{
 	{target: service.ErrResellerNotOpened, code: response.CodeBadRequest, key: "error.bad_request"},
 	{target: service.ErrResellerApplyDisabled, code: response.CodeForbidden, key: "error.forbidden"},
 	{target: service.ErrResellerProfileInactive, code: response.CodeBadRequest, key: "error.forbidden"},
-	{target: service.ErrResellerDomainInvalid, code: response.CodeBadRequest, key: "error.bad_request"},
-	{target: service.ErrResellerDomainMainHostNotAllowed, code: response.CodeBadRequest, key: "error.bad_request"},
-	{target: service.ErrResellerDomainConflict, code: response.CodeBadRequest, key: "error.bad_request"},
-	{target: service.ErrResellerSiteConfigInvalid, code: response.CodeBadRequest, key: "error.bad_request"},
+	{target: service.ErrResellerDomainInvalid, code: response.CodeBadRequest, key: "error.reseller_domain_invalid"},
+	{target: service.ErrResellerDomainMainHostNotAllowed, code: response.CodeBadRequest, key: "error.reseller_domain_main_host_not_allowed"},
+	{target: service.ErrResellerDomainConflict, code: response.CodeBadRequest, key: "error.reseller_domain_conflict"},
+	{target: service.ErrResellerSiteConfigInvalid, code: response.CodeBadRequest, key: "error.reseller_site_config_invalid"},
 	{target: service.ErrProductSKUInvalid, code: response.CodeBadRequest, key: "error.order_item_invalid"},
 	{target: service.ErrResellerPriceBelowBase, code: response.CodeBadRequest, key: "error.reseller_price_invalid"},
 	{target: service.ErrResellerMarkupExceeded, code: response.CodeBadRequest, key: "error.reseller_markup_exceeded"},
@@ -415,6 +415,50 @@ func (h *Handler) UpdateResellerProductSettings(c *gin.Context) {
 		return
 	}
 	response.Success(c, dto.NewResellerProductSettingDetailResp(resellerProductSettingDTOInputFromDetail(detail)))
+}
+
+// PreviewResellerProductSettings 计算当前用户拟用定价规则的预计生效价与校验结果（不落库）。
+func (h *Handler) PreviewResellerProductSettings(c *gin.Context) {
+	uid, ok := shared.GetUserID(c)
+	if !ok {
+		return
+	}
+	if h.ResellerProductSettingService == nil {
+		shared.RespondError(c, response.CodeInternal, "error.user_fetch_failed", nil)
+		return
+	}
+	productID, err := shared.ParseParamUint(c, "product_id")
+	if err != nil {
+		shared.RespondError(c, response.CodeBadRequest, "error.bad_request", err)
+		return
+	}
+	var req ResellerProductSettingsUpdateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		shared.RespondBindError(c, err)
+		return
+	}
+	input, err := req.toServiceInput()
+	if err != nil {
+		shared.RespondError(c, response.CodeBadRequest, "error.bad_request", err)
+		return
+	}
+	items, err := h.ResellerProductSettingService.PreviewUserProductSettings(uid, productID, input)
+	if err != nil {
+		respondUserResellerManagementError(c, err, "error.user_fetch_failed")
+		return
+	}
+	previews := make([]dto.ResellerProductSettingPreviewInput, 0, len(items))
+	for _, item := range items {
+		previews = append(previews, dto.ResellerProductSettingPreviewInput{
+			SKUID:          item.SKUID,
+			IsListed:       item.IsListed,
+			BasePrice:      item.BasePrice.StringFixed(2),
+			EffectivePrice: item.EffectivePrice.StringFixed(2),
+			Valid:          item.Valid,
+			ErrorCode:      item.ErrorCode,
+		})
+	}
+	response.Success(c, dto.NewResellerProductSettingPreviewResp(previews))
 }
 
 // ResetResellerProductSetting 删除当前用户的商品级或 SKU 级分销配置。

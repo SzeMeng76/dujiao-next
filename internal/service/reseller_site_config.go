@@ -174,7 +174,9 @@ func normalizeResellerAnnouncement(input ResellerAnnouncementInput) models.JSON 
 		"enabled": input.Enabled,
 		"type":    typ,
 		"title":   normalizeResellerLocalizedText(input.Title, 120),
-		"content": normalizeResellerLocalizedText(input.Content, 1000),
+		// 公告内容为富文本 HTML（前端 TipTap），含标签开销，限额需高于纯文本；
+		// 按 rune 截断仍可能切断标签，但前端渲染统一经 DOMPurify 解析补全，不会破坏页面。
+		"content": normalizeResellerLocalizedText(input.Content, 4000),
 	}
 }
 

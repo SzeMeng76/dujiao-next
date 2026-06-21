@@ -159,6 +159,7 @@ func BuiltinRoleSeeds() []RoleSeed {
 				{Object: "/admin/resellers/site-configs/:reseller_id/reset", Action: "POST"},
 				{Object: "/admin/resellers/product-settings", Action: "GET"},
 				{Object: "/admin/resellers/product-settings/:reseller_id/:product_id", Action: "GET"},
+				{Object: "/admin/resellers/product-settings/:reseller_id/:product_id/preview", Action: "POST"},
 				{Object: "/admin/resellers/product-settings/:reseller_id/:product_id", Action: "PUT"},
 				{Object: "/admin/resellers/product-settings/:reseller_id/:product_id", Action: "DELETE"},
 			},

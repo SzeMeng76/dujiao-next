@@ -421,6 +421,45 @@ func NewResellerProductSettingListResp(rows []ResellerProductSettingDTOInput) []
 	return out
 }
 
+// ResellerProductSettingPreviewItemResp 单个商品级（sku_id=0）或 SKU 级规则的预览结果。
+type ResellerProductSettingPreviewItemResp struct {
+	SKUID                uint   `json:"sku_id"`
+	IsListed             bool   `json:"is_listed"`
+	BasePriceAmount      string `json:"base_price_amount"`
+	EffectivePriceAmount string `json:"effective_price_amount"`
+	Valid                bool   `json:"valid"`
+	ErrorCode            string `json:"error_code,omitempty"`
+}
+
+type ResellerProductSettingPreviewResp struct {
+	Items []ResellerProductSettingPreviewItemResp `json:"items"`
+}
+
+// ResellerProductSettingPreviewInput 由 handler 从 service 结果映射而来（金额已格式化为两位小数字符串）。
+type ResellerProductSettingPreviewInput struct {
+	SKUID          uint
+	IsListed       bool
+	BasePrice      string
+	EffectivePrice string
+	Valid          bool
+	ErrorCode      string
+}
+
+func NewResellerProductSettingPreviewResp(items []ResellerProductSettingPreviewInput) ResellerProductSettingPreviewResp {
+	out := ResellerProductSettingPreviewResp{Items: make([]ResellerProductSettingPreviewItemResp, 0, len(items))}
+	for _, item := range items {
+		out.Items = append(out.Items, ResellerProductSettingPreviewItemResp{
+			SKUID:                item.SKUID,
+			IsListed:             item.IsListed,
+			BasePriceAmount:      item.BasePrice,
+			EffectivePriceAmount: item.EffectivePrice,
+			Valid:                item.Valid,
+			ErrorCode:            item.ErrorCode,
+		})
+	}
+	return out
+}
+
 func newResellerProductSettingResp(setting models.ResellerProductSetting, effectivePrice string, ruleSource string) *ResellerProductSettingResp {
 	updatedAt := setting.UpdatedAt
 	return &ResellerProductSettingResp{
