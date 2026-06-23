@@ -444,6 +444,7 @@ const (
 	SettingKeyTelegramBotRuntimeStatus = "telegram_bot_runtime_status"
 	SettingKeyOrderEmailTemplateConfig = "order_email_template_config"
 	SettingFieldSiteCurrency           = "currency"
+	SettingFieldStorefrontTemplate     = "storefront_template"
 	SettingFieldPaymentExpireMinutes   = "payment_expire_minutes"
 
 	SettingKeyNavConfig = "nav_config"
@@ -485,6 +486,13 @@ const (
 // 币种常量
 const (
 	SiteCurrencyDefault = "CNY"
+)
+
+// 店面模板常量（站长全局选择的用户前台模板）
+const (
+	StorefrontTemplateClassic = "classic"
+	StorefrontTemplateVault   = "vault"
+	StorefrontTemplateDefault = StorefrontTemplateClassic
 )
 
 // 站点语言常量
