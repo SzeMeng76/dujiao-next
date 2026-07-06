@@ -23,6 +23,7 @@ type CreateCouponRequest struct {
 	UsageLimit             int      `json:"usage_limit"`
 	PerUserLimit           int      `json:"per_user_limit"`
 	DisabledWholesalePrice *bool    `json:"disabled_wholesale_price"`
+	PerItemDiscount        *bool    `json:"per_item_discount"`
 	PaymentRoles           []string `json:"payment_roles"`
 	MemberLevels           []uint   `json:"member_levels"`
 	ScopeRefIDs            []uint   `json:"scope_ref_ids" binding:"required"`
@@ -49,6 +50,7 @@ func buildCreateCouponInputFromRequest(req CreateCouponRequest) (service.CreateC
 		UsageLimit:             req.UsageLimit,
 		PerUserLimit:           req.PerUserLimit,
 		DisabledWholesalePrice: req.DisabledWholesalePrice,
+		PerItemDiscount:        req.PerItemDiscount,
 		PaymentRoles:           req.PaymentRoles,
 		MemberLevels:           req.MemberLevels,
 		ScopeRefIDs:            req.ScopeRefIDs,

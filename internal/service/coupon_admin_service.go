@@ -32,6 +32,7 @@ type CreateCouponInput struct {
 	UsageLimit             int
 	PerUserLimit           int
 	DisabledWholesalePrice *bool
+	PerItemDiscount        *bool
 	PaymentRoles           []string
 	MemberLevels           []uint
 	ScopeRefIDs            []uint
@@ -50,6 +51,7 @@ type UpdateCouponInput struct {
 	UsageLimit             int
 	PerUserLimit           int
 	DisabledWholesalePrice *bool
+	PerItemDiscount        *bool
 	PaymentRoles           []string
 	MemberLevels           []uint
 	ScopeRefIDs            []uint
@@ -105,6 +107,10 @@ func (s *CouponAdminService) Create(input CreateCouponInput) (*models.Coupon, er
 	if input.DisabledWholesalePrice != nil {
 		disabledWholesalePrice = *input.DisabledWholesalePrice
 	}
+	perItemDiscount := false
+	if couponType == constants.CouponTypeFixed && input.PerItemDiscount != nil {
+		perItemDiscount = *input.PerItemDiscount
+	}
 
 	coupon := &models.Coupon{
 		Code:                   code,
@@ -116,6 +122,7 @@ func (s *CouponAdminService) Create(input CreateCouponInput) (*models.Coupon, er
 		UsedCount:              0,
 		PerUserLimit:           input.PerUserLimit,
 		DisabledWholesalePrice: disabledWholesalePrice,
+		PerItemDiscount:        perItemDiscount,
 		PaymentRoles:           paymentRoles,
 		MemberLevels:           memberLevels,
 		ScopeType:              constants.ScopeTypeProduct,
@@ -190,6 +197,13 @@ func (s *CouponAdminService) Update(id uint, input UpdateCouponInput) (*models.C
 	if input.DisabledWholesalePrice != nil {
 		disabledWholesalePrice = *input.DisabledWholesalePrice
 	}
+	perItemDiscount := existing.PerItemDiscount
+	if input.PerItemDiscount != nil {
+		perItemDiscount = *input.PerItemDiscount
+	}
+	if couponType != constants.CouponTypeFixed {
+		perItemDiscount = false
+	}
 
 	existing.Code = code
 	existing.Type = couponType
@@ -199,6 +213,7 @@ func (s *CouponAdminService) Update(id uint, input UpdateCouponInput) (*models.C
 	existing.UsageLimit = input.UsageLimit
 	existing.PerUserLimit = input.PerUserLimit
 	existing.DisabledWholesalePrice = disabledWholesalePrice
+	existing.PerItemDiscount = perItemDiscount
 	existing.PaymentRoles = paymentRoles
 	existing.MemberLevels = memberLevels
 	existing.ScopeType = constants.ScopeTypeProduct

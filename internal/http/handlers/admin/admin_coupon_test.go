@@ -11,6 +11,7 @@ import (
 func TestBuildCreateCouponInputFromRequestMapsFieldsAndParsesTimes(t *testing.T) {
 	isActive := false
 	disabledWholesalePrice := true
+	perItemDiscount := true
 	req := CreateCouponRequest{
 		Code:                   "SAVE10",
 		Type:                   "fixed",
@@ -20,6 +21,7 @@ func TestBuildCreateCouponInputFromRequestMapsFieldsAndParsesTimes(t *testing.T)
 		UsageLimit:             100,
 		PerUserLimit:           2,
 		DisabledWholesalePrice: &disabledWholesalePrice,
+		PerItemDiscount:        &perItemDiscount,
 		PaymentRoles:           []string{"balance", "online"},
 		MemberLevels:           []uint{1, 3},
 		ScopeRefIDs:            []uint{10, 20},
@@ -50,6 +52,9 @@ func TestBuildCreateCouponInputFromRequestMapsFieldsAndParsesTimes(t *testing.T)
 	if input.DisabledWholesalePrice == nil || *input.DisabledWholesalePrice != disabledWholesalePrice {
 		t.Fatalf("disabled_wholesale_price mismatch: %#v", input.DisabledWholesalePrice)
 	}
+	if input.PerItemDiscount == nil || *input.PerItemDiscount != perItemDiscount {
+		t.Fatalf("per_item_discount mismatch: %#v", input.PerItemDiscount)
+	}
 	if !reflect.DeepEqual(input.PaymentRoles, req.PaymentRoles) {
 		t.Fatalf("payment_roles mismatch: %#v", input.PaymentRoles)
 	}
@@ -73,6 +78,7 @@ func TestBuildCreateCouponInputFromRequestMapsFieldsAndParsesTimes(t *testing.T)
 func TestBuildUpdateCouponInputFromRequestMapsFieldsAndParsesTimes(t *testing.T) {
 	isActive := true
 	disabledWholesalePrice := true
+	perItemDiscount := true
 	req := CreateCouponRequest{
 		Code:                   "SAVE20",
 		Type:                   "percent",
@@ -82,6 +88,7 @@ func TestBuildUpdateCouponInputFromRequestMapsFieldsAndParsesTimes(t *testing.T)
 		UsageLimit:             200,
 		PerUserLimit:           1,
 		DisabledWholesalePrice: &disabledWholesalePrice,
+		PerItemDiscount:        &perItemDiscount,
 		PaymentRoles:           []string{"online"},
 		MemberLevels:           []uint{2},
 		ScopeRefIDs:            []uint{30},
@@ -105,6 +112,9 @@ func TestBuildUpdateCouponInputFromRequestMapsFieldsAndParsesTimes(t *testing.T)
 	}
 	if input.DisabledWholesalePrice == nil || *input.DisabledWholesalePrice != disabledWholesalePrice {
 		t.Fatalf("disabled_wholesale_price mismatch: %#v", input.DisabledWholesalePrice)
+	}
+	if input.PerItemDiscount == nil || *input.PerItemDiscount != perItemDiscount {
+		t.Fatalf("per_item_discount mismatch: %#v", input.PerItemDiscount)
 	}
 	if input.StartsAt == nil || input.StartsAt.Format(time.RFC3339) != req.StartsAt {
 		t.Fatalf("starts_at mismatch: %#v", input.StartsAt)
