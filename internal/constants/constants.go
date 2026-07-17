@@ -297,11 +297,12 @@ const (
 
 // 验证码用途常量
 const (
-	VerifyPurposeRegister       = "register"
-	VerifyPurposeReset          = "reset"
-	VerifyPurposeTelegramBind   = "telegram_bind"
-	VerifyPurposeChangeEmailOld = "change_email_old"
-	VerifyPurposeChangeEmailNew = "change_email_new"
+	VerifyPurposeRegister            = "register"
+	VerifyPurposeReset               = "reset"
+	VerifyPurposeTelegramBind        = "telegram_bind"
+	VerifyPurposeChangeEmailOld      = "change_email_old"
+	VerifyPurposeChangeEmailNew      = "change_email_new"
+	VerifyPurposeUpgradePlaceholder  = "upgrade_placeholder"
 )
 
 // 验证码提供方常量

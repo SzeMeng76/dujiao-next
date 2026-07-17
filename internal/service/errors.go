@@ -212,4 +212,5 @@ var (
 	ErrProductHasOrderRecord               = errors.New("product has order record")
 	ErrMediaNotFound                       = errors.New("media not found")
 	ErrMediaNameEmpty                      = errors.New("media name empty")
+	ErrInvalidOperation                    = errors.New("invalid operation")
 )

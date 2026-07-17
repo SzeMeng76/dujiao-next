@@ -783,3 +783,58 @@ func (h *Handler) ChangeUserPassword(c *gin.Context) {
 
 	response.Success(c, gin.H{"updated": true})
 }
+
+// UpgradePlaceholderAccountRequest 升级占位账号请求
+type UpgradePlaceholderAccountRequest struct {
+	Email    string `json:"email" binding:"required,email"`
+	Code     string `json:"code" binding:"required"`
+	Password string `json:"password" binding:"required"`
+}
+
+// UpgradePlaceholderAccount 将占位账号（@login.local）升级为真实邮箱账号
+func (h *Handler) UpgradePlaceholderAccount(c *gin.Context) {
+	id, ok := shared.GetUserIDFromContext(c)
+	if !ok {
+		return
+	}
+
+	var req UpgradePlaceholderAccountRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		shared.RespondBindError(c, err)
+		return
+	}
+
+	user, err := h.UserAuthService.UpgradePlaceholderAccount(id, req.Email, req.Code, req.Password)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrNotFound):
+			shared.RespondError(c, response.CodeNotFound, "error.user_not_found", nil)
+		case errors.Is(err, service.ErrInvalidOperation):
+			shared.RespondError(c, response.CodeBadRequest, "error.not_placeholder_account", nil)
+		case errors.Is(err, service.ErrInvalidEmail):
+			shared.RespondError(c, response.CodeBadRequest, "error.email_invalid", nil)
+		case errors.Is(err, service.ErrEmailExists):
+			shared.RespondError(c, response.CodeConflict, "error.email_exists", nil)
+		case errors.Is(err, service.ErrVerifyCodeInvalid):
+			shared.RespondError(c, response.CodeBadRequest, "error.verify_code_invalid", nil)
+		case errors.Is(err, service.ErrVerifyCodeExpired):
+			shared.RespondError(c, response.CodeBadRequest, "error.verify_code_expired", nil)
+		case errors.Is(err, service.ErrWeakPassword):
+			locale := i18n.ResolveLocale(c)
+			if perr, ok := err.(interface {
+				Key() string
+				Args() []interface{}
+			}); ok {
+				msg := i18n.Sprintf(locale, perr.Key(), perr.Args()...)
+				shared.RespondErrorWithMsg(c, response.CodeBadRequest, msg, nil)
+				return
+			}
+			shared.RespondError(c, response.CodeBadRequest, "error.password_weak", nil)
+		default:
+			shared.RespondError(c, response.CodeInternal, "error.upgrade_account_failed", err)
+		}
+		return
+	}
+
+	response.Success(c, dto.BuildUserResponse(user))
+}

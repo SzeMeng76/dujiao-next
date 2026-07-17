@@ -138,6 +138,7 @@ func SetupRouter(cfg *config.Config, c *provider.Container) *gin.Engine {
 			user.GET("/me/login-logs", publicHandler.GetMyLoginLogs)
 			user.PUT("/me/profile", publicHandler.UpdateUserProfile)
 			user.PUT("/me/password", publicHandler.ChangeUserPassword)
+			user.POST("/me/upgrade-placeholder", publicHandler.UpgradePlaceholderAccount)
 			user.GET("/me/telegram", publicHandler.GetMyTelegramBinding)
 			user.POST("/me/telegram/bind", publicHandler.BindMyTelegram)
 			user.POST("/me/telegram/miniapp/bind", publicHandler.BindMyTelegramMiniApp)

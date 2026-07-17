@@ -299,3 +299,69 @@ func (s *UserAuthService) ensureTelegramVirtualEmailState(user *models.User) err
 	user.UpdatedAt = time.Now()
 	return s.userRepo.Update(user)
 }
+
+// UpgradePlaceholderAccount 将占位账号（@login.local）升级为真实邮箱账号
+func (s *UserAuthService) UpgradePlaceholderAccount(userID uint, newEmail, code, password string) (*models.User, error) {
+	if userID == 0 {
+		return nil, ErrNotFound
+	}
+
+	user, err := s.userRepo.GetByID(userID)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return nil, ErrNotFound
+	}
+
+	// 必须是占位账号
+	if !telegramidentity.IsPlaceholderEmail(user.Email) {
+		return nil, ErrInvalidOperation
+	}
+
+	// 验证新邮箱格式
+	normalized, err := normalizeEmail(newEmail)
+	if err != nil {
+		return nil, err
+	}
+
+	// 验证验证码
+	if _, err := s.verifyCode(normalized, constants.VerifyPurposeUpgradePlaceholder, code); err != nil {
+		return nil, err
+	}
+
+	// 检查新邮箱是否已被占用
+	existing, err := s.userRepo.GetByEmail(normalized)
+	if err != nil {
+		return nil, err
+	}
+	if existing != nil && existing.ID != user.ID {
+		return nil, ErrEmailExists
+	}
+
+	// 验证密码强度
+	if err := validatePassword(s.cfg.Security.PasswordPolicy, password); err != nil {
+		return nil, err
+	}
+
+	// 生成密码哈希
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, err
+	}
+
+	// 更新用户信息
+	now := time.Now()
+	user.Email = normalized
+	user.PasswordHash = string(hashedPassword)
+	user.PasswordSetupRequired = false
+	user.EmailVerifiedAt = &now
+	user.UpdatedAt = now
+
+	if err := s.userRepo.Update(user); err != nil {
+		return nil, err
+	}
+
+	_ = cache.SetUserAuthState(context.Background(), cache.BuildUserAuthState(user))
+	return user, nil
+}
