@@ -793,7 +793,7 @@ type UpgradePlaceholderAccountRequest struct {
 
 // UpgradePlaceholderAccount 将占位账号（@login.local）升级为真实邮箱账号
 func (h *Handler) UpgradePlaceholderAccount(c *gin.Context) {
-	id, ok := shared.GetUserIDFromContext(c)
+	id, ok := shared.GetUserID(c)
 	if !ok {
 		return
 	}
@@ -814,7 +814,7 @@ func (h *Handler) UpgradePlaceholderAccount(c *gin.Context) {
 		case errors.Is(err, service.ErrInvalidEmail):
 			shared.RespondError(c, response.CodeBadRequest, "error.email_invalid", nil)
 		case errors.Is(err, service.ErrEmailExists):
-			shared.RespondError(c, response.CodeConflict, "error.email_exists", nil)
+			shared.RespondError(c, response.CodeBadRequest, "error.email_exists", nil)
 		case errors.Is(err, service.ErrVerifyCodeInvalid):
 			shared.RespondError(c, response.CodeBadRequest, "error.verify_code_invalid", nil)
 		case errors.Is(err, service.ErrVerifyCodeExpired):
@@ -836,5 +836,5 @@ func (h *Handler) UpgradePlaceholderAccount(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, dto.BuildUserResponse(user))
+	response.Success(c, gin.H{"user": dto.NewUserAuthBriefResp(user)})
 }
