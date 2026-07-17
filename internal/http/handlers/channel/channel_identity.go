@@ -58,7 +58,7 @@ func (h *Handler) ResolveTelegramIdentity(c *gin.Context) {
 		return
 	}
 
-	respondChannelSuccess(c, shared.BuildChannelIdentityResponse(true, false, user, identity))
+	respondChannelSuccess(c, shared.BuildChannelIdentityResponse(true, false, user, identity, h.UserAuthService))
 }
 
 // ProvisionTelegramIdentity POST /api/v1/channel/identities/telegram/provision
@@ -81,7 +81,7 @@ func (h *Handler) ProvisionTelegramIdentity(c *gin.Context) {
 		return
 	}
 
-	respondChannelSuccess(c, shared.BuildChannelIdentityResponse(true, created, user, identity))
+	respondChannelSuccess(c, shared.BuildChannelIdentityResponse(true, created, user, identity, h.UserAuthService))
 }
 
 // BindTelegramIdentity POST /api/v1/channel/identities/telegram/bind
@@ -114,7 +114,7 @@ func (h *Handler) BindTelegramIdentity(c *gin.Context) {
 		return
 	}
 
-	resp := shared.BuildChannelIdentityResponse(true, false, user, identity)
+	resp := shared.BuildChannelIdentityResponse(true, false, user, identity, h.UserAuthService)
 	resp["bound"] = true
 	if previousUserID != 0 {
 		resp["previous_user_id"] = previousUserID
@@ -144,7 +144,7 @@ func (h *Handler) GetCurrentIdentity(c *gin.Context) {
 		return
 	}
 
-	respondChannelSuccess(c, shared.BuildChannelIdentityResponse(true, false, user, identity))
+	respondChannelSuccess(c, shared.BuildChannelIdentityResponse(true, false, user, identity, h.UserAuthService))
 }
 
 func buildTelegramChannelIdentityInput(req telegramIdentityRequest) service.TelegramChannelIdentityInput {

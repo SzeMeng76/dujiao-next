@@ -24,7 +24,7 @@ func TestBuildChannelIdentityResponse(t *testing.T) {
 		AvatarURL:      "https://example.com/avatar.png",
 	}
 
-	payload := BuildChannelIdentityResponse(true, true, user, identity)
+	payload := BuildChannelIdentityResponse(true, true, user, identity, nil)
 	if payload["bound"] != true {
 		t.Fatalf("bound flag mismatch: %#v", payload["bound"])
 	}
