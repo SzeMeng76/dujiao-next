@@ -199,6 +199,16 @@ func (s *UserAuthService) SendVerifyCode(email, purpose, locale string) error {
 		}
 	}
 
+	if purpose == constants.VerifyPurposeUpgradePlaceholder {
+		exist, err := s.userRepo.GetByEmail(normalized)
+		if err != nil {
+			return err
+		}
+		if exist != nil {
+			return ErrEmailExists
+		}
+	}
+
 	return s.sendVerifyCode(normalized, purpose, locale)
 }
 

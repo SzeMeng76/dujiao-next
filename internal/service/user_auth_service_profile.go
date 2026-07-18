@@ -325,18 +325,18 @@ func (s *UserAuthService) UpgradePlaceholderAccount(userID uint, newEmail, code,
 		return nil, err
 	}
 
-	// 验证验证码
-	if _, err := s.verifyCode(normalized, constants.VerifyPurposeUpgradePlaceholder, code); err != nil {
-		return nil, err
-	}
-
-	// 检查新邮箱是否已被占用
+	// 检查新邮箱是否已被占用（必须在验证码验证之前，避免消耗验证码）
 	existing, err := s.userRepo.GetByEmail(normalized)
 	if err != nil {
 		return nil, err
 	}
 	if existing != nil && existing.ID != user.ID {
 		return nil, ErrEmailExists
+	}
+
+	// 验证验证码
+	if _, err := s.verifyCode(normalized, constants.VerifyPurposeUpgradePlaceholder, code); err != nil {
+		return nil, err
 	}
 
 	// 验证密码强度
