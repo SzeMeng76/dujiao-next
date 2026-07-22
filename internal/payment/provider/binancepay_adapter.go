@@ -10,6 +10,7 @@ import (
 	"github.com/dujiao-next/internal/constants"
 	"github.com/dujiao-next/internal/models"
 	"github.com/dujiao-next/internal/payment/binancepay"
+	"github.com/dujiao-next/internal/shared/jsonmap"
 
 	"github.com/shopspring/decimal"
 )
@@ -27,7 +28,7 @@ func (a *binancepayAdapter) Type() string {
 	return constants.PaymentProviderOfficial + ":" + constants.PaymentChannelTypeBinancepay
 }
 
-func (a *binancepayAdapter) parseConfig(raw models.JSON) (*binancepay.Config, error) {
+func (a *binancepayAdapter) parseConfig(raw jsonmap.JSON) (*binancepay.Config, error) {
 	cfg, err := binancepay.ParseConfig(raw)
 	if err != nil {
 		return nil, mapBinancepayError(err)
@@ -38,7 +39,7 @@ func (a *binancepayAdapter) parseConfig(raw models.JSON) (*binancepay.Config, er
 	return cfg, nil
 }
 
-func (a *binancepayAdapter) ValidateConfig(raw models.JSON, interactionMode string) error {
+func (a *binancepayAdapter) ValidateConfig(raw jsonmap.JSON, interactionMode string) error {
 	if interactionMode != "" && strings.ToLower(strings.TrimSpace(interactionMode)) != constants.PaymentInteractionRedirect {
 		return fmt.Errorf("%w: binancepay only supports redirect interaction_mode", ErrConfigInvalid)
 	}
@@ -46,7 +47,7 @@ func (a *binancepayAdapter) ValidateConfig(raw models.JSON, interactionMode stri
 	return err
 }
 
-func (a *binancepayAdapter) CreatePayment(ctx context.Context, raw models.JSON, input CreateInput) (*CreateResult, error) {
+func (a *binancepayAdapter) CreatePayment(ctx context.Context, raw jsonmap.JSON, input CreateInput) (*CreateResult, error) {
 	cfg, err := a.parseConfig(raw)
 	if err != nil {
 		return nil, err
@@ -94,9 +95,9 @@ func (a *binancepayAdapter) CreatePayment(ctx context.Context, raw models.JSON, 
 		return nil, mapBinancepayError(err)
 	}
 
-	payload := models.JSON{}
+	payload := jsonmap.JSON{}
 	if result.Raw != nil {
-		payload = models.JSON(result.Raw)
+		payload = jsonmap.JSON(result.Raw)
 	}
 	if converted {
 		payload["exchange_rate"] = strings.TrimSpace(cfg.ExchangeRate)
@@ -113,7 +114,7 @@ func (a *binancepayAdapter) CreatePayment(ctx context.Context, raw models.JSON, 
 	}, nil
 }
 
-func (a *binancepayAdapter) ParseWebhook(ctx context.Context, raw models.JSON, headers map[string]string, body []byte, now time.Time) (*WebhookResult, error) {
+func (a *binancepayAdapter) ParseWebhook(ctx context.Context, raw jsonmap.JSON, headers map[string]string, body []byte, now time.Time) (*WebhookResult, error) {
 	cfg, err := a.parseConfig(raw)
 	if err != nil {
 		return nil, err
@@ -143,7 +144,7 @@ func (a *binancepayAdapter) ParseWebhook(ctx context.Context, raw models.JSON, h
 		Amount:      amount,
 		Currency:    strings.ToUpper(strings.TrimSpace(result.Currency)),
 		PaidAt:      result.PaidAt,
-		Payload:     models.JSON(result.Raw),
+		Payload:     jsonmap.JSON(result.Raw),
 	}, nil
 }
 

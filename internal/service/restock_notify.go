@@ -8,6 +8,7 @@ import (
 	"github.com/dujiao-next/internal/logger"
 	"github.com/dujiao-next/internal/models"
 	"github.com/dujiao-next/internal/modules/notification"
+	"github.com/dujiao-next/internal/shared/jsonmap"
 )
 
 // restockNotifier 封装补货通知所需依赖，供卡密入库、人工库存增加等场景复用。
@@ -60,7 +61,7 @@ func (n *restockNotifier) enqueueRestockNotification(product *models.Product, sk
 		productTitleWithSKU = title + " · " + skuTitle
 	}
 
-	data := models.JSON{
+	data := jsonmap.JSON{
 		"product_id":    strconv.FormatUint(uint64(product.ID), 10),
 		"product_title": productTitleWithSKU,
 		"product_slug":  strings.TrimSpace(product.Slug),
@@ -131,7 +132,7 @@ func normalizeNotificationLocale(locale string) string {
 	return constants.LocaleZhCN
 }
 
-func resolveNotificationLocalizedJSON(value models.JSON, locale, defaultLocale string) string {
+func resolveNotificationLocalizedJSON(value jsonmap.JSON, locale, defaultLocale string) string {
 	locale = normalizeNotificationLocale(locale)
 	defaultLocale = normalizeNotificationLocale(defaultLocale)
 
@@ -164,11 +165,11 @@ func localizedNotificationText(locale, zhCN, zhTW, enUS string) string {
 }
 
 func notificationInterfaceText(value interface{}, locale, defaultLocale string) string {
-	if typed, ok := value.(models.JSON); ok {
+	if typed, ok := value.(jsonmap.JSON); ok {
 		return resolveNotificationLocalizedJSON(typed, locale, defaultLocale)
 	}
 	if typed, ok := value.(map[string]interface{}); ok {
-		return resolveNotificationLocalizedJSON(models.JSON(typed), locale, defaultLocale)
+		return resolveNotificationLocalizedJSON(jsonmap.JSON(typed), locale, defaultLocale)
 	}
 	return ""
 }

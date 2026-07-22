@@ -8,6 +8,7 @@ import (
 	"github.com/dujiao-next/internal/constants"
 	"github.com/dujiao-next/internal/models"
 	"github.com/dujiao-next/internal/payment/globepay"
+	"github.com/dujiao-next/internal/shared/jsonmap"
 	"github.com/shopspring/decimal"
 )
 
@@ -24,7 +25,7 @@ func (a *globepayAdapter) Type() string {
 	return constants.PaymentProviderGlobepay + ":"
 }
 
-func (a *globepayAdapter) ValidateConfig(raw models.JSON, channelType string) error {
+func (a *globepayAdapter) ValidateConfig(raw jsonmap.JSON, channelType string) error {
 	if channelType != "" && !globepay.IsSupportedChannelType(channelType) {
 		return fmt.Errorf("%w: globepay channel_type %s", ErrUnsupportedChannel, channelType)
 	}
@@ -38,7 +39,7 @@ func (a *globepayAdapter) ValidateConfig(raw models.JSON, channelType string) er
 	return nil
 }
 
-func (a *globepayAdapter) CreatePayment(ctx context.Context, raw models.JSON, input CreateInput) (*CreateResult, error) {
+func (a *globepayAdapter) CreatePayment(ctx context.Context, raw jsonmap.JSON, input CreateInput) (*CreateResult, error) {
 	if !globepay.IsSupportedChannelType(input.ChannelType) {
 		return nil, fmt.Errorf("%w: globepay channel_type %s", ErrUnsupportedChannel, input.ChannelType)
 	}
@@ -73,9 +74,9 @@ func (a *globepayAdapter) CreatePayment(ctx context.Context, raw models.JSON, in
 		return nil, fmt.Errorf("%w: %v", ErrRequestFailed, err)
 	}
 
-	payload := models.JSON{}
+	payload := jsonmap.JSON{}
 	if result.Raw != nil {
-		payload = models.JSON(result.Raw)
+		payload = jsonmap.JSON(result.Raw)
 	}
 
 	return &CreateResult{
@@ -88,7 +89,7 @@ func (a *globepayAdapter) CreatePayment(ctx context.Context, raw models.JSON, in
 	}, nil
 }
 
-func (a *globepayAdapter) VerifyCallback(raw models.JSON, form map[string][]string, body []byte) (*CallbackResult, error) {
+func (a *globepayAdapter) VerifyCallback(raw jsonmap.JSON, form map[string][]string, body []byte) (*CallbackResult, error) {
 	cfg, err := globepay.ParseConfig(raw)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrConfigInvalid, err)

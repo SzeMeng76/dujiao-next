@@ -11,7 +11,7 @@ import (
 
 	"github.com/dujiao-next/internal/constants"
 	"github.com/dujiao-next/internal/http/handlers/shared"
-	"github.com/dujiao-next/internal/models"
+	"github.com/dujiao-next/internal/shared/jsonmap"
 
 	"github.com/gin-gonic/gin"
 )
@@ -64,7 +64,7 @@ func (h *Handler) handleGlobepayCallback(c *gin.Context) bool {
 	payment, err := h.payments.GetByGatewayOrderNo(partnerOrderID)
 	if err != nil || payment == nil {
 		log.Warnw("globepay_callback_payment_not_found", "partner_order_id", partnerOrderID, "error", err)
-		h.enqueuePaymentExceptionAlert(c, models.JSON{
+		h.enqueuePaymentExceptionAlert(c, jsonmap.JSON{
 			"alert_type":       "globepay_callback_payment_not_found",
 			"alert_level":      "warning",
 			"partner_order_id": partnerOrderID,
@@ -91,7 +91,7 @@ func (h *Handler) handleGlobepayCallback(c *gin.Context) bool {
 	updated, err := h.service.HandleSyncCallback(channel, form, body)
 	if err != nil {
 		log.Errorw("globepay_callback_handle_failed", "payment_id", payment.ID, "error", err)
-		h.enqueuePaymentExceptionAlert(c, models.JSON{
+		h.enqueuePaymentExceptionAlert(c, jsonmap.JSON{
 			"alert_type":       "globepay_callback_handle_failed",
 			"alert_level":      "error",
 			"payment_id":       fmt.Sprintf("%d", payment.ID),
