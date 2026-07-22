@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/dujiao-next/internal/constants"
-	"github.com/dujiao-next/internal/http/handlers/shared"
+	"github.com/dujiao-next/internal/platform/http/ginutil"
 	"github.com/dujiao-next/internal/shared/jsonmap"
 
 	"github.com/gin-gonic/gin"
@@ -19,7 +19,7 @@ import (
 var errGlobepayCallbackPaymentNotFound = errors.New("globepay callback payment not found")
 
 func (h *Handler) handleGlobepayCallback(c *gin.Context) bool {
-	log := shared.RequestLog(c)
+	log := ginutil.RequestLog(c)
 
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
