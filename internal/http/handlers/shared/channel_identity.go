@@ -1,15 +1,20 @@
 package shared
 
 import (
+	"time"
+
 	"github.com/dujiao-next/internal/models"
-	"github.com/dujiao-next/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
 
+type JWTGenerator interface {
+	GenerateUserJWT(user *models.User, expireHours int) (string, time.Time, error)
+}
+
 // BuildChannelIdentityResponse 构造 Telegram 渠道身份响应载荷。
 // 如果用户是占位账号，会自动生成 JWT token 以支持升级流程。
-func BuildChannelIdentityResponse(bound, created bool, user *models.User, identity *models.UserOAuthIdentity, authService *service.UserAuthService) gin.H {
+func BuildChannelIdentityResponse(bound, created bool, user *models.User, identity *models.UserOAuthIdentity, jwtGenerator JWTGenerator) gin.H {
 	resp := gin.H{
 		"bound": bound,
 	}
@@ -33,8 +38,8 @@ func BuildChannelIdentityResponse(bound, created bool, user *models.User, identi
 		}
 
 		// 为占位账号生成 token，以便 bot 可以调用升级接口
-		if user.PasswordSetupRequired && authService != nil {
-			if token, _, err := authService.GenerateUserJWT(user, 0); err == nil {
+		if user.PasswordSetupRequired && jwtGenerator != nil {
+			if token, _, err := jwtGenerator.GenerateUserJWT(user, 0); err == nil {
 				userResp["token"] = token
 			}
 		}

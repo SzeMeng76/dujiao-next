@@ -209,6 +209,12 @@ const (
 	TokenPayCallbackFail    = "fail"
 )
 
+// Globepay 回调常量
+const (
+	GlobepayCallbackSuccess = "success"
+	GlobepayCallbackFail    = "fail"
+)
+
 // 文章类型常量
 const (
 	PostTypeBlog   = "blog"

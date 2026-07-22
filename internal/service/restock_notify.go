@@ -7,11 +7,12 @@ import (
 	"github.com/dujiao-next/internal/constants"
 	"github.com/dujiao-next/internal/logger"
 	"github.com/dujiao-next/internal/models"
+	"github.com/dujiao-next/internal/modules/notification"
 )
 
 // restockNotifier 封装补货通知所需依赖，供卡密入库、人工库存增加等场景复用。
 type restockNotifier struct {
-	notificationSvc *NotificationService
+	notificationSvc *notification.Service
 	settingService  *SettingService
 }
 
@@ -77,7 +78,7 @@ func (n *restockNotifier) enqueueRestockNotification(product *models.Product, sk
 		data["product_url"] = productURL
 	}
 
-	if err := n.notificationSvc.Enqueue(NotificationEnqueueInput{
+	if err := n.notificationSvc.Enqueue(notification.EnqueueInput{
 		EventType: constants.NotificationEventRestockSuccess,
 		BizType:   constants.NotificationBizTypeRestock,
 		BizID:     product.ID,
@@ -101,4 +102,73 @@ func buildProductPublicURL(siteURL, slug string) string {
 		return ""
 	}
 	return siteURL + "/products/" + slug
+}
+
+// 本地化辅助函数（从 notification 模块复制，因为它们是私有的）
+func resolveNotificationLocale(locale, fallback string) string {
+	locale = strings.TrimSpace(locale)
+	if locale == "" {
+		locale = strings.TrimSpace(fallback)
+	}
+	return normalizeNotificationLocale(locale)
+}
+
+func normalizeNotificationLocale(locale string) string {
+	locale = strings.TrimSpace(locale)
+	if locale == "" {
+		return constants.LocaleZhCN
+	}
+	locale = strings.ToLower(locale)
+	if strings.HasPrefix(locale, "zh") {
+		if strings.Contains(locale, "tw") || strings.Contains(locale, "hk") || strings.Contains(locale, "hant") {
+			return constants.LocaleZhTW
+		}
+		return constants.LocaleZhCN
+	}
+	if strings.HasPrefix(locale, "en") {
+		return constants.LocaleEnUS
+	}
+	return constants.LocaleZhCN
+}
+
+func resolveNotificationLocalizedJSON(value models.JSON, locale, defaultLocale string) string {
+	locale = normalizeNotificationLocale(locale)
+	defaultLocale = normalizeNotificationLocale(defaultLocale)
+
+	if text, ok := value[locale].(string); ok && strings.TrimSpace(text) != "" {
+		return strings.TrimSpace(text)
+	}
+	if locale != defaultLocale {
+		if text, ok := value[defaultLocale].(string); ok && strings.TrimSpace(text) != "" {
+			return strings.TrimSpace(text)
+		}
+	}
+	for _, text := range value {
+		if str, ok := text.(string); ok && strings.TrimSpace(str) != "" {
+			return strings.TrimSpace(str)
+		}
+	}
+	return ""
+}
+
+func localizedNotificationText(locale, zhCN, zhTW, enUS string) string {
+	locale = normalizeNotificationLocale(locale)
+	switch locale {
+	case constants.LocaleZhTW:
+		return zhTW
+	case constants.LocaleEnUS:
+		return enUS
+	default:
+		return zhCN
+	}
+}
+
+func notificationInterfaceText(value interface{}, locale, defaultLocale string) string {
+	if typed, ok := value.(models.JSON); ok {
+		return resolveNotificationLocalizedJSON(typed, locale, defaultLocale)
+	}
+	if typed, ok := value.(map[string]interface{}); ok {
+		return resolveNotificationLocalizedJSON(models.JSON(typed), locale, defaultLocale)
+	}
+	return ""
 }

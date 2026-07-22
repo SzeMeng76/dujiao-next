@@ -19,7 +19,7 @@ func (s *UserAuthService) ResetPassword(email, code, newPassword string) error {
 	if err != nil {
 		return err
 	}
-	if err := validatePassword(s.cfg.Security.PasswordPolicy, newPassword); err != nil {
+	if err := ValidatePasswordPolicy(s.cfg.Security.PasswordPolicy, newPassword); err != nil {
 		return err
 	}
 	user, err := s.userRepo.GetByEmail(normalized)
@@ -74,7 +74,7 @@ func (s *UserAuthService) ChangePassword(userID uint, oldPassword, newPassword s
 		}
 	}
 
-	if err := validatePassword(s.cfg.Security.PasswordPolicy, newPassword); err != nil {
+	if err := ValidatePasswordPolicy(s.cfg.Security.PasswordPolicy, newPassword); err != nil {
 		return err
 	}
 
@@ -340,7 +340,7 @@ func (s *UserAuthService) UpgradePlaceholderAccount(userID uint, newEmail, code,
 	}
 
 	// 验证密码强度
-	if err := validatePassword(s.cfg.Security.PasswordPolicy, password); err != nil {
+	if err := ValidatePasswordPolicy(s.cfg.Security.PasswordPolicy, password); err != nil {
 		return nil, err
 	}
 
