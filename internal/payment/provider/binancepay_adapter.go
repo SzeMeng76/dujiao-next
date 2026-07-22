@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/dujiao-next/internal/constants"
-	"github.com/dujiao-next/internal/models"
 	"github.com/dujiao-next/internal/payment/binancepay"
 	"github.com/dujiao-next/internal/shared/jsonmap"
+	"github.com/dujiao-next/internal/shared/money"
 
 	"github.com/shopspring/decimal"
 )
@@ -130,10 +130,10 @@ func (a *binancepayAdapter) ParseWebhook(ctx context.Context, raw jsonmap.JSON, 
 		return &WebhookResult{Status: result.BizStatus}, nil
 	}
 
-	amount := models.Money{}
+	amount := money.Amount{}
 	if s := strings.TrimSpace(result.Amount); s != "" {
 		if parsed, parseErr := decimal.NewFromString(s); parseErr == nil {
-			amount = models.NewMoneyFromDecimal(parsed)
+			amount = money.FromDecimal(parsed)
 		}
 	}
 

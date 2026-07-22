@@ -11,6 +11,7 @@ import (
 	domaincatalog "github.com/dujiao-next/internal/modules/catalog"
 	"github.com/dujiao-next/internal/platform/http/ginutil"
 	"github.com/dujiao-next/internal/shared/jsonmap"
+	"github.com/dujiao-next/internal/shared/money"
 
 	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
@@ -227,7 +228,7 @@ func (h *Handler) GetProducts(c *gin.Context) {
 		if memberLevelID > 0 && h.MemberLevelService != nil {
 			memberPrice, _ := h.MemberLevelService.ResolveMemberPrice(memberLevelID, p.ID, 0, p.PriceAmount.Decimal)
 			if memberPrice.LessThan(p.PriceAmount.Decimal) {
-				item.MemberPriceFrom = models.NewMoneyFromDecimal(memberPrice).String()
+				item.MemberPriceFrom = money.FromDecimal(memberPrice).String()
 			}
 		}
 
@@ -240,7 +241,7 @@ func (h *Handler) GetProducts(c *gin.Context) {
 				}
 			}
 			if maxPrice.GreaterThan(p.PriceAmount.Decimal) {
-				item.PriceTo = models.NewMoneyFromDecimal(maxPrice).String()
+				item.PriceTo = money.FromDecimal(maxPrice).String()
 			}
 		}
 
@@ -354,7 +355,7 @@ func (h *Handler) GetProductDetail(c *gin.Context) {
 		if memberLevelID > 0 && h.MemberLevelService != nil {
 			memberPrice, _ := h.MemberLevelService.ResolveMemberPrice(memberLevelID, product.ID, sku.ID, sku.PriceAmount.Decimal)
 			if memberPrice.LessThan(sku.PriceAmount.Decimal) {
-				si.MemberPrice = models.NewMoneyFromDecimal(memberPrice).String()
+				si.MemberPrice = money.FromDecimal(memberPrice).String()
 			}
 		}
 		skus = append(skus, si)
@@ -365,7 +366,7 @@ func (h *Handler) GetProductDetail(c *gin.Context) {
 	if memberLevelID > 0 && h.MemberLevelService != nil {
 		mp, _ := h.MemberLevelService.ResolveMemberPrice(memberLevelID, product.ID, 0, product.PriceAmount.Decimal)
 		if mp.LessThan(product.PriceAmount.Decimal) {
-			memberPriceFrom = models.NewMoneyFromDecimal(mp).String()
+			memberPriceFrom = money.FromDecimal(mp).String()
 		}
 	}
 

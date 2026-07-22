@@ -124,6 +124,16 @@ func (a callbackServiceAdapter) HandleWechatWebhook(input paymentcallbacktranspo
 	return payment, eventType, mapTransportError(err)
 }
 
+func (a callbackServiceAdapter) HandleBinancepayWebhook(input paymentcallbacktransport.BinancepayWebhookInput) (*models.Payment, string, error) {
+	payment, eventType, err := a.payments.HandleBinancepayWebhook(service.WebhookCallbackInput{
+		ChannelID: input.ChannelID,
+		Headers:   input.Headers,
+		Body:      input.Body,
+		Context:   input.Context,
+	})
+	return payment, eventType, mapTransportError(err)
+}
+
 func (a webhookServiceAdapter) HandlePaypalWebhook(input paymenttransport.WebhookCallbackInput) (*models.Payment, string, error) {
 	payment, eventType, err := a.payments.HandlePaypalWebhook(service.WebhookCallbackInput{
 		ChannelID: input.ChannelID,

@@ -6,9 +6,9 @@ import (
 	"strings"
 
 	"github.com/dujiao-next/internal/constants"
-	"github.com/dujiao-next/internal/models"
 	"github.com/dujiao-next/internal/payment/globepay"
 	"github.com/dujiao-next/internal/shared/jsonmap"
+	"github.com/dujiao-next/internal/shared/money"
 	"github.com/shopspring/decimal"
 )
 
@@ -110,11 +110,11 @@ func (a *globepayAdapter) VerifyCallback(raw jsonmap.JSON, form map[string][]str
 	providerRef := data["order_id"]
 	amountStr := data["price"]
 
-	amount := models.Money{}
+	amount := money.Amount{}
 	if s := strings.TrimSpace(amountStr); s != "" {
 		if d, parseErr := decimal.NewFromString(s); parseErr == nil {
 			// Globepay 回调金额单位是分
-			amount = models.NewMoneyFromDecimal(d.Div(decimal.NewFromInt(100)))
+			amount = money.FromDecimal(d.Div(decimal.NewFromInt(100)))
 		}
 	}
 

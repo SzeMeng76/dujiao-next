@@ -49,5 +49,7 @@ func newPaymentProviderRegistry() *paymentprovider.Registry {
 	registry.Register(constants.PaymentProviderDujiaoPay, "", paymentprovider.NewDujiaoPayAdapter())
 	registry.Register(constants.PaymentProviderTokenpay, "", paymentprovider.NewTokenpayAdapter())
 	registry.Register(constants.PaymentProviderOkpay, "", paymentprovider.NewOkpayAdapter())
+	registry.Register(constants.PaymentProviderOfficial, constants.PaymentChannelTypeBinancepay, paymentprovider.NewBinancepayAdapter())
+	registry.Register(constants.PaymentProviderGlobepay, "", paymentprovider.NewGlobepayAdapter())
 	return registry
 }

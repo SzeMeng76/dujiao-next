@@ -23,10 +23,19 @@ type WechatWebhookInput struct {
 	Context   context.Context
 }
 
+// BinancepayWebhookInput is the transport-owned input for a Binance Pay callback.
+type BinancepayWebhookInput struct {
+	ChannelID uint
+	Headers   map[string]string
+	Body      []byte
+	Context   context.Context
+}
+
 // Service is the application boundary used by synchronous payment callbacks.
 type Service interface {
 	HandleSyncCallback(channel *models.PaymentChannel, form map[string][]string, body []byte) (*models.Payment, error)
 	HandleWechatWebhook(input WechatWebhookInput) (*models.Payment, string, error)
+	HandleBinancepayWebhook(input BinancepayWebhookInput) (*models.Payment, string, error)
 }
 
 // PaymentLookup contains only the payment reads required to locate callback targets.
@@ -69,6 +78,7 @@ func (h *Handler) PaymentCallback(c *gin.Context) {
 	)
 	for _, handle := range []func(*gin.Context) bool{
 		h.handleWechatCallback,
+		h.handleBinancepayCallback,
 		h.handleOkpayCallback,
 		h.handleAlipayCallback,
 		h.handleEpayCallback,
