@@ -199,6 +199,76 @@ func (s *Service) dispatchSingleEvent(ctx context.Context, setting contract.Noti
 	return nil
 }
 
+// dispatchRestockBroadcast 处理补货通知：仅向管理员配置的单个广播频道/群组 chat_id 发送，
+// 带「立即购买」inline 按钮。不走邮件，也不发给通知收件人列表。
+func (s *Service) dispatchRestockBroadcast(ctx context.Context, setting contract.NotificationCenterSetting, payload queue.NotificationDispatchPayload) error {
+	chatID := strings.TrimSpace(setting.RestockBroadcast.ChatID)
+	if chatID == "" {
+		// 未配置广播频道，静默跳过。
+		return nil
+	}
+
+	if !payload.Force {
+		ok, err := acquireNotificationDedupe(ctx, setting.DedupeTTLSeconds, payload)
+		if err != nil {
+			logger.Warnw("notification_dedupe_failed", "event_type", payload.EventType, "error", err)
+		}
+		if err == nil && !ok {
+			return nil
+		}
+	}
+
+	locale := format.ResolveLocale(payload.Locale, setting.DefaultLocale)
+	template := setting.Templates.TemplateByEvent(payload.EventType).ResolveLocaleTemplate(locale)
+	variables := format.BuildTemplateVariables(payload)
+	title := format.RenderTemplate(template.Title, variables)
+	body := format.RenderTemplate(template.Body, variables)
+	if strings.TrimSpace(body) == "" {
+		body = title
+	}
+	if strings.TrimSpace(title) == "" {
+		title = "Notification"
+	}
+
+	message := format.ComposeTelegramMessage(title, body)
+	replyMarkup := format.BuildTelegramInlineButton(locale, variables)
+
+	var sendErr error
+	if s.telegramSender == nil {
+		sendErr = contract.ErrSendFailed
+	} else {
+		sendErr = s.telegramSender.SendMessageWithOptions(ctx, contract.TelegramSendOptions{
+			ChatID:                chatID,
+			Message:               message,
+			DisableWebPagePreview: true,
+			ReplyMarkup:           replyMarkup,
+		})
+	}
+	s.recordSendAttempt(notificationSendAttempt{
+		eventType: payload.EventType,
+		bizType:   payload.BizType,
+		bizID:     payload.BizID,
+		channel:   "telegram",
+		recipient: chatID,
+		locale:    locale,
+		title:     title,
+		body:      body,
+		variables: variables,
+		sendErr:   sendErr,
+	})
+	if sendErr != nil {
+		logger.Warnw("notification_restock_broadcast_failed",
+			"event_type", payload.EventType,
+			"biz_type", payload.BizType,
+			"biz_id", payload.BizID,
+			"chat_id", chatID,
+			"error", sendErr,
+		)
+		return fmt.Errorf("%w: %v", contract.ErrSendFailed, sendErr)
+	}
+	return nil
+}
+
 type notificationSendAttempt struct {
 	eventType string
 	bizType   string

@@ -1,6 +1,8 @@
 package provider
 
 import (
+	"context"
+
 	catalogmappingbootstrap "github.com/dujiao-next/internal/bootstrap/catalogmapping"
 	telegrambroadcast "github.com/dujiao-next/internal/bootstrap/telegrambroadcast"
 	"github.com/dujiao-next/internal/logger"
@@ -14,12 +16,15 @@ import (
 	dashboardapp "github.com/dujiao-next/internal/modules/dashboard/application"
 	"github.com/dujiao-next/internal/modules/downstreamcallback"
 	notificationapp "github.com/dujiao-next/internal/modules/notification/application"
+	notificationcontract "github.com/dujiao-next/internal/modules/notification/contract"
 	notificationasyncqueue "github.com/dujiao-next/internal/modules/notification/infrastructure/asyncqueue"
 	"github.com/dujiao-next/internal/modules/procurement"
 	"github.com/dujiao-next/internal/modules/reconciliation"
 	siteconnectionapp "github.com/dujiao-next/internal/modules/siteconnection/application"
-	telegrammodule "github.com/dujiao-next/internal/modules/telegram"
 	broadcastapp "github.com/dujiao-next/internal/modules/telegram/broadcast/application"
+	notifyapp "github.com/dujiao-next/internal/modules/telegram/notify/application"
+	notifycontract "github.com/dujiao-next/internal/modules/telegram/notify/contract"
+	notifybotapi "github.com/dujiao-next/internal/modules/telegram/notify/infrastructure/botapi"
 	"github.com/dujiao-next/internal/service"
 )
 
@@ -30,13 +35,14 @@ func (c *Container) initIntegrationServices() {
 	c.AdminLoginLogService = auditlogapp.NewAdminLoginService(c.AdminLoginLogRepo)
 	c.NotificationLogService = notificationapp.NewLogService(c.NotificationLogRepo)
 	c.DashboardService = dashboardapp.NewService(c.DashboardRepo, c.SettingService)
+	telegramNotifyService := notifyapp.NewService(c.SettingService, c.Config.TelegramAuth, notifybotapi.New())
 	c.NotificationService = notificationapp.NewService(
 		c.SettingService,
 		c.EmailService,
 		notificationasyncqueue.New(c.QueueClient),
 		c.DashboardService,
 		c.NotificationLogService,
-		telegrammodule.NewNotifyService(c.SettingService, c.Config.TelegramAuth),
+		telegramNotifySenderAdapter{svc: telegramNotifyService},
 	)
 	c.ApiCredentialService = apicredentialapp.NewService(c.ApiCredentialRepo)
 	c.SiteConnectionService = siteconnectionapp.NewService(c.SiteConnectionRepo, c.Config.App.SecretKey, "uploads")
@@ -107,6 +113,28 @@ func (c *Container) initIntegrationServices() {
 		telegrambroadcast.NewUserDirectory(c.ExternalIdentityStore),
 		telegrambroadcast.NewBotTokenResolver(c.ChannelClientService),
 		telegrambroadcast.NewDispatcher(c.QueueClient),
-		telegrammodule.NewNotifyService(c.SettingService, c.Config.TelegramAuth),
+		telegramNotifyService,
 	)
+}
+
+// telegramNotifySenderAdapter 让 telegram/notify 应用服务满足 notification/contract.TelegramSender，
+// 避免 notification/contract 直接依赖 telegram/notify/contract 造成循环引用。
+type telegramNotifySenderAdapter struct {
+	svc *notifyapp.Service
+}
+
+func (a telegramNotifySenderAdapter) SendMessage(ctx context.Context, chatID, message string) error {
+	return a.svc.SendMessage(ctx, chatID, message)
+}
+
+func (a telegramNotifySenderAdapter) SendMessageWithOptions(ctx context.Context, options notificationcontract.TelegramSendOptions) error {
+	return a.svc.SendMessageWithOptions(ctx, notifycontract.SendOptions{
+		ChatID:                options.ChatID,
+		Message:               options.Message,
+		ParseMode:             options.ParseMode,
+		DisableWebPagePreview: options.DisableWebPagePreview,
+		AttachmentURL:         options.AttachmentURL,
+		AttachmentDisplayName: options.AttachmentDisplayName,
+		ReplyMarkup:           options.ReplyMarkup,
+	})
 }

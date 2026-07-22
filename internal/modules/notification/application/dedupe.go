@@ -21,6 +21,7 @@ func isNotificationEventSupported(eventType string) bool {
 	case constants.NotificationEventWalletRechargeSuccess,
 		constants.NotificationEventOrderPaidSuccess,
 		constants.NotificationEventManualFulfillmentPending,
+		constants.NotificationEventRestockSuccess,
 		constants.NotificationEventExceptionAlert,
 		constants.NotificationEventExceptionAlertCheck:
 		return true

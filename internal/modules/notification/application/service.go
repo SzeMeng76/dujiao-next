@@ -81,5 +81,8 @@ func (s *Service) Dispatch(ctx context.Context, payload queue.NotificationDispat
 	if eventType == constants.NotificationEventExceptionAlertCheck {
 		return s.dispatchExceptionAlertCheck(ctx, setting, payload)
 	}
+	if eventType == constants.NotificationEventRestockSuccess {
+		return s.dispatchRestockBroadcast(ctx, setting, payload)
+	}
 	return s.dispatchSingleEvent(ctx, setting, payload)
 }

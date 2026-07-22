@@ -81,6 +81,29 @@ func buildNotificationSKUSummary(snapshot jsonmap.JSON, locale string) string {
 	return code
 }
 
+// BuildTelegramInlineButton 为补货广播消息构建「立即购买」inline 按钮。
+// variables 中的 product_url 缺失或非法时返回 nil（不附加按钮）。
+func BuildTelegramInlineButton(locale string, variables map[string]interface{}) map[string]interface{} {
+	if len(variables) == 0 {
+		return nil
+	}
+	rawURL := strings.TrimSpace(fmt.Sprintf("%v", variables["product_url"]))
+	if rawURL == "" || rawURL == "<nil>" {
+		return nil
+	}
+	if !strings.HasPrefix(rawURL, "http://") && !strings.HasPrefix(rawURL, "https://") {
+		return nil
+	}
+	buttonText := localizedNotificationText(locale, "🛒 立即购买", "🛒 立即購買", "🛒 Buy now")
+	return map[string]interface{}{
+		"inline_keyboard": [][]map[string]interface{}{
+			{
+				{"text": buttonText, "url": rawURL},
+			},
+		},
+	}
+}
+
 func BuildDeliverySummary(locale string, counts OrderItemCounts) string {
 	return localizedNotificationText(
 		locale,

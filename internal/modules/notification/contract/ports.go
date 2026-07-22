@@ -37,6 +37,20 @@ type DashboardAlertReader interface {
 
 type TelegramSender interface {
 	SendMessage(ctx context.Context, chatID, message string) error
+	SendMessageWithOptions(ctx context.Context, options TelegramSendOptions) error
+}
+
+// TelegramSendOptions Telegram 发送参数（用于补货广播等需要附加 inline 按钮的场景）。
+// 字段布局需与 internal/modules/telegram/notify/contract.SendOptions 保持一致，
+// 以便适配器可直接转换而不引入循环依赖。
+type TelegramSendOptions struct {
+	ChatID                string
+	Message               string
+	ParseMode             string
+	DisableWebPagePreview bool
+	AttachmentURL         string
+	AttachmentDisplayName string
+	ReplyMarkup           map[string]interface{}
 }
 
 type LogRepository interface {
