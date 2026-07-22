@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/dujiao-next/internal/models"
+	externalidentitydomain "github.com/dujiao-next/internal/modules/identity/externalidentity/domain"
 
 	"github.com/gin-gonic/gin"
 )
@@ -14,7 +15,7 @@ type JWTGenerator interface {
 
 // BuildChannelIdentityResponse 构造 Telegram 渠道身份响应载荷。
 // 如果用户是占位账号，会自动生成 JWT token 以支持升级流程。
-func BuildChannelIdentityResponse(bound, created bool, user *models.User, identity *models.UserOAuthIdentity, jwtGenerator JWTGenerator) gin.H {
+func BuildChannelIdentityResponse(bound, created bool, user *models.User, identity *externalidentitydomain.Identity, jwtGenerator JWTGenerator) gin.H {
 	resp := gin.H{
 		"bound": bound,
 	}
