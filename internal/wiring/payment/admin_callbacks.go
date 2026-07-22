@@ -5,7 +5,7 @@ import (
 
 	"github.com/dujiao-next/internal/constants"
 	"github.com/dujiao-next/internal/models"
-	"github.com/dujiao-next/internal/modules/notification"
+	notificationcontract "github.com/dujiao-next/internal/modules/notification/contract"
 	"github.com/dujiao-next/internal/repository"
 	"github.com/dujiao-next/internal/service"
 	"github.com/dujiao-next/internal/shared/jsonmap"
@@ -175,7 +175,7 @@ func (a webhookServiceAdapter) HandleBinancepayWebhook(input paymenttransport.We
 }
 
 type exceptionAlerterAdapter struct {
-	notifications *notification.Service
+	notifications notificationcontract.NotificationEnqueuer
 }
 
 func (a exceptionAlerterAdapter) EnqueuePaymentExceptionAlert(method, path, clientIP string, data jsonmap.JSON) error {
@@ -192,7 +192,7 @@ func (a exceptionAlerterAdapter) EnqueuePaymentExceptionAlert(method, path, clie
 	for key, value := range data {
 		payload[key] = value
 	}
-	return a.notifications.Enqueue(notification.EnqueueInput{
+	return a.notifications.Enqueue(notificationcontract.EnqueueInput{
 		EventType: constants.NotificationEventExceptionAlert,
 		BizType:   constants.NotificationBizTypePaymentCallback,
 		BizID:     0,

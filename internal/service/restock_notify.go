@@ -7,14 +7,15 @@ import (
 	"github.com/dujiao-next/internal/constants"
 	"github.com/dujiao-next/internal/logger"
 	productdomain "github.com/dujiao-next/internal/modules/catalog/product/domain"
-	"github.com/dujiao-next/internal/modules/notification"
+	notificationapp "github.com/dujiao-next/internal/modules/notification/application"
+	notificationcontract "github.com/dujiao-next/internal/modules/notification/contract"
 	settingsapp "github.com/dujiao-next/internal/modules/settings/application"
 	"github.com/dujiao-next/internal/shared/jsonmap"
 )
 
 // restockNotifier 封装补货通知所需依赖，供卡密入库、人工库存增加等场景复用。
 type restockNotifier struct {
-	notificationSvc *notification.Service
+	notificationSvc *notificationapp.Service
 	settingService  *settingsapp.Service
 }
 
@@ -80,7 +81,7 @@ func (n *restockNotifier) enqueueRestockNotification(product *productdomain.Prod
 		data["product_url"] = productURL
 	}
 
-	if err := n.notificationSvc.Enqueue(notification.EnqueueInput{
+	if err := n.notificationSvc.Enqueue(notificationcontract.EnqueueInput{
 		EventType: constants.NotificationEventRestockSuccess,
 		BizType:   constants.NotificationBizTypeRestock,
 		BizID:     product.ID,
