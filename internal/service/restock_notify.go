@@ -8,13 +8,14 @@ import (
 	"github.com/dujiao-next/internal/logger"
 	"github.com/dujiao-next/internal/models"
 	"github.com/dujiao-next/internal/modules/notification"
+	settingsapp "github.com/dujiao-next/internal/modules/settings/application"
 	"github.com/dujiao-next/internal/shared/jsonmap"
 )
 
 // restockNotifier 封装补货通知所需依赖，供卡密入库、人工库存增加等场景复用。
 type restockNotifier struct {
 	notificationSvc *notification.Service
-	settingService  *SettingService
+	settingService  *settingsapp.Service
 }
 
 // enqueueRestockNotification 在商品补货时投递补货通知事件。
