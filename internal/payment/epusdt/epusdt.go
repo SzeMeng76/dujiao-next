@@ -295,7 +295,7 @@ func CreatePayment(ctx context.Context, cfg *Config, input CreateInput) (*Create
 		"pid":          cfg.PID,
 		"order_id":     input.OrderNo,
 		"currency":     cfg.Currency,
-		"amount":       input.Amount,
+		"amount":       amount,
 		"notify_url":   notifyURL,
 		"redirect_url": returnURL,
 	}
