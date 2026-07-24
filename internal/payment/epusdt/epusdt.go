@@ -212,13 +212,27 @@ type CallbackData struct {
 	ReceiveAddress     string      `json:"receive_address"`
 	Token              string      `json:"token"`
 	BlockTransactionID string      `json:"block_transaction_id"`
-	Status             int         `json:"status"`
+	Status             interface{} `json:"status"` // 可能是 int 或 string
 	Signature          string      `json:"signature"`
 }
 
 // GetAmount 兼容 float64 / string 两种 JSON 类型
 func (c *CallbackData) GetAmount() float64       { return toFloat(c.Amount) }
 func (c *CallbackData) GetActualAmount() float64 { return toFloat(c.ActualAmount) }
+
+// GetStatus 兼容 int / string 两种 JSON 类型，返回 int 状态码
+func (c *CallbackData) GetStatus() int {
+	switch val := c.Status.(type) {
+	case float64:
+		return int(val)
+	case int:
+		return val
+	case string:
+		// gmpay-edge 发送字符串枚举，映射回 int 状态码
+		return statusStringToInt(val)
+	}
+	return 0
+}
 
 func toFloat(v interface{}) float64 {
 	switch val := v.(type) {
@@ -230,6 +244,20 @@ func toFloat(v interface{}) float64 {
 		}
 	}
 	return 0
+}
+
+// statusStringToInt 把字符串状态枚举映射回 int 状态码
+func statusStringToInt(status string) int {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "pending", "confirming":
+		return StatusWaiting
+	case "paid", "partially_paid", "overpaid":
+		return StatusSuccess
+	case "expired", "cancelled", "failed":
+		return StatusExpired
+	default:
+		return 0
+	}
 }
 
 // CreatePayment 调用 GMPay 创建交易接口并返回 trade_id 和收银台 URL。
@@ -267,7 +295,7 @@ func CreatePayment(ctx context.Context, cfg *Config, input CreateInput) (*Create
 		"pid":          cfg.PID,
 		"order_id":     input.OrderNo,
 		"currency":     cfg.Currency,
-		"amount":       amount,
+		"amount":       input.Amount,
 		"notify_url":   notifyURL,
 		"redirect_url": returnURL,
 	}
@@ -299,9 +327,15 @@ func CreatePayment(ctx context.Context, cfg *Config, input CreateInput) (*Create
 		return nil, fmt.Errorf("%w: trade_id missing in response", ErrResponseInvalid)
 	}
 
+	// 优先使用响应里的 payment_url；如果没有，才回退到拼接路径
+	paymentURL := extractPaymentURL(raw)
+	if paymentURL == "" {
+		paymentURL = cfg.GatewayURL + checkoutCounterPathPrefix + tradeID
+	}
+
 	return &CreateResult{
 		TradeID:    tradeID,
-		PaymentURL: cfg.GatewayURL + checkoutCounterPathPrefix + tradeID,
+		PaymentURL: paymentURL,
 		Raw:        raw,
 	}, nil
 }
@@ -316,6 +350,19 @@ func extractTradeID(raw map[string]interface{}) string {
 			return v
 		}
 		if v, ok := data["id"].(string); ok && v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+// extractPaymentURL 从响应里提取 payment_url
+func extractPaymentURL(raw map[string]interface{}) string {
+	if v, ok := raw["payment_url"].(string); ok && v != "" {
+		return v
+	}
+	if data, ok := raw["data"].(map[string]interface{}); ok {
+		if v, ok := data["payment_url"].(string); ok && v != "" {
 			return v
 		}
 	}
@@ -363,8 +410,9 @@ func VerifyCallback(cfg *Config, data *CallbackData) error {
 	if cfg == nil || data == nil {
 		return ErrConfigInvalid
 	}
-	if data.Status != StatusSuccess {
-		return fmt.Errorf("%w: status=%d", ErrResponseInvalid, data.Status)
+	status := data.GetStatus()
+	if status != StatusSuccess {
+		return fmt.Errorf("%w: status=%d", ErrResponseInvalid, status)
 	}
 
 	params := map[string]interface{}{
@@ -376,7 +424,7 @@ func VerifyCallback(cfg *Config, data *CallbackData) error {
 		"receive_address":      data.ReceiveAddress,
 		"token":                data.Token,
 		"block_transaction_id": data.BlockTransactionID,
-		"status":               data.Status,
+		"status":               status,
 	}
 	expected := Sign(params, cfg.SecretKey)
 	if !strings.EqualFold(expected, data.Signature) {
