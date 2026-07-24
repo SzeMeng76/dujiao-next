@@ -121,7 +121,7 @@ func (a *epusdtAdapter) VerifyCallback(raw models.JSON, _ map[string][]string, b
 	}
 
 	// epusdt 用 status int → PaymentStatusXxx string 映射
-	status := epusdt.ToPaymentStatus(data.Status)
+	status := epusdt.ToPaymentStatus(data.GetStatus())
 
 	// amount 解析失败时返回零值：wrapper 仅做适配，金额异常由业务层判定。
 	amount := models.Money{}
