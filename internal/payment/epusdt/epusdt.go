@@ -291,11 +291,18 @@ func CreatePayment(ctx context.Context, cfg *Config, input CreateInput) (*Create
 		returnURL = cfg.ReturnURL
 	}
 
+	// gmpay-edge 要求 amount 必须是 string（decimal string），epusdt 原版接受 float64
+	var amountValue interface{} = amount
+	if strings.Contains(strings.ToLower(cfg.GatewayURL), "gmpay") ||
+		strings.Contains(strings.ToLower(cfg.GatewayURL), "workers.dev") {
+		amountValue = input.Amount // 使用原始 string
+	}
+
 	params := map[string]interface{}{
 		"pid":          cfg.PID,
 		"order_id":     input.OrderNo,
 		"currency":     cfg.Currency,
-		"amount":       amount,
+		"amount":       amountValue,
 		"notify_url":   notifyURL,
 		"redirect_url": returnURL,
 	}
