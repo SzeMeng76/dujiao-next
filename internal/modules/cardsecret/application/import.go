@@ -14,6 +14,7 @@ import (
 	"github.com/dujiao-next/internal/constants"
 	cardsecretcontract "github.com/dujiao-next/internal/modules/cardsecret/contract"
 	cardsecretdomain "github.com/dujiao-next/internal/modules/cardsecret/domain"
+	productdomain "github.com/dujiao-next/internal/modules/catalog/product/domain"
 )
 
 // CreateCardSecretBatchInput 批量录入卡密输入
@@ -111,7 +112,26 @@ func (s *Service) CreateCardSecretBatch(input CreateCardSecretBatchInput) (*card
 		}
 		return nil, 0, ErrCreateFailed
 	}
+	s.notifyRestock(product, sku, batch.TotalCount)
 	return batch, batch.TotalCount, nil
+}
+
+// notifyRestock 在卡密入库后投递补货通知，可用库存取该商品（含 SKU）当前可用卡密数。
+func (s *Service) notifyRestock(product *productdomain.Product, sku *productdomain.ProductSKU, addedCount int) {
+	if s == nil || s.restock == nil || product == nil || addedCount <= 0 {
+		return
+	}
+	var available int64 = -1
+	if s.secretRepo != nil {
+		skuID := uint(0)
+		if sku != nil {
+			skuID = sku.ID
+		}
+		if _, avail, _, err := s.secretRepo.CountByProduct(product.ID, skuID); err == nil {
+			available = avail
+		}
+	}
+	s.restock.NotifyRestock(product, sku, addedCount, available)
 }
 
 // ImportCardSecretCSVInput 导入 CSV 输入

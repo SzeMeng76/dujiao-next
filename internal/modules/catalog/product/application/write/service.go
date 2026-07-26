@@ -80,6 +80,12 @@ type Options struct {
 	Errors          ErrorSet
 }
 
+// RestockNotifier 在人工交付商品手动库存增加时投递补货通知。由 SetRestockNotifier
+// 延迟注入，解决容器装配顺序依赖（NotificationService 构建晚于 WriteService）。
+type RestockNotifier interface {
+	NotifyRestock(product *productdomain.Product, sku *productdomain.ProductSKU, stockAdded int, stockAvailable int64)
+}
+
 // WriteService 编排商品创建、更新和 SKU 同步。
 type WriteService struct {
 	products        ProductRepository
@@ -88,6 +94,7 @@ type WriteService struct {
 	paymentChannels PaymentChannelStoresitory
 	transactions    UnitOfWork
 	errors          ErrorSet
+	restock         RestockNotifier
 }
 
 // NewWriteService 创建商品写入应用服务。
@@ -100,6 +107,14 @@ func NewWriteService(options Options) *WriteService {
 		transactions:    options.Transactions,
 		errors:          resolveErrorSet(options.Errors),
 	}
+}
+
+// SetRestockNotifier 注入补货通知依赖（在容器构建 NotificationService 之后调用）。
+func (s *WriteService) SetRestockNotifier(notifier RestockNotifier) {
+	if s == nil {
+		return
+	}
+	s.restock = notifier
 }
 
 // CreateProductInput 创建或完整更新商品的输入。

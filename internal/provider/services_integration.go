@@ -41,6 +41,7 @@ import (
 	notifyapp "github.com/dujiao-next/internal/modules/telegram/notify/application"
 	notifycontract "github.com/dujiao-next/internal/modules/telegram/notify/contract"
 	notifybotapi "github.com/dujiao-next/internal/modules/telegram/notify/infrastructure/botapi"
+	"github.com/dujiao-next/internal/shared/restocknotify"
 )
 
 // initIntegrationServices 装配通知、站点对接、支付、采购、渠道与 Telegram 集成。
@@ -53,12 +54,15 @@ func (c *Container) initIntegrationServices() {
 	telegramNotifyService := notifyapp.NewService(c.SettingService, c.Config.TelegramAuth, notifybotapi.New())
 	c.NotificationService = notificationapp.NewService(
 		c.SettingService,
-		c.EmailService,
+		c.EmailSender,
 		notificationasyncqueue.New(c.QueueClient),
 		c.DashboardService,
 		c.NotificationLogService,
 		telegramNotifySenderAdapter{svc: telegramNotifyService},
 	)
+	restockNotifier := restocknotify.New(c.NotificationService, c.SettingService)
+	c.CardSecretService.SetRestockNotifier(restockNotifier)
+	c.ProductWriteService.SetRestockNotifier(restockNotifier)
 	c.ApiCredentialService = apicredentialapp.NewService(c.ApiCredentialRepo)
 	c.SiteConnectionService = siteconnectionapp.NewService(c.SiteConnectionRepo, c.Config.App.SecretKey, "uploads")
 	mediaCore := contentapp.NewMediaService(

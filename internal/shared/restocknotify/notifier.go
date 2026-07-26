@@ -1,4 +1,4 @@
-package service
+package restocknotify
 
 import (
 	"strconv"
@@ -13,17 +13,23 @@ import (
 	"github.com/dujiao-next/internal/shared/jsonmap"
 )
 
-// restockNotifier 封装补货通知所需依赖，供卡密入库、人工库存增加等场景复用。
-type restockNotifier struct {
+// Notifier 封装补货通知所需依赖，供卡密入库、人工库存增加等场景复用。
+// 供 cardsecret 与 catalog/product 两个模块共同依赖，避免逻辑重复。
+type Notifier struct {
 	notificationSvc *notificationapp.Service
 	settingService  *settingsapp.Service
 }
 
-// enqueueRestockNotification 在商品补货时投递补货通知事件。
+// New 创建补货通知器。notificationSvc 为 nil 时，NotifyRestock 静默跳过。
+func New(notificationSvc *notificationapp.Service, settingService *settingsapp.Service) *Notifier {
+	return &Notifier{notificationSvc: notificationSvc, settingService: settingService}
+}
+
+// NotifyRestock 在商品补货时投递补货通知事件。
 // product 为补货的商品；sku 为补货的 SKU（nil 表示无 SKU 或单规格商品）；
 // stockAdded 为本次新增的数量；stockAvailable 为补货后的可用库存（<0 表示未知/无限，将省略）。
 // 投递失败仅记录日志，不影响主流程。
-func (n *restockNotifier) enqueueRestockNotification(product *productdomain.Product, sku *productdomain.ProductSKU, stockAdded int, stockAvailable int64) {
+func (n *Notifier) NotifyRestock(product *productdomain.Product, sku *productdomain.ProductSKU, stockAdded int, stockAvailable int64) {
 	if n == nil || n.notificationSvc == nil || product == nil {
 		return
 	}
@@ -107,7 +113,7 @@ func buildProductPublicURL(siteURL, slug string) string {
 	return siteURL + "/products/" + slug
 }
 
-// 本地化辅助函数（从 notification 模块复制，因为它们是私有的）
+// 本地化辅助函数（notification 包内对应函数是私有的，此处按需复制一份）。
 func resolveNotificationLocale(locale, fallback string) string {
 	locale = strings.TrimSpace(locale)
 	if locale == "" {

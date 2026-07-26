@@ -18,6 +18,12 @@ type ServiceOptions struct {
 	ProductSKUs  cardsecretcontract.ProductSKURepository
 }
 
+// RestockNotifier 在卡密入库后投递补货通知。由 SetRestockNotifier 延迟注入，
+// 解决容器装配顺序依赖（NotificationService 构建晚于 CardSecretService）。
+type RestockNotifier interface {
+	NotifyRestock(product *productdomain.Product, sku *productdomain.ProductSKU, stockAdded int, stockAvailable int64)
+}
+
 // Service 卡密库存服务。
 type Service struct {
 	secretRepo     cardsecretcontract.Repository
@@ -25,6 +31,7 @@ type Service struct {
 	transactions   cardsecretcontract.UnitOfWork
 	productRepo    cardsecretcontract.ProductRepository
 	productSKURepo cardsecretcontract.ProductSKURepository
+	restock        RestockNotifier
 }
 
 func NewService(options ServiceOptions) *Service {
@@ -35,6 +42,14 @@ func NewService(options ServiceOptions) *Service {
 		productRepo:    options.Products,
 		productSKURepo: options.ProductSKUs,
 	}
+}
+
+// SetRestockNotifier 注入补货通知依赖（在容器构建 NotificationService 之后调用）。
+func (s *Service) SetRestockNotifier(notifier RestockNotifier) {
+	if s == nil {
+		return
+	}
+	s.restock = notifier
 }
 
 func (s *Service) resolveCardSecretSKU(productID, rawSKUID uint) (*productdomain.ProductSKU, error) {

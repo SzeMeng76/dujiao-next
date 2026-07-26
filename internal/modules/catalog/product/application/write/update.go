@@ -28,6 +28,9 @@ func (s *WriteService) Update(id string, input CreateProductInput) (*productdoma
 	if product == nil {
 		return nil, s.errors.NotFound
 	}
+	// 记录补货检测所需的更新前手动库存与交付类型。
+	previousManualStockTotal := product.ManualStockTotal
+	previousFulfillmentType := strings.TrimSpace(product.FulfillmentType)
 	if err := productdomain.ValidateCategoryAssignment(s.categories, input.CategoryID, product.CategoryID, s.errors.ProductCategoryInvalid); err != nil {
 		return nil, err
 	}
@@ -179,5 +182,25 @@ func (s *WriteService) Update(id string, input CreateProductInput) (*productdoma
 	}); err != nil {
 		return nil, err
 	}
+
+	s.notifyManualRestock(product, previousFulfillmentType, previousManualStockTotal)
+
 	return s.products.GetByID(id)
+}
+
+// notifyManualRestock 在人工交付商品手动库存增加时投递补货通知。
+// 仅当更新前后均为人工交付、且库存从有限值上调（new > old，且均 >= 0）时触发。
+func (s *WriteService) notifyManualRestock(product *productdomain.Product, previousFulfillmentType string, previousStock int) {
+	if s == nil || s.restock == nil || product == nil {
+		return
+	}
+	if previousFulfillmentType != constants.FulfillmentTypeManual ||
+		strings.TrimSpace(product.FulfillmentType) != constants.FulfillmentTypeManual {
+		return
+	}
+	newStock := product.ManualStockTotal
+	if previousStock < 0 || newStock < 0 || newStock <= previousStock {
+		return
+	}
+	s.restock.NotifyRestock(product, nil, newStock-previousStock, int64(newStock))
 }
