@@ -3,7 +3,8 @@ package channelhttp
 import (
 	"strings"
 
-	"github.com/dujiao-next/internal/http/handlers/shared"
+	externalidentitydomain "github.com/dujiao-next/internal/modules/identity/externalidentity/domain"
+	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
 
 	"github.com/gin-gonic/gin"
 )
@@ -56,7 +57,7 @@ func (h *Handler) ResolveTelegramIdentity(c *gin.Context) {
 		return
 	}
 
-	respondChannelSuccess(c, shared.BuildChannelIdentityResponse(true, false, user, identity, h.UserAuthServiceConcrete))
+	respondChannelSuccess(c, buildChannelIdentityResponse(true, false, user, identity, h.UserAuthServiceConcrete))
 }
 
 // ProvisionTelegramIdentity POST /api/v1/channel/identities/telegram/provision
@@ -79,7 +80,7 @@ func (h *Handler) ProvisionTelegramIdentity(c *gin.Context) {
 		return
 	}
 
-	respondChannelSuccess(c, shared.BuildChannelIdentityResponse(true, created, user, identity, h.UserAuthServiceConcrete))
+	respondChannelSuccess(c, buildChannelIdentityResponse(true, created, user, identity, h.UserAuthServiceConcrete))
 }
 
 // BindTelegramIdentity POST /api/v1/channel/identities/telegram/bind
@@ -112,7 +113,7 @@ func (h *Handler) BindTelegramIdentity(c *gin.Context) {
 		return
 	}
 
-	resp := shared.BuildChannelIdentityResponse(true, false, user, identity, h.UserAuthServiceConcrete)
+	resp := buildChannelIdentityResponse(true, false, user, identity, h.UserAuthServiceConcrete)
 	resp["bound"] = true
 	if previousUserID != 0 {
 		resp["previous_user_id"] = previousUserID
@@ -142,7 +143,7 @@ func (h *Handler) GetCurrentIdentity(c *gin.Context) {
 		return
 	}
 
-	respondChannelSuccess(c, shared.BuildChannelIdentityResponse(true, false, user, identity, h.UserAuthServiceConcrete))
+	respondChannelSuccess(c, buildChannelIdentityResponse(true, false, user, identity, h.UserAuthServiceConcrete))
 }
 
 func buildTelegramChannelIdentityInput(req telegramIdentityRequest) TelegramIdentityInput {
@@ -178,4 +179,42 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+// buildChannelIdentityResponse 构造 Telegram 渠道身份响应载荷。
+// 如果用户是占位账号，会自动生成 JWT token 以支持升级流程。
+func buildChannelIdentityResponse(bound, created bool, user *userdomain.User, identity *externalidentitydomain.Identity, jwtGenerator JWTGenerator) gin.H {
+	resp := gin.H{"bound": bound}
+	if identity != nil {
+		resp["identity"] = gin.H{
+			"provider":         identity.Provider,
+			"provider_user_id": identity.ProviderUserID,
+			"username":         identity.Username,
+			"avatar_url":       identity.AvatarURL,
+		}
+	}
+	if user != nil {
+		userResp := gin.H{
+			"id":                      user.ID,
+			"email":                   user.Email,
+			"display_name":            user.DisplayName,
+			"status":                  user.Status,
+			"locale":                  user.Locale,
+			"email_verified":          user.EmailVerifiedAt != nil,
+			"password_setup_required": user.PasswordSetupRequired,
+		}
+
+		// 为占位账号生成 token，以便 bot 可以调用升级接口
+		if user.PasswordSetupRequired && jwtGenerator != nil {
+			if token, _, err := jwtGenerator.GenerateUserJWT(user, 0); err == nil {
+				userResp["token"] = token
+			}
+		}
+
+		resp["user"] = userResp
+	}
+	if bound {
+		resp["created"] = created
+	}
+	return resp
 }
