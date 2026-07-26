@@ -6,7 +6,6 @@ import (
 	catalogmappingbootstrap "github.com/dujiao-next/internal/bootstrap/catalogmapping"
 	telegrambroadcast "github.com/dujiao-next/internal/bootstrap/telegrambroadcast"
 	"github.com/dujiao-next/internal/logger"
-	"github.com/dujiao-next/internal/models"
 	apicredentialapp "github.com/dujiao-next/internal/modules/apicredential/application"
 	auditlogapp "github.com/dujiao-next/internal/modules/auditlog/application"
 	channelclientapp "github.com/dujiao-next/internal/modules/channelclient/application"
@@ -41,6 +40,7 @@ import (
 	notifyapp "github.com/dujiao-next/internal/modules/telegram/notify/application"
 	notifycontract "github.com/dujiao-next/internal/modules/telegram/notify/contract"
 	notifybotapi "github.com/dujiao-next/internal/modules/telegram/notify/infrastructure/botapi"
+	"github.com/dujiao-next/internal/platform/database/gormdb"
 	"github.com/dujiao-next/internal/shared/restocknotify"
 )
 
@@ -66,7 +66,7 @@ func (c *Container) initIntegrationServices() {
 	c.ApiCredentialService = apicredentialapp.NewService(c.ApiCredentialRepo)
 	c.SiteConnectionService = siteconnectionapp.NewService(c.SiteConnectionRepo, c.Config.App.SecretKey, "uploads")
 	mediaCore := contentapp.NewMediaService(
-		contentgormstore.NewMediaStore(models.DB),
+		contentgormstore.NewMediaStore(gormdb.DB),
 		localfilestore.New(),
 		contentapp.WarningLoggerFunc(logger.Warnw),
 	)
