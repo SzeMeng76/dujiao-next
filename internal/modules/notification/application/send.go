@@ -9,6 +9,7 @@ import (
 	"github.com/dujiao-next/internal/logger"
 	"github.com/dujiao-next/internal/modules/notification/application/format"
 	"github.com/dujiao-next/internal/modules/notification/contract"
+	settingsmessaging "github.com/dujiao-next/internal/modules/settings/schema/messaging"
 	"github.com/dujiao-next/internal/queue"
 	"github.com/dujiao-next/internal/shared/jsonmap"
 	"github.com/dujiao-next/internal/shared/outboundctx"
@@ -97,7 +98,7 @@ func (s *Service) SendTest(ctx context.Context, input contract.TestSendInput) er
 	}
 }
 
-func (s *Service) dispatchSingleEvent(ctx context.Context, setting contract.NotificationCenterSetting, payload queue.NotificationDispatchPayload) error {
+func (s *Service) dispatchSingleEvent(ctx context.Context, setting settingsmessaging.NotificationCenterSetting, payload queue.NotificationDispatchPayload) error {
 	if !payload.Force {
 		ok, err := acquireNotificationDedupe(ctx, setting.DedupeTTLSeconds, payload)
 		if err != nil {
@@ -198,7 +199,7 @@ func (s *Service) dispatchSingleEvent(ctx context.Context, setting contract.Noti
 
 // dispatchRestockBroadcast 处理补货通知：仅向管理员配置的单个广播频道/群组 chat_id 发送，
 // 带「立即购买」inline 按钮。不走邮件，也不发给通知收件人列表。
-func (s *Service) dispatchRestockBroadcast(ctx context.Context, setting contract.NotificationCenterSetting, payload queue.NotificationDispatchPayload) error {
+func (s *Service) dispatchRestockBroadcast(ctx context.Context, setting settingsmessaging.NotificationCenterSetting, payload queue.NotificationDispatchPayload) error {
 	chatID := strings.TrimSpace(setting.RestockBroadcast.ChatID)
 	if chatID == "" {
 		// 未配置广播频道，静默跳过。

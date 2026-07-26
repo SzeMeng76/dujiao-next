@@ -125,7 +125,7 @@ func (a *binancepayAdapter) CreatePayment(ctx context.Context, raw jsonmap.JSON,
 }
 
 // ParseWebhook 验签并解析 webhook(实现 paymentcontract.GatewayWebhooker)。
-func (a *binancepayAdapter) ParseWebhook(ctx context.Context, raw jsonmap.JSON, headers map[string]string, body []byte, now time.Time) (*paymentcontract.GatewayWebhookResult, error) {
+func (a *binancepayAdapter) ParseWebhook(ctx context.Context, raw jsonmap.JSON, headers map[string]string, body []byte, now time.Time) (*paymentcontract.GatewayCallbackResult, error) {
 	cfg, err := a.parseConfig(raw)
 	if err != nil {
 		return nil, err
@@ -138,7 +138,7 @@ func (a *binancepayAdapter) ParseWebhook(ctx context.Context, raw jsonmap.JSON, 
 
 	// bizType != PAY 是非支付通知，返回空 result 表示无需处理
 	if !strings.EqualFold(result.BizType, "PAY") {
-		return &paymentcontract.GatewayWebhookResult{Status: result.BizStatus}, nil
+		return &paymentcontract.GatewayCallbackResult{Status: result.BizStatus}, nil
 	}
 
 	amount := money.Amount{}
@@ -148,7 +148,7 @@ func (a *binancepayAdapter) ParseWebhook(ctx context.Context, raw jsonmap.JSON, 
 		}
 	}
 
-	return &paymentcontract.GatewayWebhookResult{
+	return &paymentcontract.GatewayCallbackResult{
 		OrderNo:     result.OrderNo,
 		ProviderRef: result.BizID,
 		Status:      result.Status,

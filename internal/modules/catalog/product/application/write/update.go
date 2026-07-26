@@ -6,6 +6,7 @@ import (
 	categorydomain "github.com/dujiao-next/internal/modules/catalog/category/domain"
 
 	"github.com/dujiao-next/internal/constants"
+	productcontract "github.com/dujiao-next/internal/modules/catalog/product/contract"
 	productdomain "github.com/dujiao-next/internal/modules/catalog/product/domain"
 	"github.com/dujiao-next/internal/modules/catalog/product/manualform"
 	"github.com/dujiao-next/internal/shared/jsonmap"
@@ -19,19 +20,19 @@ import (
 func (s *WriteService) Update(id string, input CreateProductInput) (*productdomain.Product, error) {
 	priceAmount := input.PriceAmount.Round(2)
 	if len(input.SKUs) == 0 && priceAmount.LessThanOrEqual(decimal.Zero) {
-		return nil, s.errors.ProductPriceInvalid
+		return nil, productcontract.ErrProductPriceInvalid
 	}
 	product, err := s.products.GetByID(id)
 	if err != nil {
 		return nil, err
 	}
 	if product == nil {
-		return nil, s.errors.NotFound
+		return nil, productcontract.ErrNotFound
 	}
 	// 记录补货检测所需的更新前手动库存与交付类型。
 	previousManualStockTotal := product.ManualStockTotal
 	previousFulfillmentType := strings.TrimSpace(product.FulfillmentType)
-	if err := productdomain.ValidateCategoryAssignment(s.categories, input.CategoryID, product.CategoryID, s.errors.ProductCategoryInvalid); err != nil {
+	if err := productdomain.ValidateCategoryAssignment(s.categories, input.CategoryID, product.CategoryID, productcontract.ErrProductCategoryInvalid); err != nil {
 		return nil, err
 	}
 
@@ -40,7 +41,7 @@ func (s *WriteService) Update(id string, input CreateProductInput) (*productdoma
 		return nil, err
 	}
 	if count > 0 {
-		return nil, s.errors.SlugExists
+		return nil, productcontract.ErrSlugExists
 	}
 
 	product.CategoryID = input.CategoryID
@@ -73,7 +74,7 @@ func (s *WriteService) Update(id string, input CreateProductInput) (*productdoma
 	}
 	purchaseType := productdomain.NormalizePurchaseType(rawPurchaseType)
 	if purchaseType == "" {
-		return nil, s.errors.ProductPurchaseInvalid
+		return nil, productcontract.ErrProductPurchaseInvalid
 	}
 	product.PurchaseType = purchaseType
 	if input.MaxPurchaseQuantity != nil {
@@ -83,11 +84,11 @@ func (s *WriteService) Update(id string, input CreateProductInput) (*productdoma
 		product.MinPurchaseQuantity = productdomain.NormalizePurchaseQuantityLimit(*input.MinPurchaseQuantity)
 	}
 	if product.MinPurchaseQuantity > 0 && product.MaxPurchaseQuantity > 0 && product.MinPurchaseQuantity > product.MaxPurchaseQuantity {
-		return nil, s.errors.ProductPurchaseLimitInvalid
+		return nil, productcontract.ErrProductPurchaseLimitInvalid
 	}
 	stockDisplayMode := productdomain.NormalizeStockDisplayMode(input.StockDisplayMode)
 	if stockDisplayMode == "" {
-		return nil, s.errors.ProductStockDisplayInvalid
+		return nil, productcontract.ErrProductStockDisplayInvalid
 	}
 	product.StockDisplayMode = stockDisplayMode
 	rawFulfillmentType := strings.TrimSpace(input.FulfillmentType)
@@ -96,7 +97,7 @@ func (s *WriteService) Update(id string, input CreateProductInput) (*productdoma
 	}
 	fulfillmentType := productdomain.NormalizeFulfillmentType(rawFulfillmentType)
 	if fulfillmentType == "" {
-		return nil, s.errors.FulfillmentInvalid
+		return nil, productcontract.ErrFulfillmentInvalid
 	}
 	// 对接商品的真实交付类型必须保持 upstream，后台返回的 auto/manual 仅用于展示。
 	if product.IsMapped {
@@ -116,13 +117,13 @@ func (s *WriteService) Update(id string, input CreateProductInput) (*productdoma
 		manualStockTotal = *input.ManualStockTotal
 	}
 	if manualStockTotal < constants.ManualStockUnlimited {
-		return nil, s.errors.ManualStockInvalid
+		return nil, productcontract.ErrManualStockInvalid
 	}
 
 	var normalizedSKUs []normalizedProductSKU
 	if len(input.SKUs) > 0 {
 		if s.skus == nil {
-			return nil, s.errors.ProductSKUInvalid
+			return nil, productcontract.ErrProductSKUInvalid
 		}
 		existingSKUs, listErr := s.skus.ListByProduct(product.ID, false)
 		if listErr != nil {
