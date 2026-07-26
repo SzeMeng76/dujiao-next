@@ -30,6 +30,7 @@ type PaymentWebhookService interface {
 	HandlePaypalWebhook(input WebhookCallbackInput) (*models.Payment, string, error)
 	HandleStripeWebhook(input WebhookCallbackInput) (*models.Payment, string, error)
 	HandleDujiaoPayWebhook(input WebhookCallbackInput) (*models.Payment, string, error)
+	HandleBinancepayWebhook(input WebhookCallbackInput) (*models.Payment, string, error)
 }
 
 // ExceptionAlerter 支付异常告警入队端口。
@@ -49,6 +50,11 @@ type StripeWebhookQuery struct {
 
 // DujiaoPayWebhookQuery DujiaoPay webhook 查询参数。
 type DujiaoPayWebhookQuery struct {
+	ChannelID uint `form:"channel_id"`
+}
+
+// BinancepayWebhookQuery Binancepay webhook 查询参数。
+type BinancepayWebhookQuery struct {
 	ChannelID uint `form:"channel_id"`
 }
 
@@ -203,6 +209,52 @@ func (h *WebhookHandler) DujiaoPayWebhook(c *gin.Context) {
 		return
 	}
 	respondWebhookSuccess(c, log, "dujiaopay_webhook", query.ChannelID, eventType, payment)
+}
+
+// BinancepayWebhook Binancepay webhook 回调。
+func (h *WebhookHandler) BinancepayWebhook(c *gin.Context) {
+	log := ginutil.RequestLog(c)
+	var query BinancepayWebhookQuery
+	_ = c.ShouldBindQuery(&query)
+
+	body, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		log.Warnw("binancepay_webhook_body_read_failed", "channel_id", query.ChannelID, "error", err)
+		ginutil.RespondError(c, response.CodeBadRequest, "error.bad_request", err)
+		return
+	}
+	log.Infow("binancepay_webhook_received",
+		"channel_id", query.ChannelID,
+		"client_ip", c.ClientIP(),
+		"body_size", len(body),
+		"binancepay_timestamp", strings.TrimSpace(c.GetHeader("BinancePay-Timestamp")),
+		"binancepay_nonce", strings.TrimSpace(c.GetHeader("BinancePay-Nonce")),
+		"binancepay_signature", truncateWebhookLogValue(strings.TrimSpace(c.GetHeader("BinancePay-Signature"))),
+		"raw_body", webhookRawBodyForLog(body),
+	)
+
+	payment, eventType, err := h.webhooks.HandleBinancepayWebhook(WebhookCallbackInput{
+		ChannelID: query.ChannelID,
+		Headers:   collectRequestHeaders(c),
+		Body:      body,
+		Context:   c.Request.Context(),
+	})
+	if err != nil {
+		log.Warnw("binancepay_webhook_handle_failed",
+			"channel_id", query.ChannelID,
+			"event_type", eventType,
+			"error", err,
+		)
+		h.enqueuePaymentExceptionAlert(c, jsonmap.JSON{
+			"alert_type":  "binancepay_webhook_handle_failed",
+			"alert_level": "error",
+			"message":     strings.TrimSpace(err.Error()),
+			"provider":    constants.PaymentChannelTypeBinancepay,
+		})
+		respondPaymentCallbackError(c, err)
+		return
+	}
+	respondWebhookSuccess(c, log, "binancepay_webhook", query.ChannelID, eventType, payment)
 }
 
 func collectRequestHeaders(c *gin.Context) map[string]string {
