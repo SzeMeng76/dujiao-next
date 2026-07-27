@@ -147,7 +147,8 @@ func registerStorefrontRoutes(
 	}
 }
 
-func registerPaymentCallbackRoutes(apiV1 *gin.RouterGroup, callbackHandler *paymentcallbacktransport.Handler, webhookHandler *paymenttransport.WebhookHandler) {
+func registerPaymentCallbackRoutes(apiV1 *gin.RouterGroup, callbackHandler *paymentcallbacktransport.Handler, webhookHandler *paymenttransport.WebhookHandler, redirectHandler *paymenttransport.RedirectHandler) {
 	paymentcallbacktransport.RegisterRoutes(apiV1, callbackHandler)
 	paymenttransport.RegisterWebhookRoutes(apiV1, webhookHandler)
+	paymenttransport.RegisterRedirectRoutes(apiV1, redirectHandler)
 }

@@ -15,6 +15,7 @@ type Handlers struct {
 	AdminChannel *paymenttransport.AdminChannelHandler
 	Webhook      *paymenttransport.WebhookHandler
 	Callback     *paymentcallbacktransport.Handler
+	Redirect     *paymenttransport.RedirectHandler
 }
 
 // New assembles payment transports from application services and HTTP handlers.
@@ -52,6 +53,9 @@ func New(c *container.Container) Handlers {
 			c.PaymentStore,
 			c.PaymentChannelStore,
 			alerter,
+		),
+		Redirect: paymenttransport.NewRedirectHandler(
+			writerAdapter{payments: c.PaymentService},
 		),
 	}
 }

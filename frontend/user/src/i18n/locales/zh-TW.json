@@ -1207,6 +1207,9 @@
       "qqpay": "QQ錢包",
       "paypal": "PayPal",
       "stripe": "Stripe",
+      "globepay": "Globepay",
+      "binancepay": "Binance Pay",
+      "nihaopay": "Nihaopay",
       "usdt": "USDT",
       "usdtTrc20": "USDT (TRC20)",
       "usdcTrc20": "USDC (TRC20)",
@@ -1217,7 +1220,10 @@
       "epay": "易支付",
       "bepusdt": "BEpusdt",
       "epusdt": "epusdt",
-      "tokenpay": "TokenPay"
+      "tokenpay": "TokenPay",
+      "globepay": "Globepay",
+      "binancepay": "Binance Pay",
+      "nihaopay": "Nihaopay"
     },
     "modeQr": "二維碼支付",
     "modeRedirect": "跳轉支付",

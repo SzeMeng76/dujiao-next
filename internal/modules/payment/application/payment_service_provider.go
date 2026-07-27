@@ -193,7 +193,11 @@ func (s *PaymentService) applyProviderPayment(input CreatePaymentInput, order *o
 	if result.Payload != nil {
 		payment.ProviderPayload = result.Payload
 	}
-	// DisplayChannelType 是 adapter 返回的“展示用渠道类型”。
+	// GatewayData 存储网关额外数据（如 Nihaopay 的表单参数）
+	if result.GatewayData != nil {
+		payment.GatewayData = result.GatewayData
+	}
+	// DisplayChannelType 是 adapter 返回的”展示用渠道类型”。
 	// 例如 BEpusdt 新格式的 payment.channel_type 固定为 bepusdt，
 	// 但交易模式实际展示应使用 config_json.trade_type（如 usdt.arbitrum）。
 	// 这里统一写入 provider_payload.display_channel_type，供通知、后台列表等展示层读取，

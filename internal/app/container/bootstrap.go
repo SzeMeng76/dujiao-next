@@ -14,6 +14,7 @@ import (
 	epayadapter "github.com/dujiao-next/internal/modules/payment/infrastructure/gateway/adapters/epay"
 	epusdtadapter "github.com/dujiao-next/internal/modules/payment/infrastructure/gateway/adapters/epusdt"
 	globepayadapter "github.com/dujiao-next/internal/modules/payment/infrastructure/gateway/adapters/globepay"
+	nihaopayadapter "github.com/dujiao-next/internal/modules/payment/infrastructure/gateway/adapters/nihaopay"
 	okpayadapter "github.com/dujiao-next/internal/modules/payment/infrastructure/gateway/adapters/okpay"
 	paypaladapter "github.com/dujiao-next/internal/modules/payment/infrastructure/gateway/adapters/paypal"
 	stripeadapter "github.com/dujiao-next/internal/modules/payment/infrastructure/gateway/adapters/stripe"
@@ -70,5 +71,6 @@ func newPaymentProviderRegistry() *paymentprovider.Registry {
 	registry.Register(constants.PaymentProviderOkpay, "", okpayadapter.NewOkpayAdapter())
 	registry.Register(constants.PaymentProviderOfficial, constants.PaymentChannelTypeBinancepay, binancepayadapter.NewBinancepayAdapter())
 	registry.Register(constants.PaymentProviderGlobepay, "", globepayadapter.NewGlobepayAdapter())
+	registry.Register(constants.PaymentProviderNihaopay, "", nihaopayadapter.NewNihaopayAdapter())
 	return registry
 }

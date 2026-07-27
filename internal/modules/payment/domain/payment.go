@@ -24,6 +24,7 @@ type Payment struct {
 	ProviderRef        string       `gorm:"index" json:"provider_ref"`                               // 第三方流水号
 	GatewayOrderNo     string       `gorm:"index;size:64" json:"gateway_order_no"`                   // 网关侧订单号
 	ProviderPayload    jsonmap.JSON `gorm:"type:json" json:"provider_payload"`                       // 第三方回调数据
+	GatewayData        jsonmap.JSON `gorm:"type:json" json:"gateway_data"`                           // 网关额外数据（如表单参数）
 	PayURL             string       `gorm:"type:text" json:"pay_url"`                                // 跳转链接
 	QRCode             string       `gorm:"type:text" json:"qr_code"`                                // 二维码内容/地址
 	CreatedAt          time.Time    `gorm:"index" json:"created_at"`                                 // 创建时间

@@ -34,6 +34,7 @@ type GatewayCreateResult struct {
 	RedirectURL        string
 	QRCodeURL          string
 	Payload            jsonmap.JSON
+	GatewayData        jsonmap.JSON
 	DisplayChannelType string
 	AmountSent         string
 	CurrencySent       string

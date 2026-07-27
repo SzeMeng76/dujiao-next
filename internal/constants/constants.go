@@ -48,6 +48,7 @@ const (
 	PaymentProviderOkpay     = "okpay"
 	PaymentProviderTokenpay  = "tokenpay"
 	PaymentProviderGlobepay  = "globepay"
+	PaymentProviderNihaopay  = "nihaopay"
 	PaymentProviderWallet    = "wallet"
 )
 
@@ -65,6 +66,7 @@ const (
 	PaymentChannelTypeTrx        = "trx"
 	PaymentChannelTypeBalance    = "balance"
 	PaymentChannelTypeBinancepay = "binancepay"
+	PaymentChannelTypeUnionpay   = "unionpay"
 )
 
 // Binance Pay 回调常量
@@ -213,6 +215,12 @@ const (
 const (
 	GlobepayCallbackSuccess = "success"
 	GlobepayCallbackFail    = "fail"
+)
+
+// Nihaopay 回调常量
+const (
+	NihaopayCallbackSuccess = "success"
+	NihaopayCallbackFail    = "fail"
 )
 
 // 文章类型常量

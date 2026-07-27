@@ -1158,6 +1158,7 @@ const messages = {
           dujiaopay: 'DujiaoPay',
           tokenpay: 'TokenPay',
           globepay: 'Globepay',
+          nihaopay: 'Nihaopay',
           wallet: '钱包余额',
         },
         channelTypes: {
@@ -5503,6 +5504,7 @@ const messages = {
           dujiaopay: 'DujiaoPay',
           tokenpay: 'TokenPay',
           globepay: 'Globepay',
+          nihaopay: 'Nihaopay',
           wallet: '錢包餘額',
         },
         channelTypes: {
@@ -9849,6 +9851,7 @@ const messages = {
           dujiaopay: 'DujiaoPay',
           tokenpay: 'TokenPay',
           globepay: 'Globepay',
+          nihaopay: 'Nihaopay',
           wallet: 'Wallet Balance',
         },
         channelTypes: {

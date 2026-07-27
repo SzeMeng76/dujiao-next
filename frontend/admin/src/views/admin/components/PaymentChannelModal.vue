@@ -203,6 +203,13 @@ const binancepayConfig = reactive({
   exchange_rate: '',
 })
 
+const nihaopayConfig = reactive({
+  token: '',
+  api_base_url: 'https://api.nihaopay.com',
+  return_url: '',
+  notify_url: '',
+})
+
 const epayChannelOptions = [
   { value: 'wechat', label: 'admin.paymentChannels.channelTypes.wechat' },
   { value: 'alipay', label: 'admin.paymentChannels.channelTypes.alipay' },
@@ -346,6 +353,18 @@ const interactionModeOptions = computed(() => {
     ]
   }
   if (form.provider_type === 'official' && form.channel_type === 'wechat') {
+    return [
+      { value: 'qr', label: 'admin.paymentChannels.interactionModes.qr' },
+      { value: 'redirect', label: 'admin.paymentChannels.interactionModes.redirect' },
+    ]
+  }
+  if (form.provider_type === 'globepay') {
+    return [
+      { value: 'qr', label: 'admin.paymentChannels.interactionModes.qr' },
+      { value: 'redirect', label: 'admin.paymentChannels.interactionModes.redirect' },
+    ]
+  }
+  if (form.provider_type === 'nihaopay') {
     return [
       { value: 'qr', label: 'admin.paymentChannels.interactionModes.qr' },
       { value: 'redirect', label: 'admin.paymentChannels.interactionModes.redirect' },
@@ -507,6 +526,13 @@ const resetBinancepayConfig = () => {
   binancepayConfig.exchange_rate = ''
 }
 
+const resetNihaopayConfig = () => {
+  nihaopayConfig.token = ''
+  nihaopayConfig.api_base_url = 'https://api.nihaopay.com'
+  nihaopayConfig.return_url = ''
+  nihaopayConfig.notify_url = ''
+}
+
 const resetAllConfigs = () => {
   resetEpayConfig()
   resetPaypalConfig()
@@ -520,6 +546,7 @@ const resetAllConfigs = () => {
   resetDujiaoPayConfig()
   resetGlobepayConfig()
   resetBinancepayConfig()
+  resetNihaopayConfig()
 }
 
 // --- Apply functions ---
@@ -667,6 +694,13 @@ const applyBinancepayConfig = (raw: Record<string, unknown>) => {
   binancepayConfig.currency = String(raw.currency || 'USDT')
   binancepayConfig.target_currency = String(raw.target_currency || '')
   binancepayConfig.exchange_rate = String(raw.exchange_rate || '')
+}
+
+const applyNihaopayConfig = (raw: Record<string, unknown>) => {
+  nihaopayConfig.token = String(raw.token || '')
+  nihaopayConfig.api_base_url = String(raw.api_base_url || 'https://api.nihaopay.com')
+  nihaopayConfig.return_url = String(raw.return_url || '')
+  nihaopayConfig.notify_url = String(raw.notify_url || '')
 }
 
 // --- Build functions ---
@@ -941,6 +975,21 @@ const buildBinancepayConfig = () => {
   return config
 }
 
+const buildNihaopayConfig = () => {
+  const config: Record<string, unknown> = {}
+  const setIfNotEmpty = (key: string, value: string) => {
+    const trimmed = String(value || '').trim()
+    if (trimmed !== '') {
+      config[key] = trimmed
+    }
+  }
+  setIfNotEmpty('token', nihaopayConfig.token)
+  setIfNotEmpty('api_base_url', nihaopayConfig.api_base_url)
+  setIfNotEmpty('return_url', nihaopayConfig.return_url)
+  setIfNotEmpty('notify_url', nihaopayConfig.notify_url)
+  return config
+}
+
 // token_id 由管理员手动输入，提交前统一规范化，避免大小写或空格写进 channel_type。
 const resolveDujiaopayChannelType = () =>
   dujiaopayConfig.order_mode === 'cashier'
@@ -982,6 +1031,11 @@ watch(
         form.channel_type = dujiaopayDefaultTokenID
       }
     } else if (value === 'globepay') {
+      const allowed = globepayChannelOptions.map((option) => option.value)
+      if (!allowed.includes(form.channel_type)) {
+        form.channel_type = allowed[0] || 'wechat'
+      }
+    } else if (value === 'nihaopay') {
       const allowed = globepayChannelOptions.map((option) => option.value)
       if (!allowed.includes(form.channel_type)) {
         form.channel_type = allowed[0] || 'wechat'
@@ -1151,6 +1205,9 @@ watch(
           applyTokenpayConfig(channel.config_json)
           applyOkpayConfig(channel.config_json)
           applyDujiaoPayConfig(channel.config_json)
+          applyGlobepayConfig(channel.config_json)
+          applyBinancepayConfig(channel.config_json)
+          applyNihaopayConfig(channel.config_json)
           if (channel.provider_type === 'okpay' && !String(form.channel_type || '').trim()) {
             form.channel_type = resolveOkpayChannelTypeFromConfig(channel.config_json)
           }
@@ -1277,6 +1334,11 @@ const handleSubmit = async () => {
       ...configJson,
       ...buildGlobepayConfig(),
     }
+  } else if (form.provider_type === 'nihaopay') {
+    configJson = {
+      ...configJson,
+      ...buildNihaopayConfig(),
+    }
   } else if (form.provider_type === 'official' && form.channel_type === 'binancepay') {
     delete configJson.target_currency
     delete configJson.exchange_rate
@@ -1372,10 +1434,11 @@ const closeModal = () => {
                 <SelectItem value="okpay">{{ t('admin.paymentChannels.providerTypes.okpay') }}</SelectItem>
                 <SelectItem value="tokenpay">{{ t('admin.paymentChannels.providerTypes.tokenpay') }}</SelectItem>
                 <SelectItem value="globepay">{{ t('admin.paymentChannels.providerTypes.globepay') }}</SelectItem>
+                <SelectItem value="nihaopay">{{ t('admin.paymentChannels.providerTypes.nihaopay') }}</SelectItem>
               </SelectContent>
             </Select>
           </div>
-          <div v-if="form.provider_type !== 'tokenpay' && form.provider_type !== 'bepusdt' && form.provider_type !== 'epusdt' && form.provider_type !== 'dujiaopay'" class="min-w-0">
+          <div v-if="form.provider_type !== 'tokenpay' && form.provider_type !== 'bepusdt' && form.provider_type !== 'epusdt' && form.provider_type !== 'dujiaopay' && form.provider_type !== 'nihaopay'" class="min-w-0">
             <label class="block text-xs font-medium text-muted-foreground mb-1.5">{{ t('admin.paymentChannels.modal.channelType') }}</label>
             <Select v-model="form.channel_type">
               <SelectTrigger class="h-9 w-full">
@@ -1977,13 +2040,35 @@ const closeModal = () => {
               <label class="block text-xs font-medium text-muted-foreground mb-1.5">Credential Code</label>
               <Input v-model="globepayConfig.credential_code" type="password" placeholder="商户密钥" />
             </div>
+            <div class="min-w-0">
+              <label class="block text-xs font-medium text-muted-foreground mb-1.5">{{ t('admin.paymentChannels.modal.returnUrl') }}</label>
+              <Input v-model="globepayConfig.return_url" :placeholder="t('admin.paymentChannels.modal.returnUrlPlaceholder')" />
+            </div>
+            <div class="min-w-0">
+              <label class="block text-xs font-medium text-muted-foreground mb-1.5">{{ t('admin.paymentChannels.modal.notifyUrl') }}</label>
+              <Input v-model="globepayConfig.notify_url" :placeholder="t('admin.paymentChannels.modal.notifyUrlPlaceholder')" />
+            </div>
+          </div>
+        </div>
+
+        <div v-if="form.provider_type === 'nihaopay'" class="min-w-0 rounded-xl border border-border bg-muted/20 p-4 overflow-hidden">
+          <div class="text-sm font-semibold text-foreground mb-3">Nihaopay 配置</div>
+          <div class="grid grid-cols-1 gap-4 md:grid-cols-2 [&>*]:min-w-0">
             <div class="min-w-0 md:col-span-2">
-              <label class="block text-xs font-medium text-muted-foreground mb-1.5">Notify URL</label>
-              <Input v-model="globepayConfig.notify_url" placeholder="https://your-domain.com/api/public/payment/callback/globepay" />
+              <label class="block text-xs font-medium text-muted-foreground mb-1.5">Token</label>
+              <Input v-model="nihaopayConfig.token" type="password" placeholder="商户 Token" />
             </div>
             <div class="min-w-0 md:col-span-2">
-              <label class="block text-xs font-medium text-muted-foreground mb-1.5">Return URL</label>
-              <Input v-model="globepayConfig.return_url" placeholder="https://your-domain.com/order/success" />
+              <label class="block text-xs font-medium text-muted-foreground mb-1.5">API Base URL</label>
+              <Input v-model="nihaopayConfig.api_base_url" placeholder="https://api.nihaopay.com" />
+            </div>
+            <div class="min-w-0">
+              <label class="block text-xs font-medium text-muted-foreground mb-1.5">{{ t('admin.paymentChannels.modal.returnUrl') }}</label>
+              <Input v-model="nihaopayConfig.return_url" :placeholder="t('admin.paymentChannels.modal.returnUrlPlaceholder')" />
+            </div>
+            <div class="min-w-0">
+              <label class="block text-xs font-medium text-muted-foreground mb-1.5">{{ t('admin.paymentChannels.modal.notifyUrl') }}</label>
+              <Input v-model="nihaopayConfig.notify_url" :placeholder="t('admin.paymentChannels.modal.notifyUrlPlaceholder')" />
             </div>
           </div>
         </div>

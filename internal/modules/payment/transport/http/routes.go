@@ -67,3 +67,11 @@ func RegisterWebhookRoutes(api gin.IRoutes, handler *WebhookHandler) {
 	api.POST("/payments/webhook/paypal", handler.PaypalWebhook)
 	api.POST("/payments/webhook/stripe", handler.StripeWebhook)
 }
+
+// RegisterRedirectRoutes 注册支付跳转路由（如 Nihaopay 自动提交表单）。
+func RegisterRedirectRoutes(api gin.IRoutes, handler *RedirectHandler) {
+	if api == nil || handler == nil {
+		panic("payment redirect routes: required dependency is nil")
+	}
+	api.GET("/payments/:id/nihaopay-redirect", handler.NihaopayRedirect)
+}
