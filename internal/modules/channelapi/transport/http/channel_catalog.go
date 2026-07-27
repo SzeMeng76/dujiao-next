@@ -1,6 +1,7 @@
 package channelhttp
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/dujiao-next/internal/constants"
 	"github.com/dujiao-next/internal/logger"
 	domaincatalog "github.com/dujiao-next/internal/modules/catalog"
+	promotioncontract "github.com/dujiao-next/internal/modules/promotion/contract"
 	"github.com/dujiao-next/internal/platform/http/ginutil"
 	"github.com/dujiao-next/internal/shared/jsonmap"
 	"github.com/dujiao-next/internal/shared/money"
@@ -175,6 +177,9 @@ func (h *Handler) GetProducts(c *gin.Context) {
 		PriceFrom           string                  `json:"price_from"`
 		PriceTo             string                  `json:"price_to,omitempty"`
 		MemberPriceFrom     string                  `json:"member_price_from,omitempty"`
+		PromotionPriceFrom  string                  `json:"promotion_price_from,omitempty"`
+		PromotionName       string                  `json:"promotion_name,omitempty"`
+		PromotionType       string                  `json:"promotion_type,omitempty"`
 		WholesalePrices     []channelWholesalePrice `json:"wholesale_prices,omitempty"`
 		Currency            string                  `json:"currency"`
 		StockStatus         string                  `json:"stock_status"`
@@ -232,6 +237,18 @@ func (h *Handler) GetProducts(c *gin.Context) {
 			memberPrice, _ := h.MemberLevelService.ResolveMemberPrice(memberLevelID, p.ID, 0, p.PriceAmount.Decimal)
 			if memberPrice.LessThan(p.PriceAmount.Decimal) {
 				item.MemberPriceFrom = money.FromDecimal(memberPrice).String()
+			}
+		}
+
+		// 计算活动价
+		if h.PromotionService != nil {
+			promotion, discountedPrice, err := h.PromotionService.ApplyPromotion(&p, 1)
+			if err != nil && !errors.Is(err, promotioncontract.ErrInvalid) {
+				logger.Warnw("channel_catalog_apply_promotion", "product_id", p.ID, "error", err)
+			} else if promotion != nil && discountedPrice.Decimal.LessThan(p.PriceAmount.Decimal) {
+				item.PromotionPriceFrom = discountedPrice.String()
+				item.PromotionName = strings.TrimSpace(promotion.Name)
+				item.PromotionType = strings.TrimSpace(promotion.Type)
 			}
 		}
 
@@ -324,6 +341,7 @@ func (h *Handler) GetProductDetail(c *gin.Context) {
 		SpecValues          string `json:"spec_values"`
 		Price               string `json:"price"`
 		MemberPrice         string `json:"member_price,omitempty"`
+		PromotionPrice      string `json:"promotion_price,omitempty"`
 		StockStatus         string `json:"stock_status"`
 		StockCount          int64  `json:"stock_count"`
 		StockDisplayMode    string `json:"stock_display_mode"`
@@ -331,6 +349,20 @@ func (h *Handler) GetProductDetail(c *gin.Context) {
 		StockRangeMin       *int   `json:"stock_range_min"`
 		StockRangeMax       *int   `json:"stock_range_max"`
 		StockQuantityHidden bool   `json:"stock_quantity_hidden"`
+	}
+
+	// 商品级活动价：与展示价（price_from 对应的 SKU 或商品本身）保持同一口径
+	var promotionName, promotionType, promotionPriceFrom string
+	if h.PromotionService != nil {
+		priceCarrier := *product
+		promotion, discountedPrice, err := h.PromotionService.ApplyPromotion(&priceCarrier, 1)
+		if err != nil && !errors.Is(err, promotioncontract.ErrInvalid) {
+			logger.Warnw("channel_catalog_apply_promotion_detail", "product_id", product.ID, "error", err)
+		} else if promotion != nil && discountedPrice.Decimal.LessThan(product.PriceAmount.Decimal) {
+			promotionName = strings.TrimSpace(promotion.Name)
+			promotionType = strings.TrimSpace(promotion.Type)
+			promotionPriceFrom = discountedPrice.String()
+		}
 	}
 
 	skus := make([]skuItem, 0, len(product.SKUs))
@@ -361,6 +393,16 @@ func (h *Handler) GetProductDetail(c *gin.Context) {
 				si.MemberPrice = money.FromDecimal(memberPrice).String()
 			}
 		}
+		if h.PromotionService != nil {
+			priceCarrier := *product
+			priceCarrier.PriceAmount = sku.PriceAmount
+			promotion, discountedPrice, err := h.PromotionService.ApplyPromotion(&priceCarrier, 1)
+			if err != nil && !errors.Is(err, promotioncontract.ErrInvalid) {
+				logger.Warnw("channel_catalog_apply_promotion_sku", "product_id", product.ID, "sku_id", sku.ID, "error", err)
+			} else if promotion != nil && discountedPrice.Decimal.LessThan(sku.PriceAmount.Decimal) {
+				si.PromotionPrice = discountedPrice.String()
+			}
+		}
 		skus = append(skus, si)
 	}
 
@@ -384,6 +426,9 @@ func (h *Handler) GetProductDetail(c *gin.Context) {
 		"image_url":             imageURL,
 		"price_from":            product.PriceAmount.String(),
 		"member_price_from":     memberPriceFrom,
+		"promotion_price_from":  promotionPriceFrom,
+		"promotion_name":        promotionName,
+		"promotion_type":        promotionType,
 		"wholesale_prices":      normalizeChannelWholesalePrices(product.WholesalePrices),
 		"currency":              currency,
 		"stock_status":          stockStatus,

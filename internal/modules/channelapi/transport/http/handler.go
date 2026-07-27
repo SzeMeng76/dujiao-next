@@ -13,6 +13,8 @@ import (
 
 	productdomain "github.com/dujiao-next/internal/modules/catalog/product/domain"
 
+	promotiondomain "github.com/dujiao-next/internal/modules/promotion/domain"
+
 	categorydomain "github.com/dujiao-next/internal/modules/catalog/category/domain"
 
 	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
@@ -175,6 +177,11 @@ type IdentityService interface {
 	BindTelegramChannelByEmailCode(input BindTelegramIdentityInput) (*userdomain.User, *externalidentitydomain.Identity, uint, error)
 }
 
+// PromotionService 是渠道 API 所需的最小活动价装饰端口。
+type PromotionService interface {
+	ApplyPromotion(product *productdomain.Product, quantity int) (*promotiondomain.Promotion, money.Amount, error)
+}
+
 type MemberLevelService interface {
 	ResolveMemberPrice(levelID, productID, skuID uint, basePrice decimal.Decimal) (decimal.Decimal, decimal.Decimal)
 }
@@ -215,6 +222,7 @@ type Dependencies struct {
 	UserAuthService         IdentityService
 	UserAuthServiceConcrete JWTGenerator // 用于生成 token（二开功能）
 	MemberLevelService      MemberLevelService
+	PromotionService        PromotionService // 可选：为空时不计算活动价
 	SettingService          Settings
 	OrderService            Orders
 	PaymentService          Payments

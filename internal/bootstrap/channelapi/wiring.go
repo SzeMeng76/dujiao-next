@@ -15,6 +15,8 @@ import (
 
 	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
 
+	promotionapp "github.com/dujiao-next/internal/modules/promotion/application"
+
 	"github.com/dujiao-next/internal/app/container"
 	productcontract "github.com/dujiao-next/internal/modules/catalog/product/contract"
 	"github.com/dujiao-next/internal/modules/catalog/product/manualform"
@@ -29,12 +31,17 @@ import (
 // transport. Conversion stays at the composition boundary so transport can
 // depend on narrow contracts only.
 func NewHandler(c *container.Container) *channeltransport.Handler {
+	var promotionService channeltransport.PromotionService
+	if c.PromotionRepo != nil {
+		promotionService = promotionapp.NewService(c.PromotionRepo)
+	}
 	return channeltransport.New(channeltransport.Dependencies{
 		CategoryService: c.CategoryService, CategoryRepo: c.CategoryRepo,
 		ProductService: c.ProductReadService, ProductRepo: c.ProductRepo,
 		ProductMappingRepo: c.ProductMappingRepo, SKUMappingRepo: c.SKUMappingRepo,
 		UserAuthService: identityAdapter{auth: c.UserAuthService}, MemberLevelService: c.MemberLevelService,
-		SettingService: c.SettingService, OrderService: orderAdapter{orders: c.OrderService},
+		PromotionService: promotionService,
+		SettingService:   c.SettingService, OrderService: orderAdapter{orders: c.OrderService},
 		PaymentService: paymentAdapter{payments: c.PaymentService}, PaymentStore: c.PaymentStore,
 	})
 }
