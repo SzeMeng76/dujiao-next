@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	gatewaycommon "github.com/dujiao-next/internal/modules/payment/infrastructure/gateway/common"
 	paymentcontract "github.com/dujiao-next/internal/modules/payment/contract"
+	gatewaycommon "github.com/dujiao-next/internal/modules/payment/infrastructure/gateway/common"
 
 	"github.com/dujiao-next/internal/constants"
 	"github.com/dujiao-next/internal/modules/payment/infrastructure/gateway/nihaopay"
@@ -78,7 +78,7 @@ func (a *nihaopayadapter) CreatePayment(ctx context.Context, raw jsonmap.JSON, i
 		Subject:     input.Subject,
 		ChannelType: input.ChannelType,
 		CallbackURL: callbackURL, // 必填
-		IPNUrl:      ipnURL,       // 可选
+		IPNUrl:      ipnURL,      // 可选
 		Reference:   input.OrderNo,
 	}
 

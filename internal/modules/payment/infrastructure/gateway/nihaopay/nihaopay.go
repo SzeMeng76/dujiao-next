@@ -32,8 +32,8 @@ const (
 type Config struct {
 	Token      string `json:"token"`
 	APIBaseURL string `json:"api_base_url"`
-	ReturnURL  string `json:"return_url"`  // callback_url 默认值
-	NotifyURL  string `json:"notify_url"`  // ipn_url 默认值（可选）
+	ReturnURL  string `json:"return_url"` // callback_url 默认值
+	NotifyURL  string `json:"notify_url"` // ipn_url 默认值（可选）
 }
 
 // CreateInput 创建支付输入
@@ -223,4 +223,3 @@ func convertAmount(amount string) string {
 	}
 	return amount
 }
-

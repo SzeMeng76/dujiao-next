@@ -5,8 +5,8 @@ import (
 	"html/template"
 	"net/http"
 
-	"github.com/dujiao-next/internal/platform/http/response"
 	ginutil "github.com/dujiao-next/internal/platform/http/ginutil"
+	"github.com/dujiao-next/internal/platform/http/response"
 	"github.com/gin-gonic/gin"
 )
 
@@ -133,4 +133,3 @@ document.getElementById('payForm').submit();
 </script>
 </body>
 </html>`
-

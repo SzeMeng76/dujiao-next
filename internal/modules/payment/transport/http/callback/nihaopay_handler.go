@@ -63,10 +63,10 @@ func (h *Handler) handleNihaopayCallback(c *gin.Context) bool {
 	if err != nil || payment == nil {
 		log.Warnw("nihaopay_callback_payment_not_found", "reference", reference, "error", err)
 		h.enqueuePaymentExceptionAlert(c, jsonmap.JSON{
-			"alert_type":       "nihaopay_callback_payment_not_found",
-			"alert_level":      "warning",
-			"reference":        reference,
-			"status":           getFirstValue(form, "status"),
+			"alert_type":  "nihaopay_callback_payment_not_found",
+			"alert_level": "warning",
+			"reference":   reference,
+			"status":      getFirstValue(form, "status"),
 		})
 		c.String(http.StatusOK, "fail")
 		return true
