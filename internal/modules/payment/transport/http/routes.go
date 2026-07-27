@@ -69,7 +69,7 @@ func RegisterWebhookRoutes(api gin.IRoutes, handler *WebhookHandler) {
 }
 
 // RegisterRedirectRoutes 注册支付跳转路由（如 Nihaopay 自动提交表单）。
-func RegisterRedirectRoutes(api gin.IRoutes, handler *RedirectHandler) {
+func RegisterRedirectRoutes(api gin.IRoutes, handler *WriteHandler) {
 	if api == nil || handler == nil {
 		panic("payment redirect routes: required dependency is nil")
 	}

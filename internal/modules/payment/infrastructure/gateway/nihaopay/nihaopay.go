@@ -111,8 +111,16 @@ func CreatePayment(ctx context.Context, cfg *Config, input CreateInput) (*Create
 	apiURL := fmt.Sprintf("%s/v1.2/transactions/securepay", baseURL)
 
 	params := url.Values{}
-	params.Set("amount", convertAmount(input.Amount))
-	params.Set("currency", strings.ToUpper(input.Currency))
+
+	// Nihaopay 对于 CNY 货币使用 rmb_amount 字段
+	currency := strings.ToUpper(input.Currency)
+	if currency == "CNY" {
+		params.Set("rmb_amount", convertAmount(input.Amount))
+	} else {
+		params.Set("amount", convertAmount(input.Amount))
+	}
+
+	params.Set("currency", currency)
 	params.Set("vendor", channelType)
 	params.Set("reference", input.Reference)
 	params.Set("callback_url", input.CallbackURL) // 必填：支付完成后浏览器重定向 (GET)
