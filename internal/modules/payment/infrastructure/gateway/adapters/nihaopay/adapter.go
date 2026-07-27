@@ -65,10 +65,13 @@ func (a *nihaopayadapter) CreatePayment(ctx context.Context, raw jsonmap.JSON, i
 	}
 	callbackURL = gatewaycommon.AppendQueryParams(callbackURL, input.ReturnURLQuery)
 
-	// ipn_url 可选：异步通知 (POST)
+	// ipn_url 必填：异步通知 (POST)
 	ipnURL := strings.TrimSpace(input.NotifyURL)
 	if ipnURL == "" {
 		ipnURL = cfg.NotifyURL
+	}
+	if ipnURL == "" {
+		return nil, fmt.Errorf("%w: ipn_url is required but not configured", paymentcontract.ErrGatewayConfigInvalid)
 	}
 
 	native := nihaopay.CreateInput{

@@ -51,6 +51,13 @@ type CreateInput struct {
 	Reference   string
 }
 
+// PaymentItem 支付商品项
+type PaymentItem struct {
+	Name       string // 商品名称
+	UnitAmount string // 单价（minor unit，如 1050 表示 $10.50）
+	Quantity   int    // 数量
+}
+
 // CreateResult 创建支付结果
 type CreateResult struct {
 	TransactionID string
@@ -134,12 +141,17 @@ func CreatePayment(ctx context.Context, cfg *Config, input CreateInput) (*Create
 	params.Set("vendor", channelType)
 	params.Set("reference", input.Reference)
 	params.Set("callback_url", input.CallbackURL) // 必填：支付完成后浏览器重定向 (GET)
-	if input.IPNUrl != "" {
-		params.Set("ipn_url", input.IPNUrl) // 可选：异步通知 (POST)
-	}
+	params.Set("ipn_url", input.IPNUrl)           // 必填：异步通知 (POST)
 	params.Set("description", input.Subject)
 	params.Set("note", input.OrderNo)
 	params.Set("response_format", "JSON")
+
+	// items 必填：商品列表
+	// 由于我们只有订单总金额，创建单项 item，使用订单号作为商品名称
+	amountInt := convertAmount(input.Amount)
+	params.Set("items[0].name", input.OrderNo)
+	params.Set("items[0].unitAmount", amountInt)
+	params.Set("items[0].quantity", "1")
 
 	req, err := http.NewRequestWithContext(ctx, "POST", apiURL, strings.NewReader(params.Encode()))
 	if err != nil {
