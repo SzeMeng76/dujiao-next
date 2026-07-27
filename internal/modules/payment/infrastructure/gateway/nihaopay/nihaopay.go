@@ -14,6 +14,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/shopspring/decimal"
 )
 
 var (
@@ -231,11 +233,21 @@ func generateSign(data map[string]string, token string) string {
 	return hex.EncodeToString(hash[:])
 }
 
-// convertAmount 将金额转换为 Nihaopay 要求的格式（保留两位小数的字符串）
+// convertAmount 将金额转换为 Nihaopay 要求的格式（整数分）
+// 例如："100.00" -> "10000"
 func convertAmount(amount string) string {
 	amount = strings.TrimSpace(amount)
 	if amount == "" {
-		return "0.00"
+		return "0"
 	}
-	return amount
+
+	// 解析小数金额
+	d, err := decimal.NewFromString(amount)
+	if err != nil {
+		return "0"
+	}
+
+	// 转换为分（乘以 100）
+	cents := d.Mul(decimal.NewFromInt(100))
+	return cents.StringFixed(0)
 }
