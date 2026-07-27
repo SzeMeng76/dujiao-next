@@ -6,9 +6,6 @@
 app:
   secret_key: your-secret-key-change-in-production-please # 务必修改，用于 AES-256 加密敏感数据
   totp_issuer: Dujiao-Next                          # 后台 2FA 验证器中显示的发行方名称（避免 & 等特殊字符）
-  # guest_credential_secret: 游客订单查单凭据的 HMAC 密钥，留空默认沿用 secret_key。
-  # 仅在需要更换 secret_key、但又要保留历史游客订单可查询能力时才需要单独设置为原 secret_key 的值：
-  # HMAC 摘要不可逆，一旦更换密钥，旧摘要将永久无法匹配。
 
 server:
   host: 0.0.0.0
