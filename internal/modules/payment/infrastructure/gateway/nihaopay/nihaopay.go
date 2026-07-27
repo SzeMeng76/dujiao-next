@@ -30,10 +30,11 @@ const (
 
 // Config Nihaopay 配置
 type Config struct {
-	Token      string `json:"token"`
-	APIBaseURL string `json:"api_base_url"`
-	ReturnURL  string `json:"return_url"` // callback_url 默认值
-	NotifyURL  string `json:"notify_url"` // ipn_url 默认值（可选）
+	Token              string `json:"token"`
+	APIBaseURL         string `json:"api_base_url"`
+	ReturnURL          string `json:"return_url"`          // callback_url 默认值
+	NotifyURL          string `json:"notify_url"`          // ipn_url 默认值（可选）
+	SettlementCurrency string `json:"settlement_currency"` // 结算货币，CNY订单时使用
 }
 
 // CreateInput 创建支付输入
@@ -112,15 +113,22 @@ func CreatePayment(ctx context.Context, cfg *Config, input CreateInput) (*Create
 
 	params := url.Values{}
 
-	// Nihaopay 对于 CNY 货币使用 rmb_amount 字段
+	// Nihaopay 逻辑：
+	// - 如果订单货币是 CNY：使用 rmb_amount，currency 是结算货币
+	// - 如果订单货币不是 CNY：使用 amount，currency 是订单货币
 	currency := strings.ToUpper(input.Currency)
 	if currency == "CNY" {
 		params.Set("rmb_amount", convertAmount(input.Amount))
+		// 使用结算货币，默认 USD
+		settlementCurrency := strings.ToUpper(strings.TrimSpace(cfg.SettlementCurrency))
+		if settlementCurrency == "" {
+			settlementCurrency = "USD"
+		}
+		params.Set("currency", settlementCurrency)
 	} else {
 		params.Set("amount", convertAmount(input.Amount))
+		params.Set("currency", currency)
 	}
-
-	params.Set("currency", currency)
 	params.Set("vendor", channelType)
 	params.Set("reference", input.Reference)
 	params.Set("callback_url", input.CallbackURL) // 必填：支付完成后浏览器重定向 (GET)
