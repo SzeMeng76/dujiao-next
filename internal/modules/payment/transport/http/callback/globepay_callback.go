@@ -58,7 +58,6 @@ func (h *Handler) handleGlobepayCallback(c *gin.Context) bool {
 	log.Infow("globepay_callback_received",
 		"client_ip", c.ClientIP(),
 		"partner_order_id", partnerOrderID,
-		"raw_form", callbackRawFormForLog(form),
 	)
 
 	payment, err := h.payments.GetByGatewayOrderNo(partnerOrderID)
