@@ -1,3 +1,5 @@
+// Package restocknotify 组装补货通知所需的模块依赖，供 cardsecret 与
+// catalog/product 两个模块共同复用；因依赖 modules，只能放在 bootstrap 层而非 shared。
 package restocknotify
 
 import (

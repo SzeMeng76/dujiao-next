@@ -4,6 +4,7 @@ import (
 	"context"
 
 	catalogmappingbootstrap "github.com/dujiao-next/internal/bootstrap/catalogmapping"
+	"github.com/dujiao-next/internal/bootstrap/restocknotify"
 	telegrambroadcast "github.com/dujiao-next/internal/bootstrap/telegrambroadcast"
 	"github.com/dujiao-next/internal/logger"
 	apicredentialapp "github.com/dujiao-next/internal/modules/apicredential/application"
@@ -41,7 +42,6 @@ import (
 	notifycontract "github.com/dujiao-next/internal/modules/telegram/notify/contract"
 	notifybotapi "github.com/dujiao-next/internal/modules/telegram/notify/infrastructure/botapi"
 	"github.com/dujiao-next/internal/platform/database/gormdb"
-	"github.com/dujiao-next/internal/shared/restocknotify"
 )
 
 // initIntegrationServices 装配通知、站点对接、支付、采购、渠道与 Telegram 集成。

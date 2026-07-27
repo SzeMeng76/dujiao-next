@@ -65,6 +65,15 @@ func (a callbackServiceTestAdapter) HandleWechatWebhook(input paymentcallback.We
 	})
 }
 
+func (a callbackServiceTestAdapter) HandleBinancepayWebhook(input paymentcallback.BinancepayWebhookInput) (*paymentdomain.Payment, string, error) {
+	return a.payments.HandleBinancepayWebhook(paymentapp.WebhookCallbackInput{
+		ChannelID: input.ChannelID,
+		Headers:   input.Headers,
+		Body:      input.Body,
+		Context:   input.Context,
+	})
+}
+
 func newOkpayCallbackFixture(t *testing.T) *okpayCallbackFixture {
 	t.Helper()
 

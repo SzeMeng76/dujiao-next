@@ -151,7 +151,8 @@ func hmacSHA256LowerHex(s, key string) string {
 
 func TestCreatePayment_BuildsRequestAndConstructsPaymentURL(t *testing.T) {
 	var capturedBody map[string]interface{}
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	var srv *httptest.Server
+	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/payments/gmpay/v1/order/create-transaction" {
 			t.Fatalf("unexpected path: %s", r.URL.Path)
 		}
@@ -209,9 +210,9 @@ func TestCreatePayment_BuildsRequestAndConstructsPaymentURL(t *testing.T) {
 	if capturedBody["order_id"] != "ORD-1" {
 		t.Fatalf("order_id mismatch: %v", capturedBody["order_id"])
 	}
-	// amount 现在应该是字符串，而不是 float64
-	if amt, ok := capturedBody["amount"].(string); !ok || amt != "100" {
-		t.Fatalf("amount mismatch (should be string): %v", capturedBody["amount"])
+	// 非 gmpay-edge 网关（本测试用的 httptest 地址）amount 应为 float64
+	if amt, ok := capturedBody["amount"].(float64); !ok || amt != 100 {
+		t.Fatalf("amount mismatch (should be float64): %v", capturedBody["amount"])
 	}
 	if _, hasSig := capturedBody["signature"]; !hasSig {
 		t.Fatalf("signature missing")

@@ -40,10 +40,10 @@ func TestCardSecretUsesCompleteVerticalLayout(t *testing.T) {
 	assertFileDeclaresTypes(t, filepath.Join(transportRoot, "admin_handler.go"), []string{"AdminHandler", "Service"})
 
 	expected := map[string][]string{
-		"service.go": {"NewService", "resolveCardSecretSKU", "normalizeCardSecretIDs"},
+		"service.go": {"NewService", "SetRestockNotifier", "resolveCardSecretSKU", "normalizeCardSecretIDs"},
 		"import.go": {
 			"CreateCardSecretBatch", "ImportCardSecretCSV", "shouldDeduplicateCardSecrets",
-			"normalizeSecrets", "parseCSVSecrets", "generateBatchNo",
+			"normalizeSecrets", "parseCSVSecrets", "generateBatchNo", "notifyRestock",
 		},
 		"manage.go": {
 			"ListCardSecrets", "buildRepositoryFilter", "hasListFilter",
