@@ -22,10 +22,16 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - name: Set lowercase image name
         id: lower
         run: echo "image=$(echo '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
+      - name: Resolve app version
+        id: appver
+        run: echo "version=$(git describe --tags --match 'v*' --abbrev=0 2>/dev/null || echo v0.0.0)" >> $GITHUB_OUTPUT
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -45,7 +51,7 @@ jobs:
           push: true
           tags: ${{ steps.lower.outputs.image }}:amd64-${{ github.sha }}
           build-args: |
-            APP_VERSION=${{ github.ref_name }}
+            APP_VERSION=${{ steps.appver.outputs.version }}
           cache-from: type=gha,scope=amd64
           cache-to: type=gha,mode=max,scope=amd64
 
@@ -54,10 +60,16 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - name: Set lowercase image name
         id: lower
         run: echo "image=$(echo '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
+      - name: Resolve app version
+        id: appver
+        run: echo "version=$(git describe --tags --match 'v*' --abbrev=0 2>/dev/null || echo v0.0.0)" >> $GITHUB_OUTPUT
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -77,7 +89,7 @@ jobs:
           push: true
           tags: ${{ steps.lower.outputs.image }}:arm64-${{ github.sha }}
           build-args: |
-            APP_VERSION=${{ github.ref_name }}
+            APP_VERSION=${{ steps.appver.outputs.version }}
           cache-from: type=gha,scope=arm64
           cache-to: type=gha,mode=max,scope=arm64
 

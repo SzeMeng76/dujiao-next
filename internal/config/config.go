@@ -38,6 +38,12 @@ type Config struct {
 type AppConfig struct {
 	SecretKey  string `mapstructure:"secret_key"`  // 通用加密密钥（AES-256，用于加密存储敏感信息）
 	TOTPIssuer string `mapstructure:"totp_issuer"` // 2FA 验证器中显示的发行方名称（避免使用 & 等特殊字符，Google Authenticator 解析容错差）
+
+	// GuestCredentialSecret 游客订单查单凭据的 HMAC 密钥。
+	// 为空时回退到 SecretKey（新部署无需单独配置）。单独拆出这一项是因为
+	// HMAC 摘要不可逆：一旦更换 SecretKey，历史游客凭据的摘要就再也算不出来，
+	// 只能靠继续使用原值的 GuestCredentialSecret 保持向后兼容。
+	GuestCredentialSecret string `mapstructure:"guest_credential_secret"`
 }
 
 // ServerConfig 服务器配置
@@ -436,6 +442,10 @@ func Load() *Config {
 	if err := viper.Unmarshal(&cfg); err != nil {
 		logger.Errorw("config_unmarshal_failed", "error", err)
 		panic(fmt.Errorf("配置解析失败: %w", err))
+	}
+
+	if strings.TrimSpace(cfg.App.GuestCredentialSecret) == "" {
+		cfg.App.GuestCredentialSecret = cfg.App.SecretKey
 	}
 
 	return &cfg
