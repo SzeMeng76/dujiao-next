@@ -107,4 +107,3 @@ func (h *Handler) handleGlobepayCallback(c *gin.Context) bool {
 	c.String(http.StatusOK, "SUCCESS")
 	return true
 }
-

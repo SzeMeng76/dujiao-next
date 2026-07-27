@@ -40,29 +40,29 @@ const (
 
 // 支付提供方常量
 const (
-	PaymentProviderOfficial = "official"
-	PaymentProviderEpay     = "epay"
-	PaymentProviderEpusdt   = "epusdt"
-	PaymentProviderBepusdt  = "bepusdt"
+	PaymentProviderOfficial  = "official"
+	PaymentProviderEpay      = "epay"
+	PaymentProviderEpusdt    = "epusdt"
+	PaymentProviderBepusdt   = "bepusdt"
 	PaymentProviderDujiaoPay = "dujiaopay"
-	PaymentProviderOkpay    = "okpay"
-	PaymentProviderTokenpay = "tokenpay"
-	PaymentProviderGlobepay = "globepay"
-	PaymentProviderWallet   = "wallet"
+	PaymentProviderOkpay     = "okpay"
+	PaymentProviderTokenpay  = "tokenpay"
+	PaymentProviderGlobepay  = "globepay"
+	PaymentProviderWallet    = "wallet"
 )
 
 // 支付渠道类型常量
 const (
-	PaymentChannelTypeWechat    = "wechat"
-	PaymentChannelTypeWxpay     = "wxpay"
-	PaymentChannelTypeAlipay    = "alipay"
-	PaymentChannelTypePaypal    = "paypal"
-	PaymentChannelTypeStripe    = "stripe"
-	PaymentChannelTypeQqpay     = "qqpay"
-	PaymentChannelTypeUsdt      = "usdt"
-	PaymentChannelTypeUsdtTrc20 = "usdt-trc20"
-	PaymentChannelTypeUsdcTrc20 = "usdc-trc20"
-	PaymentChannelTypeTrx       = "trx"
+	PaymentChannelTypeWechat     = "wechat"
+	PaymentChannelTypeWxpay      = "wxpay"
+	PaymentChannelTypeAlipay     = "alipay"
+	PaymentChannelTypePaypal     = "paypal"
+	PaymentChannelTypeStripe     = "stripe"
+	PaymentChannelTypeQqpay      = "qqpay"
+	PaymentChannelTypeUsdt       = "usdt"
+	PaymentChannelTypeUsdtTrc20  = "usdt-trc20"
+	PaymentChannelTypeUsdcTrc20  = "usdc-trc20"
+	PaymentChannelTypeTrx        = "trx"
 	PaymentChannelTypeBalance    = "balance"
 	PaymentChannelTypeBinancepay = "binancepay"
 )
@@ -321,12 +321,12 @@ const (
 
 // 验证码用途常量
 const (
-	VerifyPurposeRegister            = "register"
-	VerifyPurposeReset               = "reset"
-	VerifyPurposeTelegramBind        = "telegram_bind"
-	VerifyPurposeChangeEmailOld      = "change_email_old"
-	VerifyPurposeChangeEmailNew      = "change_email_new"
-	VerifyPurposeUpgradePlaceholder  = "upgrade_placeholder"
+	VerifyPurposeRegister           = "register"
+	VerifyPurposeReset              = "reset"
+	VerifyPurposeTelegramBind       = "telegram_bind"
+	VerifyPurposeChangeEmailOld     = "change_email_old"
+	VerifyPurposeChangeEmailNew     = "change_email_new"
+	VerifyPurposeUpgradePlaceholder = "upgrade_placeholder"
 )
 
 // 验证码提供方常量
@@ -487,21 +487,21 @@ const (
 
 	SettingKeyCallbackRoutesConfig = "callback_routes_config"
 
-	SettingKeyHomeAnnouncement   = "home_announcement"
-	SettingFieldPaymentCallback  = "payment_callback"
-	SettingFieldDujiaoPayWebhook = "dujiaopay_webhook"
-	SettingFieldPaypalWebhook    = "paypal_webhook"
-	SettingFieldStripeWebhook      = "stripe_webhook"
-	SettingFieldBinancepayWebhook  = "binancepay_webhook"
-	SettingFieldUpstreamCallback = "upstream_callback"
+	SettingKeyHomeAnnouncement    = "home_announcement"
+	SettingFieldPaymentCallback   = "payment_callback"
+	SettingFieldDujiaoPayWebhook  = "dujiaopay_webhook"
+	SettingFieldPaypalWebhook     = "paypal_webhook"
+	SettingFieldStripeWebhook     = "stripe_webhook"
+	SettingFieldBinancepayWebhook = "binancepay_webhook"
+	SettingFieldUpstreamCallback  = "upstream_callback"
 
 	// 默认回调路由路径
-	DefaultPaymentCallbackPath    = "/api/v1/payments/callback"
-	DefaultDujiaoPayWebhookPath   = "/api/v1/payments/webhook/dujiaopay"
-	DefaultPaypalWebhookPath      = "/api/v1/payments/webhook/paypal"
-	DefaultStripeWebhookPath      = "/api/v1/payments/webhook/stripe"
-	DefaultBinancepayWebhookPath  = "/api/v1/payments/webhook/binancepay"
-	DefaultUpstreamCallbackPath   = "/api/v1/upstream/callback"
+	DefaultPaymentCallbackPath   = "/api/v1/payments/callback"
+	DefaultDujiaoPayWebhookPath  = "/api/v1/payments/webhook/dujiaopay"
+	DefaultPaypalWebhookPath     = "/api/v1/payments/webhook/paypal"
+	DefaultStripeWebhookPath     = "/api/v1/payments/webhook/stripe"
+	DefaultBinancepayWebhookPath = "/api/v1/payments/webhook/binancepay"
+	DefaultUpstreamCallbackPath  = "/api/v1/upstream/callback"
 )
 
 // 币种常量

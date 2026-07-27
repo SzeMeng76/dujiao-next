@@ -86,30 +86,30 @@ type NotificationTemplatesSetting struct {
 
 // NotificationCenterSetting 通知中心配置
 type NotificationCenterSetting struct {
-	DefaultLocale                    string                       `json:"default_locale"`
-	Channels                         NotificationChannelsSetting  `json:"channels"`
-	Scenes                           NotificationSceneSetting     `json:"scenes"`
-	Templates                        NotificationTemplatesSetting `json:"templates"`
+	DefaultLocale                    string                              `json:"default_locale"`
+	Channels                         NotificationChannelsSetting         `json:"channels"`
+	Scenes                           NotificationSceneSetting            `json:"scenes"`
+	Templates                        NotificationTemplatesSetting        `json:"templates"`
 	RestockBroadcast                 NotificationRestockBroadcastSetting `json:"restock_broadcast"`
-	DedupeTTLSeconds                 int                          `json:"dedupe_ttl_seconds"`
-	InventoryAlertIntervalSeconds    int                          `json:"inventory_alert_interval_seconds"`
-	PaymentOrderAlertIntervalSeconds int                          `json:"payment_order_alert_interval_seconds"`
-	PaymentOrderAlertCheckSeconds    int                          `json:"payment_order_alert_check_interval_seconds"`
-	IgnoredProductIDs                []uint                       `json:"ignored_product_ids"`
+	DedupeTTLSeconds                 int                                 `json:"dedupe_ttl_seconds"`
+	InventoryAlertIntervalSeconds    int                                 `json:"inventory_alert_interval_seconds"`
+	PaymentOrderAlertIntervalSeconds int                                 `json:"payment_order_alert_interval_seconds"`
+	PaymentOrderAlertCheckSeconds    int                                 `json:"payment_order_alert_check_interval_seconds"`
+	IgnoredProductIDs                []uint                              `json:"ignored_product_ids"`
 }
 
 // NotificationCenterSettingPatch 通知中心配置补丁
 type NotificationCenterSettingPatch struct {
-	DefaultLocale                    *string                     `json:"default_locale"`
-	Channels                         *NotificationChannelsPatch  `json:"channels"`
-	Scenes                           *NotificationScenePatch     `json:"scenes"`
-	Templates                        *NotificationTemplatesPatch `json:"templates"`
+	DefaultLocale                    *string                            `json:"default_locale"`
+	Channels                         *NotificationChannelsPatch         `json:"channels"`
+	Scenes                           *NotificationScenePatch            `json:"scenes"`
+	Templates                        *NotificationTemplatesPatch        `json:"templates"`
 	RestockBroadcast                 *NotificationRestockBroadcastPatch `json:"restock_broadcast"`
-	DedupeTTLSeconds                 *int                        `json:"dedupe_ttl_seconds"`
-	InventoryAlertIntervalSeconds    *int                        `json:"inventory_alert_interval_seconds"`
-	PaymentOrderAlertIntervalSeconds *int                        `json:"payment_order_alert_interval_seconds"`
-	PaymentOrderAlertCheckSeconds    *int                        `json:"payment_order_alert_check_interval_seconds"`
-	IgnoredProductIDs                *[]uint                     `json:"ignored_product_ids"`
+	DedupeTTLSeconds                 *int                               `json:"dedupe_ttl_seconds"`
+	InventoryAlertIntervalSeconds    *int                               `json:"inventory_alert_interval_seconds"`
+	PaymentOrderAlertIntervalSeconds *int                               `json:"payment_order_alert_interval_seconds"`
+	PaymentOrderAlertCheckSeconds    *int                               `json:"payment_order_alert_check_interval_seconds"`
+	IgnoredProductIDs                *[]uint                            `json:"ignored_product_ids"`
 }
 
 // NotificationChannelsPatch 通知渠道补丁
@@ -359,7 +359,7 @@ func NotificationCenterSettingToMap(setting NotificationCenterSetting) map[strin
 		"restock_broadcast": map[string]interface{}{
 			"chat_id": normalized.RestockBroadcast.ChatID,
 		},
-		"ignored_product_ids":                        settingsvalue.CloneUintSlice(normalized.IgnoredProductIDs),
+		"ignored_product_ids": settingsvalue.CloneUintSlice(normalized.IgnoredProductIDs),
 	}
 }
 
