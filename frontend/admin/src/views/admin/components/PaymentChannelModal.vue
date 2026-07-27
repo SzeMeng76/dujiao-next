@@ -244,6 +244,12 @@ const okpayChannelOptions = [
   { value: 'trx', label: 'admin.paymentChannels.channelTypes.trx' },
 ]
 
+const nihaopayChannelOptions = [
+  { value: 'alipay', label: 'admin.paymentChannels.channelTypes.alipay' },
+  { value: 'wechatpay', label: 'admin.paymentChannels.channelTypes.wechat' },
+  { value: 'unionpay', label: 'admin.paymentChannels.channelTypes.unionpay' },
+]
+
 // DujiaoPay 的 token_id 由管理员手动填写（形如 tron-usdt），不在前端维护固定列表，
 // 上游新增链或代币时无需同步改代码。默认值仅用于新建渠道时的初始填充。
 const dujiaopayDefaultTokenID = 'tron-usdt'
@@ -286,6 +292,9 @@ const formChannelOptions = computed(() => {
   }
   if (form.provider_type === 'globepay') {
     return globepayChannelOptions
+  }
+  if (form.provider_type === 'nihaopay') {
+    return nihaopayChannelOptions
   }
   return channelOptions
 })
@@ -1036,9 +1045,9 @@ watch(
         form.channel_type = allowed[0] || 'wechat'
       }
     } else if (value === 'nihaopay') {
-      const allowed = globepayChannelOptions.map((option) => option.value)
+      const allowed = nihaopayChannelOptions.map((option) => option.value)
       if (!allowed.includes(form.channel_type)) {
-        form.channel_type = allowed[0] || 'wechat'
+        form.channel_type = allowed[0] || 'alipay'
       }
     } else if (value === 'tokenpay') {
       form.channel_type = 'usdt'
