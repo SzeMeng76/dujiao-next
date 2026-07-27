@@ -100,7 +100,7 @@ func (a *nihaopayadapter) CreatePayment(ctx context.Context, raw jsonmap.JSON, i
 	}
 
 	// 构造 redirect URL 指向我们的表单提交页面
-	formRedirectURL := fmt.Sprintf("/api/v1/payments/%d/nihaopay/redirect", input.PaymentID)
+	formRedirectURL := fmt.Sprintf("/api/v1/payments/%d/nihaopay-redirect", input.PaymentID)
 
 	return &paymentcontract.GatewayCreateResult{
 		ProviderRef:  result.TransactionID,
