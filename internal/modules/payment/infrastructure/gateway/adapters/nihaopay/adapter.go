@@ -35,8 +35,18 @@ func (a *nihaopayadapter) Type() string {
 
 // ValidateConfig 验证 channel.ConfigJSON。
 func (a *nihaopayadapter) ValidateConfig(raw jsonmap.JSON, channelType string) error {
-	if channelType != "" && !nihaopay.IsSupportedChannelType(channelType) {
-		return fmt.Errorf("%w: nihaopay channel_type %s", paymentcontract.ErrGatewayUnsupportedChannel, channelType)
+	if channelType != "" {
+		// 检查是 SecurePay 还是 QR Code
+		if strings.HasSuffix(channelType, "_qrcode") {
+			vendor := strings.TrimSuffix(channelType, "_qrcode")
+			if !nihaopay.IsSupportedQRCodeVendor(vendor) {
+				return fmt.Errorf("%w: nihaopay qrcode vendor %s", paymentcontract.ErrGatewayUnsupportedChannel, vendor)
+			}
+		} else {
+			if !nihaopay.IsSupportedChannelType(channelType) {
+				return fmt.Errorf("%w: nihaopay channel_type %s", paymentcontract.ErrGatewayUnsupportedChannel, channelType)
+			}
+		}
 	}
 	cfg, err := nihaopay.ParseConfig(raw)
 	if err != nil {
@@ -50,12 +60,30 @@ func (a *nihaopayadapter) ValidateConfig(raw jsonmap.JSON, channelType string) e
 
 // CreatePayment 创建支付。
 func (a *nihaopayadapter) CreatePayment(ctx context.Context, raw jsonmap.JSON, input paymentcontract.GatewayCreateInput) (*paymentcontract.GatewayCreateResult, error) {
-	if !nihaopay.IsSupportedChannelType(input.ChannelType) {
-		return nil, fmt.Errorf("%w: nihaopay channel_type %s", paymentcontract.ErrGatewayUnsupportedChannel, input.ChannelType)
-	}
 	cfg, err := nihaopay.ParseConfig(raw)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", paymentcontract.ErrGatewayConfigInvalid, err)
+	}
+
+	// 从 Extra 中读取 interaction_mode
+	interactionMode := "redirect" // 默认 redirect
+	if mode, ok := input.Extra["interaction_mode"].(string); ok && mode != "" {
+		interactionMode = strings.ToLower(strings.TrimSpace(mode))
+	}
+
+	if interactionMode == "qr" {
+		// QR Code 支付
+		return a.createQRCodePayment(ctx, cfg, input)
+	}
+
+	// SecurePay 支付（redirect）
+	return a.createSecurePayPayment(ctx, cfg, input)
+}
+
+// createSecurePayPayment 创建 SecurePay 支付（网页跳转）
+func (a *nihaopayadapter) createSecurePayPayment(ctx context.Context, cfg *nihaopay.Config, input paymentcontract.GatewayCreateInput) (*paymentcontract.GatewayCreateResult, error) {
+	if !nihaopay.IsSupportedChannelType(input.ChannelType) {
+		return nil, fmt.Errorf("%w: nihaopay channel_type %s", paymentcontract.ErrGatewayUnsupportedChannel, input.ChannelType)
 	}
 
 	// callback_url 必填：支付完成后用户浏览器重定向 (GET)
@@ -110,6 +138,55 @@ func (a *nihaopayadapter) CreatePayment(ctx context.Context, raw jsonmap.JSON, i
 		RedirectURL:  formRedirectURL,
 		Payload:      payload,
 		GatewayData:  gatewayData,
+		AmountSent:   input.Amount.Decimal.StringFixed(2),
+		CurrencySent: input.Currency,
+	}, nil
+}
+
+// createQRCodePayment 创建 QR Code 支付（扫码支付）
+func (a *nihaopayadapter) createQRCodePayment(ctx context.Context, cfg *nihaopay.Config, input paymentcontract.GatewayCreateInput) (*paymentcontract.GatewayCreateResult, error) {
+	// channel_type 就是 vendor: "unionpay" 或 "wechatpay"
+	vendor := input.ChannelType
+	if !nihaopay.IsSupportedQRCodeVendor(vendor) {
+		return nil, fmt.Errorf("%w: nihaopay qrcode vendor %s", paymentcontract.ErrGatewayUnsupportedChannel, vendor)
+	}
+
+	// ipn_url 必填：异步通知 (POST)
+	ipnURL := strings.TrimSpace(input.NotifyURL)
+	if ipnURL == "" {
+		ipnURL = cfg.NotifyURL
+	}
+	if ipnURL == "" {
+		return nil, fmt.Errorf("%w: ipn_url is required but not configured", paymentcontract.ErrGatewayConfigInvalid)
+	}
+
+	qrInput := nihaopay.QRCodeInput{
+		OrderNo:   input.OrderNo,
+		Amount:    input.Amount.Decimal.StringFixed(2),
+		Currency:  input.Currency,
+		Subject:   input.Subject,
+		Vendor:    vendor,
+		IPNUrl:    ipnURL,
+		Reference: input.OrderNo,
+		Timeout:   120, // 默认 120 分钟
+	}
+
+	result, err := nihaopay.CreateQRCodePayment(ctx, cfg, qrInput)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", paymentcontract.ErrGatewayRequestFailed, err)
+	}
+
+	payload := jsonmap.JSON{}
+	if result.Raw != nil {
+		payload = jsonmap.JSON(result.Raw)
+	}
+
+	// QR Code 支付返回 code_url，前端用它生成二维码
+	return &paymentcontract.GatewayCreateResult{
+		ProviderRef:  result.TransactionID,
+		QRCodeURL:    result.CodeURL, // 使用 QRCodeURL 字段
+		Payload:      payload,
+		GatewayData:  jsonmap.JSON{"timeout": result.Timeout},
 		AmountSent:   input.Amount.Decimal.StringFixed(2),
 		CurrencySent: input.Currency,
 	}, nil

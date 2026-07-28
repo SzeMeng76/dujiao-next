@@ -263,3 +263,185 @@ func convertAmount(amount string) string {
 	cents := d.Mul(decimal.NewFromInt(100))
 	return cents.StringFixed(0)
 }
+
+// QRCodeInput 创建二维码支付输入
+type QRCodeInput struct {
+	OrderNo  string
+	Amount   string
+	Currency string
+	Subject  string
+	Vendor   string // unionpay 或 wechatpay
+	IPNUrl   string // 异步通知 URL (POST)
+	Reference string
+	Timeout  int // 超时时间（分钟），默认 120
+}
+
+// QRCodeResult 二维码支付结果
+type QRCodeResult struct {
+	TransactionID string
+	CodeURL       string // 二维码内容
+	Timeout       int    // 超时时间（分钟）
+	Raw           map[string]interface{}
+}
+
+// QRCodeResponse Nihaopay qrcode API 响应
+type QRCodeResponse struct {
+	ID        string `json:"id"`
+	CodeURL   string `json:"code_url"`
+	Timeout   int    `json:"timeout"`
+	Amount    int    `json:"amount"`
+	Currency  string `json:"currency"`
+	Reference string `json:"reference"`
+	Time      string `json:"time"`
+	// 错误响应
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+}
+
+// IsSupportedQRCodeVendor 检查是否支持该二维码支付渠道
+func IsSupportedQRCodeVendor(vendor string) bool {
+	switch strings.ToLower(vendor) {
+	case "unionpay", "wechatpay":
+		return true
+	}
+	return false
+}
+
+// CreateQRCodePayment 创建二维码支付
+func CreateQRCodePayment(ctx context.Context, cfg *Config, input QRCodeInput) (*QRCodeResult, error) {
+	baseURL := strings.TrimSpace(cfg.APIBaseURL)
+	if baseURL == "" {
+		baseURL = defaultAPIBaseURL
+	}
+
+	vendor := strings.ToLower(input.Vendor)
+	if !IsSupportedQRCodeVendor(vendor) {
+		return nil, fmt.Errorf("%w: unsupported vendor: %s", ErrConfigInvalid, vendor)
+	}
+
+	apiURL := fmt.Sprintf("%s/v1.2/transactions/qrcode", baseURL)
+
+	params := url.Values{}
+
+	// 金额和货币处理
+	// QR Code 支付通常需要 CNY 或 USD
+	// 如果订单货币不是这两种，需要转换
+	currency := strings.ToUpper(input.Currency)
+	amount := input.Amount
+
+	// 如果不是 CNY 或 USD，转换为 USD
+	if currency != "CNY" && currency != "USD" {
+		convertedAmount, err := exchangeToUSD(ctx, amount, currency)
+		if err != nil {
+			return nil, fmt.Errorf("%w: currency exchange failed (%s to USD): %v", ErrRequestFailed, currency, err)
+		}
+		amount = convertedAmount
+		currency = "USD"
+	}
+
+	if currency == "CNY" {
+		params.Set("rmb_amount", convertAmount(amount))
+		settlementCurrency := strings.ToUpper(strings.TrimSpace(cfg.SettlementCurrency))
+		if settlementCurrency == "" {
+			settlementCurrency = "USD"
+		}
+		params.Set("currency", settlementCurrency)
+	} else {
+		params.Set("amount", convertAmount(amount))
+		params.Set("currency", currency)
+	}
+
+	params.Set("vendor", vendor)
+	params.Set("reference", input.Reference)
+	params.Set("ipn_url", input.IPNUrl)
+	params.Set("description", input.Subject)
+	params.Set("note", input.OrderNo)
+
+	// items 参数
+	amountInt := convertAmount(amount)
+	params.Set("items[0].name", input.Subject)
+	params.Set("items[0].unitAmount", amountInt)
+	params.Set("items[0].quantity", "1")
+
+	// 超时时间
+	if input.Timeout > 0 {
+		params.Set("timeout", fmt.Sprintf("%d", input.Timeout))
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", apiURL, strings.NewReader(params.Encode()))
+	if err != nil {
+		return nil, fmt.Errorf("%w: failed to create request: %v", ErrRequestFailed, err)
+	}
+
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", cfg.Token))
+
+	client := &http.Client{Timeout: defaultTimeout}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("%w: http request failed: %v", ErrRequestFailed, err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("%w: failed to read response: %v", ErrRequestFailed, err)
+	}
+
+	var qrResp QRCodeResponse
+	if err := json.Unmarshal(body, &qrResp); err != nil {
+		return nil, fmt.Errorf("%w: failed to parse json: %v", ErrResponseInvalid, err)
+	}
+
+	// 检查错误响应
+	if qrResp.Code != 0 || qrResp.Message != "" {
+		return nil, fmt.Errorf("%w: %s (code: %d)", ErrResponseInvalid, qrResp.Message, qrResp.Code)
+	}
+
+	if qrResp.CodeURL == "" {
+		return nil, fmt.Errorf("%w: missing code_url in response", ErrResponseInvalid)
+	}
+
+	rawData := make(map[string]interface{})
+	json.Unmarshal(body, &rawData)
+
+	result := &QRCodeResult{
+		TransactionID: qrResp.ID,
+		CodeURL:       qrResp.CodeURL,
+		Timeout:       qrResp.Timeout,
+		Raw:           rawData,
+	}
+
+	return result, nil
+}
+
+// exchangeToUSD 将指定货币金额转换为 USD
+func exchangeToUSD(ctx context.Context, amount string, fromCurrency string) (string, error) {
+	url := fmt.Sprintf("https://api.frankfurter.dev/v1/latest?amount=%s&from=%s&to=USD",
+		strings.TrimSpace(amount), strings.ToUpper(fromCurrency))
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return "", err
+	}
+	client := &http.Client{Timeout: defaultTimeout}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	var result struct {
+		Rates map[string]float64 `json:"rates"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return "", err
+	}
+	usd, ok := result.Rates["USD"]
+	if !ok {
+		return "", fmt.Errorf("USD rate not found in response")
+	}
+	return fmt.Sprintf("%.2f", usd), nil
+}
