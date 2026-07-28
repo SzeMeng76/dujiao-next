@@ -95,8 +95,8 @@ func (a *globepayAdapter) CreatePayment(ctx context.Context, raw jsonmap.JSON, i
 		RedirectURL:  result.PayURL,
 		QRCodeURL:    result.QRCode,
 		Payload:      payload,
-		AmountSent:   input.Amount.Decimal.String(),
-		CurrencySent: input.Currency,
+		AmountSent:   result.ActualAmount,
+		CurrencySent: result.ActualCurrency,
 	}, nil
 }
 

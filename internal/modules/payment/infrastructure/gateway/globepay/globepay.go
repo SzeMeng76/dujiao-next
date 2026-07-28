@@ -49,10 +49,12 @@ type CreateInput struct {
 
 // CreateResult 创建支付结果
 type CreateResult struct {
-	TradeNo string
-	PayURL  string
-	QRCode  string
-	Raw     map[string]interface{}
+	TradeNo       string
+	PayURL        string
+	QRCode        string
+	Raw           map[string]interface{}
+	ActualAmount  string // 实际发送给网关的金额（可能已转换）
+	ActualCurrency string // 实际发送给网关的币种（可能已转换）
 }
 
 // APIResponse Globepay API 响应
@@ -117,6 +119,10 @@ func CreatePayment(ctx context.Context, cfg *Config, input CreateInput) (*Create
 		"notify_url":  input.NotifyURL,
 	}
 
+	// 记录实际发送的金额和币种（默认与输入相同）
+	actualAmount := input.Amount
+	actualCurrency := "CNY"
+
 	var apiURL string
 	switch channelType {
 	case "wechat":
@@ -138,6 +144,9 @@ func CreatePayment(ctx context.Context, cfg *Config, input CreateInput) (*Create
 		params["currency"] = "GBP"
 		params["channel"] = "AlipayPlus"
 		params["extra"] = map[string]string{"payType": strings.ToUpper(channelType)}
+		// 更新实际金额和币种
+		actualAmount = gbpAmount
+		actualCurrency = "GBP"
 	default:
 		return nil, fmt.Errorf("%w: unsupported channel_type: %s", ErrConfigInvalid, channelType)
 	}
@@ -151,8 +160,10 @@ func CreatePayment(ctx context.Context, cfg *Config, input CreateInput) (*Create
 	}
 
 	result := &CreateResult{
-		TradeNo: resp.OrderID,
-		Raw:     map[string]interface{}{"return_code": resp.ReturnCode, "order_id": resp.OrderID},
+		TradeNo:        resp.OrderID,
+		Raw:            map[string]interface{}{"return_code": resp.ReturnCode, "order_id": resp.OrderID},
+		ActualAmount:   actualAmount,
+		ActualCurrency: actualCurrency,
 	}
 	if channelType == "wechat" {
 		result.QRCode = resp.CodeURL
