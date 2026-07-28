@@ -186,8 +186,18 @@ func CreatePayment(ctx context.Context, cfg *Config, input CreateInput) (*Create
 		return nil, fmt.Errorf("%w: missing actionUrl in response", ErrResponseInvalid)
 	}
 
+	// 元数据字段，不应该提交到支付网关
+	metadataFields := map[string]bool{
+		"needOpenId": true,
+		"submit":     true,
+	}
+
 	formParams := make(map[string]string)
 	for k, v := range formResp.Form.Params {
+		// 跳过元数据字段
+		if metadataFields[k] {
+			continue
+		}
 		formParams[k] = fmt.Sprintf("%v", v)
 	}
 
@@ -266,14 +276,14 @@ func convertAmount(amount string) string {
 
 // QRCodeInput 创建二维码支付输入
 type QRCodeInput struct {
-	OrderNo  string
-	Amount   string
-	Currency string
-	Subject  string
-	Vendor   string // unionpay 或 wechatpay
-	IPNUrl   string // 异步通知 URL (POST)
+	OrderNo   string
+	Amount    string
+	Currency  string
+	Subject   string
+	Vendor    string // unionpay 或 wechatpay
+	IPNUrl    string // 异步通知 URL (POST)
 	Reference string
-	Timeout  int // 超时时间（分钟），默认 120
+	Timeout   int // 超时时间（分钟），默认 120
 }
 
 // QRCodeResult 二维码支付结果
