@@ -374,6 +374,12 @@ const interactionModeOptions = computed(() => {
     ]
   }
   if (form.provider_type === 'nihaopay') {
+    // Nihaopay QR Code 只支持 unionpay 和 wechatpay，不支持 alipay
+    if (form.channel_type === 'alipay') {
+      return [
+        { value: 'redirect', label: 'admin.paymentChannels.interactionModes.redirect' },
+      ]
+    }
     return [
       { value: 'qr', label: 'admin.paymentChannels.interactionModes.qr' },
       { value: 'redirect', label: 'admin.paymentChannels.interactionModes.redirect' },
