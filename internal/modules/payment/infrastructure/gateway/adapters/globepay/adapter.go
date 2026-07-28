@@ -120,7 +120,12 @@ func (a *globepayAdapter) VerifyCallback(raw jsonmap.JSON, form map[string][]str
 
 	orderNo := data["partner_order_id"]
 	providerRef := data["order_id"]
-	amountStr := data["price"]
+
+	// Globepay 回调字段：
+	// - real_fee: 实际支付金额（单位：分）
+	// - currency: 币种（GBP/CNY）
+	amountStr := data["real_fee"]
+	currency := strings.ToUpper(strings.TrimSpace(data["currency"]))
 
 	amount := money.Amount{}
 	if s := strings.TrimSpace(amountStr); s != "" {
@@ -135,7 +140,7 @@ func (a *globepayAdapter) VerifyCallback(raw jsonmap.JSON, form map[string][]str
 		ProviderRef: providerRef,
 		Status:      constants.PaymentStatusSuccess,
 		Amount:      amount,
-		Currency:    "CNY",
+		Currency:    currency, // 使用回调返回的币种（GBP/CNY）
 		PaidAt:      nil,
 		Payload:     gatewaycommon.FormToJSON(form),
 	}, nil
