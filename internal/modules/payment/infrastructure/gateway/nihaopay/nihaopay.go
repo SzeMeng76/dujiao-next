@@ -235,6 +235,7 @@ func VerifyCallback(cfg *Config, data map[string]string) error {
 //  1. 排除 verify_sign 及值为空的字段，按 key 升序排列并以 key=value 用 & 连接；
 //  2. 对 token 单独做一次 MD5（小写十六进制），作为最后一段拼接到上述字符串末尾（以 & 分隔）；
 //  3. 对整个拼接串再做一次 MD5（小写十六进制），即为 verify_sign。
+//
 // 即 verify_sign = MD5(key1=value1&key2=value2&...&MD5(Token))。
 func generateSign(data map[string]string, token string) string {
 	keys := make([]string, 0, len(data))
