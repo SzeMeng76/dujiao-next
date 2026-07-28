@@ -22,7 +22,7 @@ func ReadString(raw map[string]interface{}, key string) string {
 	case json.Number:
 		return v.String()
 	case float64:
-		return strconv.FormatInt(int64(v), 10)
+		return strconv.FormatFloat(v, 'f', -1, 64)
 	case int64:
 		return strconv.FormatInt(v, 10)
 	case int:
