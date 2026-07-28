@@ -76,6 +76,26 @@ func (a userEmailTransportAdapter) ResolvePasswordChangeMode(user *userdomain.Us
 	return mode, mapUserAuthTransportError(err)
 }
 
+// userUpgradeTransportAdapter 将用户认证服务适配为占位账号升级 transport 端口。
+type userUpgradeTransportAdapter struct {
+	service *userauthapp.Service
+}
+
+func (a userUpgradeTransportAdapter) UpgradePlaceholderAccount(userID uint, newEmail, code, password string) (*userdomain.User, error) {
+	user, err := a.service.UpgradePlaceholderAccount(userID, newEmail, code, password)
+	return user, mapUserAuthTransportError(err)
+}
+
+func (a userUpgradeTransportAdapter) ResolveEmailChangeMode(user *userdomain.User) (string, error) {
+	mode, err := a.service.ResolveEmailChangeMode(user)
+	return mode, mapUserAuthTransportError(err)
+}
+
+func (a userUpgradeTransportAdapter) ResolvePasswordChangeMode(user *userdomain.User) (string, error) {
+	mode, err := a.service.ResolvePasswordChangeMode(user)
+	return mode, mapUserAuthTransportError(err)
+}
+
 // userPasswordTransportAdapter 将用户认证/设置服务适配为密码 transport 端口。
 type userPasswordTransportAdapter struct {
 	auth     *userauthapp.Service

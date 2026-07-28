@@ -11,6 +11,7 @@ type Handlers struct {
 	Profile      *userauthtransport.UserProfileHandler
 	Email        *userauthtransport.UserEmailHandler
 	Password     *userauthtransport.UserPasswordHandler
+	Upgrade      *userauthtransport.UserUpgradeHandler
 	Verify       *userauthtransport.UserVerifyHandler
 	Login        *userauthtransport.UserLoginHandler
 	TwoFA        *userauthtransport.User2FAHandler
@@ -35,6 +36,9 @@ func New(c *container.Container) Handlers {
 		Password: userauthtransport.NewUserPasswordHandler(userPasswordTransportAdapter{
 			auth: c.UserAuthService, settings: c.SettingService,
 		}),
+		Upgrade: userauthtransport.NewUserUpgradeHandler(
+			userUpgradeTransportAdapter{service: c.UserAuthService},
+		),
 		Verify: userauthtransport.NewUserVerifyHandler(
 			verify,
 			captcha,

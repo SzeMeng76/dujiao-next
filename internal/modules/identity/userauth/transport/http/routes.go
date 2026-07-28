@@ -80,6 +80,14 @@ func RegisterUserPasswordRoutes(user gin.IRoutes, handler *UserPasswordHandler) 
 	user.PUT("/me/password", handler.ChangeUserPassword)
 }
 
+// RegisterUserUpgradeRoutes 注册占位账号升级端点。
+func RegisterUserUpgradeRoutes(user gin.IRoutes, handler *UserUpgradeHandler) {
+	if user == nil || handler == nil {
+		panic("user upgrade routes: required dependency is nil")
+	}
+	user.POST("/me/upgrade-placeholder", handler.UpgradePlaceholderAccount)
+}
+
 // RegisterUserTelegramOIDCAuthRoutes 注册公开 Telegram OIDC 登录端点（需附带限流中间件）。
 func RegisterUserTelegramOIDCAuthRoutes(auth gin.IRoutes, handler *UserTelegramOIDCHandler, rateLimit gin.HandlerFunc) {
 	if auth == nil || handler == nil || rateLimit == nil {

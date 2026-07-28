@@ -45,6 +45,7 @@ func registerStorefrontRoutes(
 	userProfileHandler *userauthtransport.UserProfileHandler,
 	userEmailHandler *userauthtransport.UserEmailHandler,
 	userPasswordHandler *userauthtransport.UserPasswordHandler,
+	userUpgradeHandler *userauthtransport.UserUpgradeHandler,
 	userVerifyHandler *userauthtransport.UserVerifyHandler,
 	userTelegramOIDCHandler *userauthtransport.UserTelegramOIDCHandler,
 	userTelegramHandler *userauthtransport.UserTelegramHandler,
@@ -116,6 +117,7 @@ func registerStorefrontRoutes(
 		userauthtransport.RegisterUserProfileRoutes(user, userProfileHandler)
 		auditlogtransport.RegisterUserRoutes(user, userAuditLogHandler)
 		userauthtransport.RegisterUserPasswordRoutes(user, userPasswordHandler)
+		userauthtransport.RegisterUserUpgradeRoutes(user, userUpgradeHandler)
 		userauthtransport.RegisterUserTelegramRoutes(user, userTelegramHandler)
 		userauthtransport.RegisterUserTelegramOIDCRoutes(user, userTelegramOIDCHandler)
 		userauthtransport.RegisterUserEmailRoutes(user, userEmailHandler)
