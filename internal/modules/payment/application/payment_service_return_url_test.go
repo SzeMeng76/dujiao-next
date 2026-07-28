@@ -10,12 +10,14 @@ import (
 	"github.com/dujiao-next/internal/shared/jsonmap"
 )
 
-func TestResolveTenantReturnURLMainTenantKeepsConfigFallback(t *testing.T) {
-	ctx := resellercontract.WithTenantContext(context.Background(), resellercontract.MainTenantContext("main.example.com"))
+func TestResolveTenantReturnURLMainTenantUsesRequestHost(t *testing.T) {
+	// 主站可能配置多个域名（如 cn.example.com 和 main.example.com 均指向同一站点），
+	// 回跳地址应使用客户实际访问的域名，而不是渠道配置里写死的固定值。
+	ctx := resellercontract.WithTenantContext(context.Background(), resellercontract.MainTenantContext("cn.example.com"))
 	channel := &paymentdomain.PaymentChannel{ConfigJSON: jsonmap.JSON{"return_url": "https://main.example.com/pay"}}
 
-	if got := resolveTenantReturnURL(ctx, "https", channel); got != "" {
-		t.Fatalf("main tenant want empty got %q", got)
+	if got := resolveTenantReturnURL(ctx, "https", channel); got != "https://cn.example.com/pay" {
+		t.Fatalf("main tenant want https://cn.example.com/pay got %q", got)
 	}
 	if got := resolveTenantReturnURL(context.Background(), "https", channel); got != "" {
 		t.Fatalf("no tenant want empty got %q", got)

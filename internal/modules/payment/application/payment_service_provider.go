@@ -305,12 +305,13 @@ func (s *PaymentService) ValidateChannel(channel *paymentdomain.PaymentChannel) 
 	return nil
 }
 
-// resolveTenantReturnURL 在分销站/自定义域名场景下按当前 tenant 域名生成同步回跳地址。
-// 主站 tenant 返回空串，保持渠道配置 return_url/success_url 的固定值兜底行为；
+// resolveTenantReturnURL 按当前请求的 Host 生成同步回跳地址，覆盖主站多域名
+// （reseller.main_hosts 配置多个）和分销站自定义域名两种场景；
 // 分销 tenant 若回跳到主站域名，游客订单会因 tenant 隔离查不到（见 order_reseller_snapshot_test.go）。
+// 无法解析出 tenant/host 时返回空串，回退到渠道配置 return_url/success_url 的固定值。
 func resolveTenantReturnURL(ctx context.Context, requestScheme string, channel *paymentdomain.PaymentChannel) string {
 	tenant, ok := resellercontract.TenantFromContext(ctx)
-	if !ok || tenant.IsMain || tenant.Unavailable {
+	if !ok || tenant.Unavailable {
 		return ""
 	}
 	host := strings.TrimSpace(tenant.Host)
