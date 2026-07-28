@@ -211,15 +211,25 @@ func (a *nihaopayadapter) VerifyCallback(raw jsonmap.JSON, form map[string][]str
 	}
 
 	orderNo := data["note"]
-	providerRef := data["transaction_id"]
-	amountStr := data["amount"]
-	currency := data["currency"]
+	providerRef := data["id"]
 	status := data["status"]
 
+	// Nihaopay 用 rmb_amount 和 amount 互斥表示订单金额：
+	// - 下单时若走 CNY 计价（rmb_amount），IPN 会同时带回 rmb_amount（CNY）和 amount/currency（结算货币）。
+	//   此时应以 rmb_amount 为准，并强制 currency=CNY，因为 payment 记录的是原始 CNY 订单金额。
+	// - 下单时若直接以外币计价（amount），IPN 只带回 amount/currency，直接使用。
+	amountStr := data["amount"]
+	currency := data["currency"]
+	if rmbStr := strings.TrimSpace(data["rmb_amount"]); rmbStr != "" {
+		amountStr = rmbStr
+		currency = "CNY"
+	}
+
+	// amount/rmb_amount 均为最小货币单位（分），需除以 100 转为元。
 	amount := money.Amount{}
 	if s := strings.TrimSpace(amountStr); s != "" {
 		if d, parseErr := decimal.NewFromString(s); parseErr == nil {
-			amount = money.FromDecimal(d)
+			amount = money.FromDecimal(d.Div(decimal.NewFromInt(100)))
 		}
 	}
 
