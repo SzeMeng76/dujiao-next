@@ -315,7 +315,7 @@ func VerifyAndParseWebhook(ctx context.Context, cfg *Config, headers map[string]
 	}
 	result.OrderNo = gatewaycommon.ReadString(dataInner, "merchantTradeNo")
 	result.Currency = gatewaycommon.ReadString(dataInner, "currency")
-	result.Amount = gatewaycommon.ReadString(dataInner, "orderAmount")
+	result.Amount = gatewaycommon.ReadString(dataInner, "totalFee")
 
 	switch strings.ToUpper(bizStatus) {
 	case "PAY_SUCCESS":
