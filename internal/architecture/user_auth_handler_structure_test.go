@@ -138,6 +138,7 @@ func TestUserProfileHTTPLivesInTransport(t *testing.T) {
 		"RegisterUserEmailRoutes",
 		"RegisterUserPasswordAuthRoutes",
 		"RegisterUserPasswordRoutes",
+		"RegisterUserUpgradeRoutes",
 		"RegisterUserVerifyAuthRoutes",
 		"RegisterUserRegisterAuthRoutes",
 		"RegisterUserLoginAuthRoutes",
@@ -165,6 +166,12 @@ func TestUserProfileHTTPLivesInTransport(t *testing.T) {
 	})
 	assertFileDeclaresFunctions(t, filepath.Join(transportRoot, "user_password_handler.go"), []string{
 		"NewUserPasswordHandler", "UserForgotPassword", "ChangeUserPassword", "NewWeakPasswordError", "respondWeakPassword",
+	})
+	assertFileDeclaresTypes(t, filepath.Join(transportRoot, "user_upgrade_handler.go"), []string{
+		"UserUpgradeService", "UserUpgradeHandler", "UpgradePlaceholderAccountRequest",
+	})
+	assertFileDeclaresFunctions(t, filepath.Join(transportRoot, "user_upgrade_handler.go"), []string{
+		"NewUserUpgradeHandler", "UpgradePlaceholderAccount", "upgradeProfileResponse",
 	})
 	assertFileDeclaresTypes(t, filepath.Join(transportRoot, "user_verify_handler.go"), []string{
 		"UserVerifySettings", "UserVerifyAuth", "UserVerifyHandler", "UserSendVerifyCodeRequest", "CaptchaVerifier",
@@ -207,7 +214,7 @@ func TestUserProfileHTTPLivesInTransport(t *testing.T) {
 	assertFileDeclaresFunctions(t, filepath.Join(presenterRoot, "user.go"), []string{
 		"NewUserProfileResp", "NewTelegramBindingResp", "NewUserAuthBriefResp",
 	})
-	assertDirectoryGoFileBudget(t, transportRoot, 10)
+	assertDirectoryGoFileBudget(t, transportRoot, 11)
 	assertDirectoryGoFileBudget(t, presenterRoot, 2)
 
 	for _, legacy := range []string{
