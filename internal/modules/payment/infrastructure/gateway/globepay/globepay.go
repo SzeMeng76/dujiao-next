@@ -49,11 +49,11 @@ type CreateInput struct {
 
 // CreateResult 创建支付结果
 type CreateResult struct {
-	TradeNo       string
-	PayURL        string
-	QRCode        string
-	Raw           map[string]interface{}
-	ActualAmount  string // 实际发送给网关的金额（可能已转换）
+	TradeNo        string
+	PayURL         string
+	QRCode         string
+	Raw            map[string]interface{}
+	ActualAmount   string // 实际发送给网关的金额（可能已转换）
 	ActualCurrency string // 实际发送给网关的币种（可能已转换）
 }
 
