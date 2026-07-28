@@ -72,7 +72,7 @@ type SecurePayFormResponse struct {
 	Form struct {
 		ActionURL string                 `json:"actionUrl"`
 		Method    string                 `json:"method"`
-		Inputs    map[string]interface{} `json:"inputs"`
+		Params    map[string]interface{} `json:"params"`
 	} `json:"form"`
 }
 
@@ -187,7 +187,7 @@ func CreatePayment(ctx context.Context, cfg *Config, input CreateInput) (*Create
 	}
 
 	formParams := make(map[string]string)
-	for k, v := range formResp.Form.Inputs {
+	for k, v := range formResp.Form.Params {
 		formParams[k] = fmt.Sprintf("%v", v)
 	}
 
