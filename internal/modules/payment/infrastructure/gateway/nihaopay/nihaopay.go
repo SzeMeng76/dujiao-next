@@ -223,20 +223,26 @@ func VerifyCallback(cfg *Config, data map[string]string) error {
 	}
 
 	expectedSign := generateSign(data, cfg.Token)
-	if receivedSign != expectedSign {
+	if !strings.EqualFold(receivedSign, expectedSign) {
 		return fmt.Errorf("%w: sign mismatch", ErrSignatureInvalid)
 	}
 
 	return nil
 }
 
-// generateSign 生成签名
+// generateSign 生成签名。
+// 按官方文档 Verify signature 算法：
+//  1. 排除 verify_sign 及值为空的字段，按 key 升序排列并以 key=value 用 & 连接；
+//  2. 对 token 单独做一次 MD5（小写十六进制），作为最后一段拼接到上述字符串末尾（以 & 分隔）；
+//  3. 对整个拼接串再做一次 MD5（小写十六进制），即为 verify_sign。
+// 即 verify_sign = MD5(key1=value1&key2=value2&...&MD5(Token))。
 func generateSign(data map[string]string, token string) string {
 	keys := make([]string, 0, len(data))
-	for k := range data {
-		if k != "verify_sign" {
-			keys = append(keys, k)
+	for k, v := range data {
+		if k == "verify_sign" || v == "" {
+			continue
 		}
+		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 
@@ -249,10 +255,15 @@ func generateSign(data map[string]string, token string) string {
 		buf.WriteString("=")
 		buf.WriteString(data[k])
 	}
-	buf.WriteString(token)
 
-	hash := md5.Sum([]byte(buf.String()))
-	return hex.EncodeToString(hash[:])
+	tokenHash := md5.Sum([]byte(token))
+	if buf.Len() > 0 {
+		buf.WriteString("&")
+	}
+	buf.WriteString(hex.EncodeToString(tokenHash[:]))
+
+	hash := md5.Sum(buf.Bytes())
+	return strings.ToLower(hex.EncodeToString(hash[:]))
 }
 
 // convertAmount 将金额转换为 Nihaopay 要求的格式（整数分）
