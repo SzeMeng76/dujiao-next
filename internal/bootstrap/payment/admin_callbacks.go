@@ -171,6 +171,16 @@ func (a webhookServiceAdapter) HandleDujiaoPayWebhook(input paymenttransport.Web
 	return payment, eventType, mapTransportError(err)
 }
 
+func (a webhookServiceAdapter) HandleHashpayWebhook(input paymenttransport.WebhookCallbackInput) (*paymentdomain.Payment, string, error) {
+	payment, eventType, err := a.payments.HandleHashpayWebhook(paymentapp.WebhookCallbackInput{
+		ChannelID: input.ChannelID,
+		Headers:   input.Headers,
+		Body:      input.Body,
+		Context:   input.Context,
+	})
+	return payment, eventType, mapTransportError(err)
+}
+
 func (a webhookServiceAdapter) HandleBinancepayWebhook(input paymenttransport.WebhookCallbackInput) (*paymentdomain.Payment, string, error) {
 	payment, eventType, err := a.payments.HandleBinancepayWebhook(paymentapp.WebhookCallbackInput{
 		ChannelID: input.ChannelID,

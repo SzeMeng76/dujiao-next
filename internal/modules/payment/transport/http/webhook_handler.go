@@ -33,6 +33,7 @@ type PaymentWebhookService interface {
 	HandleStripeWebhook(input WebhookCallbackInput) (*paymentdomain.Payment, string, error)
 	HandleDujiaoPayWebhook(input WebhookCallbackInput) (*paymentdomain.Payment, string, error)
 	HandleBinancepayWebhook(input WebhookCallbackInput) (*paymentdomain.Payment, string, error)
+	HandleHashpayWebhook(input WebhookCallbackInput) (*paymentdomain.Payment, string, error)
 }
 
 // ExceptionAlerter 支付异常告警入队端口。
@@ -57,6 +58,11 @@ type DujiaoPayWebhookQuery struct {
 
 // BinancepayWebhookQuery Binancepay webhook 查询参数。
 type BinancepayWebhookQuery struct {
+	ChannelID uint `form:"channel_id"`
+}
+
+// HashpayWebhookQuery HashPay webhook 查询参数。
+type HashpayWebhookQuery struct {
 	ChannelID uint `form:"channel_id"`
 }
 
@@ -248,6 +254,50 @@ func (h *WebhookHandler) BinancepayWebhook(c *gin.Context) {
 		return
 	}
 	respondWebhookSuccess(c, log, "binancepay_webhook", query.ChannelID, eventType, payment)
+}
+
+// HashpayWebhook HashPay webhook 回调。
+func (h *WebhookHandler) HashpayWebhook(c *gin.Context) {
+	log := ginutil.RequestLog(c)
+	var query HashpayWebhookQuery
+	_ = c.ShouldBindQuery(&query)
+
+	body, err := readWebhookBody(c)
+	if err != nil {
+		log.Warnw("hashpay_webhook_body_read_failed", "channel_id", query.ChannelID, "error", err)
+		ginutil.RespondError(c, response.CodeBadRequest, "error.bad_request", err)
+		return
+	}
+	log.Infow("hashpay_webhook_received",
+		"channel_id", query.ChannelID,
+		"client_ip", c.ClientIP(),
+		"body_size", len(body),
+		"hashpay_merchant", strings.TrimSpace(c.GetHeader("X-Hashpay-Merchant")),
+		"hashpay_timestamp", strings.TrimSpace(c.GetHeader("X-Hashpay-Timestamp")),
+	)
+
+	payment, eventType, err := h.webhooks.HandleHashpayWebhook(WebhookCallbackInput{
+		ChannelID: query.ChannelID,
+		Headers:   collectRequestHeaders(c),
+		Body:      body,
+		Context:   c.Request.Context(),
+	})
+	if err != nil {
+		log.Warnw("hashpay_webhook_handle_failed",
+			"channel_id", query.ChannelID,
+			"event_type", eventType,
+			"error", err,
+		)
+		h.enqueuePaymentExceptionAlert(c, jsonmap.JSON{
+			"alert_type":  "hashpay_webhook_handle_failed",
+			"alert_level": "error",
+			"message":     strings.TrimSpace(err.Error()),
+			"provider":    constants.PaymentProviderHashpay,
+		})
+		respondPaymentCallbackError(c, err)
+		return
+	}
+	respondWebhookSuccess(c, log, "hashpay_webhook", query.ChannelID, eventType, payment)
 }
 
 func readWebhookBody(c *gin.Context) ([]byte, error) {

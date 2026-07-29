@@ -49,6 +49,7 @@ const (
 	PaymentProviderTokenpay  = "tokenpay"
 	PaymentProviderGlobepay  = "globepay"
 	PaymentProviderNihaopay  = "nihaopay"
+	PaymentProviderHashpay   = "hashpay"
 	PaymentProviderWallet    = "wallet"
 )
 

@@ -67,6 +67,7 @@ func RegisterWebhookRoutes(api gin.IRoutes, handler *WebhookHandler) {
 	api.POST("/payments/webhook/paypal", handler.PaypalWebhook)
 	api.POST("/payments/webhook/stripe", handler.StripeWebhook)
 	api.POST("/payments/webhook/binancepay", handler.BinancepayWebhook)
+	api.POST("/payments/webhook/hashpay", handler.HashpayWebhook)
 }
 
 // RegisterRedirectRoutes 注册支付跳转路由（如 Nihaopay 自动提交表单）。

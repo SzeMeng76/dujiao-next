@@ -161,6 +161,79 @@ func (s *PaymentService) HandleDujiaoPayWebhook(input WebhookCallbackInput) (*pa
 	return s.commitVerifiedWebhook(channel, result, log)
 }
 
+// HandleHashpayWebhook 处理 HashPay webhook。
+//
+// HashPay 回调是用商户公钥加密的 RSA-OAEP+AES-GCM 信封，没有 channel_id 时按
+// provider_type 拉取所有启用渠道逐个用私钥试解密；错配的私钥在 OAEP/GCM 阶段
+// 必然失败，只有解密成功的渠道才会进入落库流程（同 DujiaoPay 的盲匹配语义）。
+func (s *PaymentService) HandleHashpayWebhook(input WebhookCallbackInput) (*paymentdomain.Payment, string, error) {
+	log := paymentLogger(
+		"provider", constants.PaymentProviderHashpay,
+		"channel_id", input.ChannelID,
+		"body_size", len(input.Body),
+	)
+
+	if input.ChannelID == 0 {
+		candidates, _, err := s.channelRepo.List(paymentcontract.ChannelListFilter{
+			ProviderType: constants.PaymentProviderHashpay,
+			ActiveOnly:   true,
+		})
+		if err != nil {
+			log.Errorw("payment_webhook_candidates_list_failed", "error", err)
+			return nil, "", ErrPaymentUpdateFailed
+		}
+		if len(candidates) == 0 {
+			log.Warnw("payment_webhook_no_candidate_channel")
+			return nil, "", ErrPaymentChannelNotFound
+		}
+
+		var lastErr error
+		for i := range candidates {
+			channel := candidates[i]
+			result, err := s.tryParseWebhookWithChannel(&channel, input)
+			if err != nil {
+				log.Debugw("payment_webhook_candidate_parse_failed",
+					"candidate_channel_id", channel.ID,
+					"error", err,
+				)
+				lastErr = err
+				continue
+			}
+			log.Infow("payment_webhook_candidate_matched", "candidate_channel_id", channel.ID)
+			return s.commitVerifiedWebhook(&channel, result, log)
+		}
+		if lastErr == nil {
+			lastErr = ErrPaymentProviderNotSupported
+		}
+		log.Warnw("payment_webhook_all_candidates_failed", "candidate_count", len(candidates), "last_error", lastErr)
+		return nil, "", lastErr
+	}
+
+	channel, err := s.channelRepo.GetByID(input.ChannelID)
+	if err != nil {
+		log.Errorw("payment_webhook_channel_fetch_failed", "error", err)
+		return nil, "", ErrPaymentUpdateFailed
+	}
+	if channel == nil {
+		log.Warnw("payment_webhook_channel_not_found")
+		return nil, "", ErrPaymentChannelNotFound
+	}
+	if strings.ToLower(strings.TrimSpace(channel.ProviderType)) != constants.PaymentProviderHashpay {
+		log.Warnw("payment_webhook_provider_mismatch",
+			"provider_type", channel.ProviderType,
+			"channel_type", channel.ChannelType,
+		)
+		return nil, "", ErrPaymentProviderNotSupported
+	}
+
+	result, err := s.tryParseWebhookWithChannel(channel, input)
+	if err != nil {
+		log.Warnw("payment_webhook_parse_failed", "error", err)
+		return nil, "", err
+	}
+	return s.commitVerifiedWebhook(channel, result, log)
+}
+
 // handleWebhookViaRegistry 通过 Registry 路由 webhook 解析。
 //
 // channel_id 在 URL query 缺失时:
