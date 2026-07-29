@@ -22,9 +22,9 @@ func TestWriteStartupBannerOmitsRetiredFrontendRepositories(t *testing.T) {
 		}
 	}
 	for _, retained := range []string{
-		"• Root:    https://github.com/dujiao-next",
-		"• API:     https://github.com/dujiao-next/dujiao-next",
-		"• Official:https://dujiao-next.com",
+		"• Organization:  https://github.com/dujiao-next",
+		"• Main:    		 https://github.com/dujiao-next/dujiao-next",
+		"• Official:		 https://dujiao-next.com",
 	} {
 		if !strings.Contains(banner, retained) {
 			t.Errorf("startup banner is missing retained repository: %s", retained)
