@@ -34,6 +34,7 @@ type PaymentWebhookService interface {
 	HandleDujiaoPayWebhook(input WebhookCallbackInput) (*paymentdomain.Payment, string, error)
 	HandleBinancepayWebhook(input WebhookCallbackInput) (*paymentdomain.Payment, string, error)
 	HandleHashpayWebhook(input WebhookCallbackInput) (*paymentdomain.Payment, string, error)
+	HandleCryptomusWebhook(input WebhookCallbackInput) (*paymentdomain.Payment, string, error)
 }
 
 // ExceptionAlerter 支付异常告警入队端口。
@@ -63,6 +64,11 @@ type BinancepayWebhookQuery struct {
 
 // HashpayWebhookQuery HashPay webhook 查询参数。
 type HashpayWebhookQuery struct {
+	ChannelID uint `form:"channel_id"`
+}
+
+// CryptomusWebhookQuery Cryptomus webhook 查询参数。
+type CryptomusWebhookQuery struct {
 	ChannelID uint `form:"channel_id"`
 }
 
@@ -298,6 +304,48 @@ func (h *WebhookHandler) HashpayWebhook(c *gin.Context) {
 		return
 	}
 	respondWebhookSuccess(c, log, "hashpay_webhook", query.ChannelID, eventType, payment)
+}
+
+// CryptomusWebhook Cryptomus webhook 回调。
+func (h *WebhookHandler) CryptomusWebhook(c *gin.Context) {
+	log := ginutil.RequestLog(c)
+	var query CryptomusWebhookQuery
+	_ = c.ShouldBindQuery(&query)
+
+	body, err := readWebhookBody(c)
+	if err != nil {
+		log.Warnw("cryptomus_webhook_body_read_failed", "channel_id", query.ChannelID, "error", err)
+		ginutil.RespondError(c, response.CodeBadRequest, "error.bad_request", err)
+		return
+	}
+	log.Infow("cryptomus_webhook_received",
+		"channel_id", query.ChannelID,
+		"client_ip", c.ClientIP(),
+		"body_size", len(body),
+	)
+
+	payment, eventType, err := h.webhooks.HandleCryptomusWebhook(WebhookCallbackInput{
+		ChannelID: query.ChannelID,
+		Headers:   collectRequestHeaders(c),
+		Body:      body,
+		Context:   c.Request.Context(),
+	})
+	if err != nil {
+		log.Warnw("cryptomus_webhook_handle_failed",
+			"channel_id", query.ChannelID,
+			"event_type", eventType,
+			"error", err,
+		)
+		h.enqueuePaymentExceptionAlert(c, jsonmap.JSON{
+			"alert_type":  "cryptomus_webhook_handle_failed",
+			"alert_level": "error",
+			"message":     strings.TrimSpace(err.Error()),
+			"provider":    constants.PaymentProviderCryptomus,
+		})
+		respondPaymentCallbackError(c, err)
+		return
+	}
+	respondWebhookSuccess(c, log, "cryptomus_webhook", query.ChannelID, eventType, payment)
 }
 
 func readWebhookBody(c *gin.Context) ([]byte, error) {

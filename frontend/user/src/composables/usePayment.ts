@@ -99,7 +99,7 @@ export function usePayment() {
     return value === '1' || value === 'true' || value === 'yes'
   }
 
-  const paymentReturnMarkers = ['epay_return', 'alipay_return', 'wechat_return', 'epusdt_return', 'bepusdt_return', 'tokenpay_return', 'okpay_return', 'pp_return', 'stripe_return', 'globepay_return', 'nihaopay_return', 'binancepay_return', 'hashpay_return']
+  const paymentReturnMarkers = ['epay_return', 'alipay_return', 'wechat_return', 'epusdt_return', 'bepusdt_return', 'tokenpay_return', 'okpay_return', 'pp_return', 'stripe_return', 'globepay_return', 'nihaopay_return', 'binancepay_return', 'hashpay_return', 'cryptomus_return']
   const rechargeBizType = computed(() => readRouteQueryValue('biz_type').toLowerCase())
   const rechargeNoQuery = computed(() => {
     const rechargeNo = readRouteQueryValue('recharge_no')
@@ -1221,6 +1221,7 @@ export function usePayment() {
       binancepay: t('payment.channelTypes.binancepay'),
       nihaopay: t('payment.channelTypes.nihaopay'),
       hashpay: t('payment.channelTypes.hashpay'),
+      cryptomus: t('payment.channelTypes.cryptomus'),
       usdt: t('payment.channelTypes.usdt'),
       'usdt-trc20': t('payment.channelTypes.usdtTrc20'),
       'usdc-trc20': t('payment.channelTypes.usdcTrc20'),

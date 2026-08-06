@@ -191,6 +191,16 @@ func (a webhookServiceAdapter) HandleBinancepayWebhook(input paymenttransport.We
 	return payment, eventType, mapTransportError(err)
 }
 
+func (a webhookServiceAdapter) HandleCryptomusWebhook(input paymenttransport.WebhookCallbackInput) (*paymentdomain.Payment, string, error) {
+	payment, eventType, err := a.payments.HandleCryptomusWebhook(paymentapp.WebhookCallbackInput{
+		ChannelID: input.ChannelID,
+		Headers:   input.Headers,
+		Body:      input.Body,
+		Context:   input.Context,
+	})
+	return payment, eventType, mapTransportError(err)
+}
+
 type exceptionAlerterAdapter struct {
 	notifications notificationcontract.NotificationEnqueuer
 }

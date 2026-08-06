@@ -50,6 +50,7 @@ const (
 	PaymentProviderGlobepay  = "globepay"
 	PaymentProviderNihaopay  = "nihaopay"
 	PaymentProviderHashpay   = "hashpay"
+	PaymentProviderCryptomus = "cryptomus"
 	PaymentProviderWallet    = "wallet"
 )
 

@@ -218,6 +218,14 @@ const hashpayConfig = reactive({
   return_url: '',
 })
 
+const cryptomusConfig = reactive({
+  merchant_id: '',
+  payment_api_key: '',
+  currency: '',
+  notify_url: '',
+  return_url: '',
+})
+
 const epayChannelOptions = [
   { value: 'wechat', label: 'admin.paymentChannels.channelTypes.wechat' },
   { value: 'alipay', label: 'admin.paymentChannels.channelTypes.alipay' },
@@ -332,6 +340,12 @@ const interactionModeOptions = computed(() => {
   }
   if (form.provider_type === 'hashpay') {
     // HashPay 下单不返回收款地址（付款人在托管收银台自选链/币），只支持跳转
+    return [
+      { value: 'redirect', label: 'admin.paymentChannels.interactionModes.redirect' },
+    ]
+  }
+  if (form.provider_type === 'cryptomus') {
+    // Cryptomus 下单不指定币种/网络（付款人在托管收银台自选），和 HashPay 一样只支持跳转
     return [
       { value: 'redirect', label: 'admin.paymentChannels.interactionModes.redirect' },
     ]
@@ -570,6 +584,14 @@ const resetHashpayConfig = () => {
   hashpayConfig.return_url = ''
 }
 
+const resetCryptomusConfig = () => {
+  cryptomusConfig.merchant_id = ''
+  cryptomusConfig.payment_api_key = ''
+  cryptomusConfig.currency = ''
+  cryptomusConfig.notify_url = ''
+  cryptomusConfig.return_url = ''
+}
+
 const resetAllConfigs = () => {
   resetEpayConfig()
   resetPaypalConfig()
@@ -585,6 +607,7 @@ const resetAllConfigs = () => {
   resetBinancepayConfig()
   resetNihaopayConfig()
   resetHashpayConfig()
+  resetCryptomusConfig()
 }
 
 // --- Apply functions ---
@@ -747,6 +770,14 @@ const applyHashpayConfig = (raw: Record<string, unknown>) => {
   hashpayConfig.merchant_private_key = String(raw.merchant_private_key || '')
   hashpayConfig.currency = String(raw.currency || '')
   hashpayConfig.return_url = String(raw.return_url || '')
+}
+
+const applyCryptomusConfig = (raw: Record<string, unknown>) => {
+  cryptomusConfig.merchant_id = String(raw.merchant_id || '')
+  cryptomusConfig.payment_api_key = String(raw.payment_api_key || '')
+  cryptomusConfig.currency = String(raw.currency || '')
+  cryptomusConfig.notify_url = String(raw.notify_url || '')
+  cryptomusConfig.return_url = String(raw.return_url || '')
 }
 
 // --- Build functions ---
@@ -1052,6 +1083,22 @@ const buildHashpayConfig = () => {
   return config
 }
 
+const buildCryptomusConfig = () => {
+  const config: Record<string, unknown> = {}
+  const setIfNotEmpty = (key: string, value: string) => {
+    const trimmed = String(value || '').trim()
+    if (trimmed !== '') {
+      config[key] = trimmed
+    }
+  }
+  setIfNotEmpty('merchant_id', cryptomusConfig.merchant_id)
+  setIfNotEmpty('payment_api_key', cryptomusConfig.payment_api_key)
+  setIfNotEmpty('currency', cryptomusConfig.currency.toUpperCase())
+  setIfNotEmpty('notify_url', cryptomusConfig.notify_url)
+  setIfNotEmpty('return_url', cryptomusConfig.return_url)
+  return config
+}
+
 // token_id 由管理员手动输入，提交前统一规范化，避免大小写或空格写进 channel_type。
 const resolveDujiaopayChannelType = () =>
   dujiaopayConfig.order_mode === 'cashier'
@@ -1104,6 +1151,8 @@ watch(
       }
     } else if (value === 'tokenpay') {
       form.channel_type = 'usdt'
+    } else if (value === 'cryptomus') {
+      form.channel_type = 'cryptomus'
     }
     const allowedInteractionModes = interactionModeOptions.value.map((item) => item.value)
     if (!allowedInteractionModes.includes(form.interaction_mode)) {
@@ -1271,6 +1320,7 @@ watch(
           applyBinancepayConfig(channel.config_json)
           applyNihaopayConfig(channel.config_json)
           applyHashpayConfig(channel.config_json)
+          applyCryptomusConfig(channel.config_json)
           if (channel.provider_type === 'okpay' && !String(form.channel_type || '').trim()) {
             form.channel_type = resolveOkpayChannelTypeFromConfig(channel.config_json)
           }
@@ -1407,6 +1457,11 @@ const handleSubmit = async () => {
       ...configJson,
       ...buildHashpayConfig(),
     }
+  } else if (form.provider_type === 'cryptomus') {
+    configJson = {
+      ...configJson,
+      ...buildCryptomusConfig(),
+    }
   } else if (form.provider_type === 'official' && form.channel_type === 'binancepay') {
     delete configJson.target_currency
     delete configJson.exchange_rate
@@ -1435,8 +1490,10 @@ const handleSubmit = async () => {
             ? 'epusdt'
             : form.provider_type === 'hashpay'
               ? 'hashpay'
-              : form.provider_type === 'dujiaopay'
-                ? resolveDujiaopayChannelType()
+              : form.provider_type === 'cryptomus'
+                ? 'cryptomus'
+                : form.provider_type === 'dujiaopay'
+                  ? resolveDujiaopayChannelType()
           : form.channel_type,
     interaction_mode: form.interaction_mode,
     fee_rate: String(form.fee_rate || '0').trim(),
@@ -1506,10 +1563,11 @@ const closeModal = () => {
                 <SelectItem value="globepay">{{ t('admin.paymentChannels.providerTypes.globepay') }}</SelectItem>
                 <SelectItem value="nihaopay">{{ t('admin.paymentChannels.providerTypes.nihaopay') }}</SelectItem>
                 <SelectItem value="hashpay">{{ t('admin.paymentChannels.providerTypes.hashpay') }}</SelectItem>
+                <SelectItem value="cryptomus">{{ t('admin.paymentChannels.providerTypes.cryptomus') }}</SelectItem>
               </SelectContent>
             </Select>
           </div>
-          <div v-if="form.provider_type !== 'tokenpay' && form.provider_type !== 'bepusdt' && form.provider_type !== 'epusdt' && form.provider_type !== 'dujiaopay' && form.provider_type !== 'hashpay'" class="min-w-0">
+          <div v-if="form.provider_type !== 'tokenpay' && form.provider_type !== 'bepusdt' && form.provider_type !== 'epusdt' && form.provider_type !== 'dujiaopay' && form.provider_type !== 'hashpay' && form.provider_type !== 'cryptomus'" class="min-w-0">
             <label class="block text-xs font-medium text-muted-foreground mb-1.5">{{ t('admin.paymentChannels.modal.channelType') }}</label>
             <Select v-model="form.channel_type">
               <SelectTrigger class="h-9 w-full">
@@ -1970,6 +2028,33 @@ const closeModal = () => {
             </div>
           </div>
           <div class="mt-3 text-xs text-muted-foreground">{{ t('admin.paymentChannels.modal.hashpayHint') }}</div>
+        </div>
+
+        <div v-if="form.provider_type === 'cryptomus'" class="min-w-0 rounded-xl border border-border bg-muted/20 p-4 overflow-hidden">
+          <div class="text-sm font-semibold text-foreground mb-3">{{ t('admin.paymentChannels.modal.cryptomusSection') }}</div>
+          <div class="grid grid-cols-1 gap-4 md:grid-cols-2 [&>*]:min-w-0">
+            <div class="min-w-0">
+              <label class="block text-xs font-medium text-muted-foreground mb-1.5">{{ t('admin.paymentChannels.modal.cryptomusMerchantId') }}</label>
+              <Input v-model="cryptomusConfig.merchant_id" :placeholder="t('admin.paymentChannels.modal.cryptomusMerchantIdPlaceholder')" />
+            </div>
+            <div class="min-w-0">
+              <label class="block text-xs font-medium text-muted-foreground mb-1.5">{{ t('admin.paymentChannels.modal.cryptomusPaymentApiKey') }}</label>
+              <Input v-model="cryptomusConfig.payment_api_key" :placeholder="t('admin.paymentChannels.modal.cryptomusPaymentApiKeyPlaceholder')" />
+            </div>
+            <div class="min-w-0">
+              <label class="block text-xs font-medium text-muted-foreground mb-1.5">{{ t('admin.paymentChannels.modal.cryptomusCurrency') }}</label>
+              <Input v-model="cryptomusConfig.currency" :placeholder="t('admin.paymentChannels.modal.cryptomusCurrencyPlaceholder')" />
+            </div>
+            <div class="min-w-0">
+              <label class="block text-xs font-medium text-muted-foreground mb-1.5">{{ t('admin.paymentChannels.modal.cryptomusNotifyUrl') }}</label>
+              <Input v-model="cryptomusConfig.notify_url" :placeholder="t('admin.paymentChannels.modal.cryptomusNotifyUrlPlaceholder')" />
+            </div>
+            <div class="min-w-0 md:col-span-2">
+              <label class="block text-xs font-medium text-muted-foreground mb-1.5">{{ t('admin.paymentChannels.modal.cryptomusReturnUrl') }}</label>
+              <Input v-model="cryptomusConfig.return_url" :placeholder="t('admin.paymentChannels.modal.cryptomusReturnUrlPlaceholder')" />
+            </div>
+          </div>
+          <div class="mt-3 text-xs text-muted-foreground">{{ t('admin.paymentChannels.modal.cryptomusHint') }}</div>
         </div>
 
         <div v-if="form.provider_type === 'tokenpay'" class="min-w-0 rounded-xl border border-border bg-muted/20 p-4 overflow-hidden">

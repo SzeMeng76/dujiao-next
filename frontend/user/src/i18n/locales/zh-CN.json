@@ -1201,6 +1201,7 @@
       "binancepay": "Binance Pay",
       "nihaopay": "Nihaopay",
       "hashpay": "HashPay",
+      "cryptomus": "Cryptomus",
       "usdt": "USDT",
       "usdtTrc20": "USDT (TRC20)",
       "usdcTrc20": "USDC (TRC20)",
@@ -1215,7 +1216,8 @@
       "globepay": "Globepay",
       "binancepay": "Binance Pay",
       "nihaopay": "Nihaopay",
-      "hashpay": "HashPay"
+      "hashpay": "HashPay",
+      "cryptomus": "Cryptomus"
     },
     "modeQr": "二维码支付",
     "modeRedirect": "跳转支付",

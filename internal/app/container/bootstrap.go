@@ -10,6 +10,7 @@ import (
 	alipayadapter "github.com/dujiao-next/internal/modules/payment/infrastructure/gateway/adapters/alipay"
 	bepusdtadapter "github.com/dujiao-next/internal/modules/payment/infrastructure/gateway/adapters/bepusdt"
 	binancepayadapter "github.com/dujiao-next/internal/modules/payment/infrastructure/gateway/adapters/binancepay"
+	cryptomusadapter "github.com/dujiao-next/internal/modules/payment/infrastructure/gateway/adapters/cryptomus"
 	dujiaopayadapter "github.com/dujiao-next/internal/modules/payment/infrastructure/gateway/adapters/dujiaopay"
 	epayadapter "github.com/dujiao-next/internal/modules/payment/infrastructure/gateway/adapters/epay"
 	epusdtadapter "github.com/dujiao-next/internal/modules/payment/infrastructure/gateway/adapters/epusdt"
@@ -74,5 +75,6 @@ func newPaymentProviderRegistry() *paymentprovider.Registry {
 	registry.Register(constants.PaymentProviderGlobepay, "", globepayadapter.NewGlobepayAdapter())
 	registry.Register(constants.PaymentProviderNihaopay, "", nihaopayadapter.NewNihaopayAdapter())
 	registry.Register(constants.PaymentProviderHashpay, "", hashpayadapter.NewHashpayAdapter())
+	registry.Register(constants.PaymentProviderCryptomus, "", cryptomusadapter.NewCryptomusAdapter())
 	return registry
 }
