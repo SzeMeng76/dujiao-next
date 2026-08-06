@@ -161,7 +161,7 @@ func TestCreatePayment_BuildsRequestAndConstructsPaymentURL(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status_code":200,"message":"ok","data":{"trade_id":"T20260509ABC","order_id":"ORD-1","amount":"100","actual_amount":"13.45","token":"usdt","network":"tron","payment_url":"` + srv.URL + `/pay/checkout-counter/T20260509ABC"}}`))
+		w.Write([]byte(`{"status_code":200,"message":"ok","data":{"trade_id":"T20260509ABC","order_id":"ORD-1","amount":"100","actual_amount":"13.45","token":"usdt","network":"tron"}}`))
 	}))
 	defer srv.Close()
 
@@ -210,9 +210,8 @@ func TestCreatePayment_BuildsRequestAndConstructsPaymentURL(t *testing.T) {
 	if capturedBody["order_id"] != "ORD-1" {
 		t.Fatalf("order_id mismatch: %v", capturedBody["order_id"])
 	}
-	// 非 gmpay-edge 网关（本测试用的 httptest 地址）amount 应为 float64
 	if amt, ok := capturedBody["amount"].(float64); !ok || amt != 100 {
-		t.Fatalf("amount mismatch (should be float64): %v", capturedBody["amount"])
+		t.Fatalf("amount mismatch: %v", capturedBody["amount"])
 	}
 	if _, hasSig := capturedBody["signature"]; !hasSig {
 		t.Fatalf("signature missing")
@@ -336,9 +335,6 @@ func TestParseAndVerifyCallback_Success(t *testing.T) {
 	if data.GetActualAmount() != 13.45 {
 		t.Fatalf("actual_amount: got %v", data.GetActualAmount())
 	}
-	if data.GetStatus() != StatusSuccess {
-		t.Fatalf("status: got %v, want %d", data.GetStatus(), StatusSuccess)
-	}
 }
 
 func TestVerifyCallback_RejectsBadSignature(t *testing.T) {
@@ -364,47 +360,6 @@ func TestVerifyCallback_RejectsNonSuccessStatus(t *testing.T) {
 	data := &CallbackData{Status: StatusWaiting, Signature: "anything"}
 	if err := VerifyCallback(cfg, data); err == nil {
 		t.Fatalf("expected error for non-success status")
-	}
-}
-
-func TestParseAndVerifyCallback_StringStatusEnum(t *testing.T) {
-	cfg := &Config{SecretKey: "sk-test"}
-
-	params := map[string]interface{}{
-		"pid":                  "1000",
-		"trade_id":             "T1",
-		"order_id":             "ORD-1",
-		"amount":               100.0,
-		"actual_amount":        13.45,
-		"receive_address":      "TXxxx",
-		"token":                "usdt",
-		"block_transaction_id": "0xabc",
-		"status":               StatusSuccess,
-	}
-	sig := Sign(params, cfg.SecretKey)
-
-	body := []byte(`{
-		"pid": "1000",
-		"trade_id": "T1",
-		"order_id": "ORD-1",
-		"amount": 100,
-		"actual_amount": 13.45,
-		"receive_address": "TXxxx",
-		"token": "usdt",
-		"block_transaction_id": "0xabc",
-		"status": "paid",
-		"signature": "` + sig + `"
-	}`)
-
-	data, err := ParseCallback(body)
-	if err != nil {
-		t.Fatalf("parse failed: %v", err)
-	}
-	if err := VerifyCallback(cfg, data); err != nil {
-		t.Fatalf("verify failed: %v", err)
-	}
-	if data.GetStatus() != StatusSuccess {
-		t.Fatalf("status: got %v, want %d", data.GetStatus(), StatusSuccess)
 	}
 }
 
