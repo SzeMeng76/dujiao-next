@@ -23,6 +23,7 @@ import (
 	notificationapp "github.com/dujiao-next/internal/modules/notification/application"
 	notificationcontract "github.com/dujiao-next/internal/modules/notification/contract"
 	notificationasyncqueue "github.com/dujiao-next/internal/modules/notification/infrastructure/asyncqueue"
+	notificationfeishu "github.com/dujiao-next/internal/modules/notification/infrastructure/feishu"
 	paymentapp "github.com/dujiao-next/internal/modules/payment/application"
 	paymentqueue "github.com/dujiao-next/internal/modules/payment/infrastructure/queueadapter"
 	procurementapp "github.com/dujiao-next/internal/modules/procurement/application"
@@ -59,6 +60,7 @@ func (c *Container) initIntegrationServices() {
 		c.DashboardService,
 		c.NotificationLogService,
 		telegramNotifySenderAdapter{svc: telegramNotifyService},
+		notificationfeishu.New(),
 	)
 	restockNotifier := restocknotify.New(c.NotificationService, c.SettingService)
 	c.CardSecretService.SetRestockNotifier(restockNotifier)

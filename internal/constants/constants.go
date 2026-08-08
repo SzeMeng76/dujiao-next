@@ -369,6 +369,13 @@ const (
 	NotificationEventExceptionAlertCheck      = "exception_alert_check"
 )
 
+// 通知中心渠道常量
+const (
+	NotificationChannelEmail    = "email"
+	NotificationChannelTelegram = "telegram"
+	NotificationChannelFeishu   = "feishu"
+)
+
 // 通知中心异常阈值类型常量
 const (
 	NotificationAlertTypeOutOfStockProducts = "out_of_stock_products"
