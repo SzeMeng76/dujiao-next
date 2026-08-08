@@ -32,6 +32,7 @@ const navigationTabRef = ref<InstanceType<typeof SettingsNavigationTab>>()
 const homeAnnouncementTabRef = ref<InstanceType<typeof SettingsHomeAnnouncementTab>>()
 const upstreamSyncTabRef = ref<InstanceType<typeof SettingsUpstreamSyncTab>>()
 const siteIconPickerRef = ref<InstanceType<typeof MediaPicker> | null>(null)
+const siteLogoPickerRef = ref<InstanceType<typeof MediaPicker> | null>(null)
 const supportedLanguages = ['zh-CN', 'zh-TW', 'en-US'] as const
 type SupportedLanguage = (typeof supportedLanguages)[number]
 type SiteScriptPosition = 'head' | 'body_end'
@@ -180,7 +181,9 @@ const form = reactive({
   brand: {
     site_name: '',
     site_url: '',
+    // site_icon 是浏览器 favicon；site_logo 是前台页面 Logo，二者必须独立保存和清除。
     site_icon: '',
+    site_logo: '',
     site_description: createLocalizedField(),
   },
   currency: 'CNY',
@@ -384,6 +387,7 @@ const fetchSettings = async () => {
         form.brand.site_name = String(brand.site_name || '')
         form.brand.site_url = String(brand.site_url || '')
         form.brand.site_icon = String(brand.site_icon || '')
+        form.brand.site_logo = String(brand.site_logo || '')
         form.brand.site_description = normalizeLocalizedField(brand.site_description)
       }
       {
@@ -619,8 +623,16 @@ const openSiteIconPicker = () => {
   siteIconPickerRef.value?.openPicker()
 }
 
+const openSiteLogoPicker = () => {
+  siteLogoPickerRef.value?.openPicker()
+}
+
 const clearSiteIcon = () => {
   form.brand.site_icon = ''
+}
+
+const clearSiteLogo = () => {
+  form.brand.site_logo = ''
 }
 
 const saveOrderSettings = async () => {
@@ -939,6 +951,29 @@ onMounted(() => {
             </div>
             <p class="text-xs text-muted-foreground">{{ t('admin.settings.brand.siteIconTip') }}</p>
             <MediaPicker ref="siteIconPickerRef" v-model="form.brand.site_icon" scene="common" dialog-only />
+          </div>
+          <!-- Logo 使用独立的 picker 和清除动作，避免误操作影响浏览器 favicon。 -->
+          <div class="space-y-2">
+            <label class="text-xs font-medium text-muted-foreground">{{ t('admin.settings.brand.siteLogo') }}</label>
+            <div class="flex items-center gap-3">
+              <button
+                type="button"
+                class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-muted/20 transition-colors hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                :title="t('admin.settings.brand.siteLogoTip')"
+                @click="openSiteLogoPicker"
+              >
+                <img v-if="form.brand.site_logo" :src="getImageUrl(form.brand.site_logo)" class="h-full w-full object-contain" alt="" />
+                <span v-else class="text-[10px] font-semibold text-muted-foreground">LOGO</span>
+              </button>
+              <Button type="button" variant="outline" size="sm" @click="openSiteLogoPicker">
+                {{ t('admin.settings.brand.siteLogoSelect') }}
+              </Button>
+              <Button v-if="form.brand.site_logo" type="button" variant="ghost" size="sm" @click="clearSiteLogo">
+                {{ t('admin.common.delete') }}
+              </Button>
+            </div>
+            <p class="text-xs text-muted-foreground">{{ t('admin.settings.brand.siteLogoTip') }}</p>
+            <MediaPicker ref="siteLogoPickerRef" v-model="form.brand.site_logo" scene="common" dialog-only />
           </div>
           <div class="space-y-2 md:col-span-2">
             <div class="flex items-center justify-between">
