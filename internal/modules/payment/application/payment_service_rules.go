@@ -142,13 +142,24 @@ func buildOrderSubject(order *orderdomain.Order) string {
 	if order == nil {
 		return ""
 	}
-	if len(order.Items) > 0 {
-		title := pickOrderItemTitle(order.Items[0].TitleJSON)
-		if title != "" {
+	if title := firstOrderItemTitle(order.Items); title != "" {
+		return title
+	}
+	for i := range order.Children {
+		if title := firstOrderItemTitle(order.Children[i].Items); title != "" {
 			return title
 		}
 	}
-	return order.OrderNo
+	return strings.TrimSpace(order.OrderNo)
+}
+
+func firstOrderItemTitle(items []orderdomain.OrderItem) string {
+	for i := range items {
+		if title := pickOrderItemTitle(items[i].TitleJSON); title != "" {
+			return title
+		}
+	}
+	return ""
 }
 
 func pickOrderItemTitle(title jsonmap.JSON) string {
