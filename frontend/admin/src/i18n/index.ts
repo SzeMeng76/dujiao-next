@@ -3328,7 +3328,12 @@ const messages = {
         },
         dashboard: {
           title: '仪表盘规则',
-          subtitle: '配置首页告警阈值和排行榜数量',
+          subtitle: '配置首页财务统计口径、告警阈值和排行榜数量',
+          accounting: {
+            title: '财务统计规则',
+            refundReversesCost: '退款时冲回成本',
+            refundReversesCostHint: '开启后按退款金额占订单实付金额的比例冲回成本；全额退款冲回全部成本。',
+          },
           alert: {
             title: '告警规则',
             lowStockThreshold: '低库存阈值（件）',
@@ -7782,7 +7787,12 @@ const messages = {
         },
         dashboard: {
           title: '儀表板規則',
-          subtitle: '配置首頁告警門檻與排行榜數量',
+          subtitle: '配置首頁財務統計口徑、告警門檻與排行榜數量',
+          accounting: {
+            title: '財務統計規則',
+            refundReversesCost: '退款時沖回成本',
+            refundReversesCostHint: '開啟後依退款金額占訂單實付金額的比例沖回成本；全額退款沖回全部成本。',
+          },
           alert: {
             title: '告警規則',
             lowStockThreshold: '低庫存門檻（件）',
@@ -12236,7 +12246,12 @@ const messages = {
         },
         dashboard: {
           title: 'Dashboard Rules',
-          subtitle: 'Configure homepage alert thresholds and ranking limits',
+          subtitle: 'Configure financial metrics, alert thresholds, and ranking limits',
+          accounting: {
+            title: 'Financial Metrics',
+            refundReversesCost: 'Reverse cost on refund',
+            refundReversesCostHint: 'When enabled, cost is reversed in proportion to the refunded share of the paid order amount; full refunds reverse all cost.',
+          },
           alert: {
             title: 'Alert Rules',
             lowStockThreshold: 'Low-stock threshold (units)',

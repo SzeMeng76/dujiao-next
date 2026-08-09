@@ -307,6 +307,9 @@ const orderEmailTemplateData = reactive({
 })
 
 const dashboardForm = reactive({
+  accounting: {
+    refund_reverses_cost: false,
+  },
   alert: {
     low_stock_threshold: 5,
     out_of_stock_products_threshold: 1,
@@ -537,8 +540,10 @@ const fetchSettings = async () => {
 
     if (dashboardRes.data && dashboardRes.data.data) {
       const dashboard = dashboardRes.data.data as Record<string, unknown>
+      const dashAccounting = dashboard.accounting as Record<string, unknown> | undefined
       const dashAlert = dashboard.alert as Record<string, unknown> | undefined
       const dashRanking = dashboard.ranking as Record<string, unknown> | undefined
+      dashboardForm.accounting.refund_reverses_cost = dashAccounting?.refund_reverses_cost === true
       dashboardForm.alert.low_stock_threshold = clampNumber(dashAlert?.low_stock_threshold, 1, 500, 5)
       dashboardForm.alert.out_of_stock_products_threshold = clampNumber(dashAlert?.out_of_stock_products_threshold, 1, 10000, 1)
       dashboardForm.alert.pending_payment_orders_threshold = clampNumber(dashAlert?.pending_payment_orders_threshold, 1, 100000, 20)
@@ -724,6 +729,9 @@ const saveGoogleAuthSettings = async () => {
 
 const saveDashboardSettings = async () => {
   const normalized = {
+    accounting: {
+      refund_reverses_cost: dashboardForm.accounting.refund_reverses_cost === true,
+    },
     alert: {
       low_stock_threshold: clampNumber(dashboardForm.alert.low_stock_threshold, 1, 500, 5),
       out_of_stock_products_threshold: clampNumber(dashboardForm.alert.out_of_stock_products_threshold, 1, 10000, 1),
@@ -736,6 +744,7 @@ const saveDashboardSettings = async () => {
     },
   }
 
+  dashboardForm.accounting.refund_reverses_cost = normalized.accounting.refund_reverses_cost
   dashboardForm.alert.low_stock_threshold = normalized.alert.low_stock_threshold
   dashboardForm.alert.out_of_stock_products_threshold = normalized.alert.out_of_stock_products_threshold
   dashboardForm.alert.pending_payment_orders_threshold = normalized.alert.pending_payment_orders_threshold
@@ -1489,6 +1498,21 @@ onMounted(() => {
         </div>
 
         <div class="space-y-6 p-6">
+          <div class="rounded-xl border border-border">
+            <div class="border-b border-border bg-muted/30 px-4 py-3">
+              <h3 class="text-sm font-semibold">{{ t('admin.settings.dashboard.accounting.title') }}</h3>
+            </div>
+            <div class="p-4">
+              <div class="flex flex-col gap-3 rounded-lg border border-border bg-muted/20 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div class="space-y-1">
+                  <Label for="dashboard-refund-reverses-cost" class="text-sm font-medium">{{ t('admin.settings.dashboard.accounting.refundReversesCost') }}</Label>
+                  <p class="text-xs text-muted-foreground">{{ t('admin.settings.dashboard.accounting.refundReversesCostHint') }}</p>
+                </div>
+                <Switch id="dashboard-refund-reverses-cost" v-model="dashboardForm.accounting.refund_reverses_cost" />
+              </div>
+            </div>
+          </div>
+
           <div class="rounded-xl border border-border">
             <div class="border-b border-border bg-muted/30 px-4 py-3">
               <h3 class="text-sm font-semibold">{{ t('admin.settings.dashboard.alert.title') }}</h3>
