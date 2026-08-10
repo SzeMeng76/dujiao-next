@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/dujiao-next/internal/modules/notification/contract"
+
+	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
 )
 
 type fakeMessageClient struct {
@@ -22,6 +24,29 @@ func (c *fakeMessageClient) SendText(_ context.Context, receiveIDType, receiveID
 	c.receiveID = receiveID
 	c.message = message
 	return c.err
+}
+
+func TestNewSDKConfigPreservesRequiredClientSettings(t *testing.T) {
+	config := newSDKConfig("cli_demo", "secret")
+
+	if config.BaseUrl != feishuBaseURL {
+		t.Fatalf("unexpected base URL: %q", config.BaseUrl)
+	}
+	if config.AppId != "cli_demo" || config.AppSecret != "secret" {
+		t.Fatalf("unexpected credentials: app_id=%q app_secret=%q", config.AppId, config.AppSecret)
+	}
+	if config.ReqTimeout != feishuRequestTimeout {
+		t.Fatalf("unexpected request timeout: %v", config.ReqTimeout)
+	}
+	if config.LogLevel != larkcore.LogLevelError {
+		t.Fatalf("unexpected log level: %v", config.LogLevel)
+	}
+	if config.AppType != larkcore.AppTypeSelfBuilt || !config.EnableTokenCache {
+		t.Fatalf("unexpected app settings: app_type=%v token_cache=%v", config.AppType, config.EnableTokenCache)
+	}
+	if config.Logger == nil || config.Serializable == nil || config.HttpClient == nil {
+		t.Fatal("SDK core services must be initialized")
+	}
 }
 
 func TestSenderSendsTrimmedMessageAndReusesClientForCredentials(t *testing.T) {

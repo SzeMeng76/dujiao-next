@@ -10,12 +10,14 @@ import (
 
 	"github.com/dujiao-next/internal/modules/notification/contract"
 
-	lark "github.com/larksuite/oapi-sdk-go/v3"
 	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
 )
 
-const feishuRequestTimeout = 10 * time.Second
+const (
+	feishuBaseURL        = "https://open.feishu.cn"
+	feishuRequestTimeout = 10 * time.Second
+)
 
 type messageClient interface {
 	SendText(ctx context.Context, receiveIDType, receiveID, message string) error
@@ -37,14 +39,32 @@ var _ contract.FeishuSender = (*Sender)(nil)
 
 // New 创建飞书机器人通知发送器。
 func New() *Sender {
-	return newSender(func(appID, appSecret string) messageClient {
-		return &sdkMessageClient{client: lark.NewClient(
-			appID,
-			appSecret,
-			lark.WithReqTimeout(feishuRequestTimeout),
-			lark.WithLogLevel(larkcore.LogLevelError),
-		)}
-	})
+	return newSender(newSDKMessageClient)
+}
+
+func newSDKMessageClient(appID, appSecret string) messageClient {
+	config := newSDKConfig(appID, appSecret)
+	return &sdkMessageClient{client: larkim.New(config)}
+}
+
+func newSDKConfig(appID, appSecret string) *larkcore.Config {
+	config := &larkcore.Config{
+		BaseUrl:          feishuBaseURL,
+		AppId:            appID,
+		AppSecret:        appSecret,
+		ReqTimeout:       feishuRequestTimeout,
+		LogLevel:         larkcore.LogLevelError,
+		AppType:          larkcore.AppTypeSelfBuilt,
+		EnableTokenCache: true,
+	}
+
+	// SDK 顶层的 lark.NewClient 会初始化全部开放平台服务，使二进制额外增长十余 MiB。
+	// 此处保留它的核心初始化流程，但只创建通知实际使用的 IM v1 客户端。
+	larkcore.NewLogger(config)
+	larkcore.NewCache(config)
+	larkcore.NewSerialization(config)
+	larkcore.NewHttpClient(config)
+	return config
 }
 
 func newSender(factory clientFactory) *Sender {
@@ -88,7 +108,7 @@ func isSupportedReceiveIDType(value string) bool {
 }
 
 type sdkMessageClient struct {
-	client *lark.Client
+	client *larkim.V1
 }
 
 func (c *sdkMessageClient) SendText(ctx context.Context, receiveIDType, receiveID, message string) error {
@@ -107,7 +127,7 @@ func (c *sdkMessageClient) SendText(ctx context.Context, receiveIDType, receiveI
 			Content(string(content)).
 			Build()).
 		Build()
-	resp, err := c.client.Im.V1.Message.Create(ctx, req)
+	resp, err := c.client.Message.Create(ctx, req)
 	if err != nil {
 		return fmt.Errorf("%w: feishu sdk request: %v", contract.ErrSendFailed, err)
 	}
