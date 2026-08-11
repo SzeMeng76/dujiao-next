@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
+	"mime"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -76,15 +77,43 @@ func TestCreatePaymentPrecreate(t *testing.T) {
 		if r.Method != http.MethodPost {
 			t.Fatalf("expected post request, got %s", r.Method)
 		}
+		mediaType, mediaParams, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+		if err != nil {
+			t.Fatalf("parse content type failed: %v", err)
+		}
+		if mediaType != "application/x-www-form-urlencoded" {
+			t.Fatalf("content type = %s, want application/x-www-form-urlencoded", mediaType)
+		}
+		if got := mediaParams["charset"]; !strings.EqualFold(got, alipayReqCharset) {
+			t.Fatalf("content type charset = %q, want %s", got, alipayReqCharset)
+		}
+
+		query := r.URL.Query()
+		if got := query.Get("method"); got != alipayMethodPrecreate {
+			t.Fatalf("method query = %q, want %s", got, alipayMethodPrecreate)
+		}
+		if got := query.Get("charset"); got != alipayReqCharset {
+			t.Fatalf("charset query = %q, want %s", got, alipayReqCharset)
+		}
+		if query.Has("biz_content") {
+			t.Fatalf("biz_content must be sent in POST body, not query")
+		}
 		if err := r.ParseForm(); err != nil {
 			t.Fatalf("parse form failed: %v", err)
 		}
-		if r.Form.Get("method") != "alipay.trade.precreate" {
-			t.Fatalf("expected precreate method, got %s", r.Form.Get("method"))
+		if got := r.PostForm.Get("method"); got != "" {
+			t.Fatalf("method must not be sent in POST body, got %q", got)
+		}
+		bizContentRaw := r.PostForm.Get("biz_content")
+		if bizContentRaw == "" {
+			t.Fatalf("biz_content is missing from POST body")
 		}
 		var bizContent map[string]interface{}
-		if err := json.Unmarshal([]byte(r.Form.Get("biz_content")), &bizContent); err != nil {
+		if err := json.Unmarshal([]byte(bizContentRaw), &bizContent); err != nil {
 			t.Fatalf("decode biz_content: %v", err)
+		}
+		if got := bizContent["subject"]; got != "测试商品" {
+			t.Fatalf("subject = %v, want 测试商品", got)
 		}
 		if got := bizContent["product_code"]; got != alipayProductCodeFaceToFace {
 			t.Fatalf("product_code = %v, want %s", got, alipayProductCodeFaceToFace)
