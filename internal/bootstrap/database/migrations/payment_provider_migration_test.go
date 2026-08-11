@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/dujiao-next/internal/constants"
+	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
 	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
 	settingsstore "github.com/dujiao-next/internal/modules/settings/infrastructure/gormstore"
 	"github.com/dujiao-next/internal/platform/database/gormdb"
@@ -88,6 +89,86 @@ func TestEnsurePaymentFeePolicyMigrationClassifiesHistoryAndIsIdempotent(t *test
 	}
 	if unchanged.FeePolicy != constants.PaymentFeePolicyMerchantAbsorbed {
 		t.Fatalf("idempotency rewrote payment policy to %q", unchanged.FeePolicy)
+	}
+}
+
+func TestEnsureOrderRefundPaymentFeeMigrationBackfillsManualRefundsOnce(t *testing.T) {
+	dsn := fmt.Sprintf("file:order_refund_payment_fee_migration_%d?mode=memory&cache=shared", time.Now().UnixNano())
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite failed: %v", err)
+	}
+	if err := db.AutoMigrate(
+		&orderdomain.Order{},
+		&orderdomain.OrderRefundRecord{},
+		&paymentdomain.Payment{},
+		&settingsstore.SettingRecord{},
+	); err != nil {
+		t.Fatalf("auto migrate failed: %v", err)
+	}
+	gormdb.DB = db
+
+	now := time.Now().UTC().Truncate(time.Second)
+	order := &orderdomain.Order{
+		OrderNo: "REFUND-FEE-MIGRATION-001", Status: constants.OrderStatusRefunded, Currency: "CNY",
+		TotalAmount: money.FromDecimal(decimal.NewFromInt(100)), PaidAt: &now, CreatedAt: now, UpdatedAt: now,
+	}
+	if err := db.Create(order).Error; err != nil {
+		t.Fatalf("create order failed: %v", err)
+	}
+	if err := db.Create(&paymentdomain.Payment{
+		OrderID: order.ID, ProviderType: constants.PaymentProviderOfficial,
+		ChannelType: constants.PaymentChannelTypeAlipay, InteractionMode: constants.PaymentInteractionRedirect,
+		Amount: money.FromDecimal(decimal.NewFromInt(100)), FeeAmount: money.FromDecimal(decimal.RequireFromString("3.00")), FeePolicy: constants.PaymentFeePolicyMerchantAbsorbed,
+		Currency: "CNY", Status: constants.PaymentStatusSuccess, CreatedAt: now, UpdatedAt: now,
+	}).Error; err != nil {
+		t.Fatalf("create payment failed: %v", err)
+	}
+	manual := &orderdomain.OrderRefundRecord{
+		OrderID: order.ID, Type: constants.OrderRefundTypeManual,
+		Amount: money.FromDecimal(decimal.NewFromInt(50)), Currency: "CNY", CreatedAt: now, UpdatedAt: now,
+	}
+	wallet := &orderdomain.OrderRefundRecord{
+		OrderID: order.ID, Type: constants.OrderRefundTypeWallet,
+		Amount: money.FromDecimal(decimal.NewFromInt(50)), Currency: "CNY", CreatedAt: now.Add(time.Second), UpdatedAt: now.Add(time.Second),
+	}
+	if err := db.Create(manual).Error; err != nil {
+		t.Fatalf("create manual refund failed: %v", err)
+	}
+	if err := db.Create(wallet).Error; err != nil {
+		t.Fatalf("create wallet refund failed: %v", err)
+	}
+
+	if err := ensureOrderRefundPaymentFeeMigration(); err != nil {
+		t.Fatalf("migrate refund payment fees failed: %v", err)
+	}
+	if err := db.First(manual, manual.ID).Error; err != nil {
+		t.Fatalf("reload manual refund failed: %v", err)
+	}
+	if !manual.PaymentFeeRefunded || !manual.PaymentFeeRefundedAmount.Decimal.Equal(decimal.RequireFromString("1.50")) {
+		t.Fatalf("manual refund was not backfilled: %+v", manual)
+	}
+	if err := db.First(wallet, wallet.ID).Error; err != nil {
+		t.Fatalf("reload wallet refund failed: %v", err)
+	}
+	if wallet.PaymentFeeRefunded || !wallet.PaymentFeeRefundedAmount.Decimal.IsZero() {
+		t.Fatalf("wallet refund should not be backfilled: %+v", wallet)
+	}
+
+	if err := db.Model(manual).Updates(map[string]interface{}{
+		"payment_fee_refunded":        false,
+		"payment_fee_refunded_amount": money.FromDecimal(decimal.Zero),
+	}).Error; err != nil {
+		t.Fatalf("correct migrated refund failed: %v", err)
+	}
+	if err := ensureOrderRefundPaymentFeeMigration(); err != nil {
+		t.Fatalf("second migration failed: %v", err)
+	}
+	if err := db.First(manual, manual.ID).Error; err != nil {
+		t.Fatalf("reload corrected refund failed: %v", err)
+	}
+	if manual.PaymentFeeRefunded || !manual.PaymentFeeRefundedAmount.Decimal.IsZero() {
+		t.Fatalf("idempotent migration overwrote correction: %+v", manual)
 	}
 }
 

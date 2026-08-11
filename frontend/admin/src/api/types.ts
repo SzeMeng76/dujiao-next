@@ -493,6 +493,8 @@ export interface AdminOrderRefund {
   type: string
   refund_type_label?: string
   amount: string
+  payment_fee_refunded: boolean
+  payment_fee_refunded_amount: string
   currency: string
   remark?: string
   items?: AdminOrderItem[]

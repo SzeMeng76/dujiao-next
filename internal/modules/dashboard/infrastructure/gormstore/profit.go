@@ -19,15 +19,17 @@ func profitOrderStatuses() []string {
 }
 
 type refundAdjustmentRow struct {
-	Day          string
-	RefundAmount float64
-	RefundedCost float64
+	Day                string
+	RefundAmount       float64
+	RefundedCost       float64
+	PaymentFeeRefunded float64
 }
 
 type refundAggregateRow struct {
-	Day          string
-	OrderID      uint
-	RefundAmount float64 `gorm:"column:refund_amount"`
+	Day                string
+	OrderID            uint
+	RefundAmount       float64 `gorm:"column:refund_amount"`
+	PaymentFeeRefunded float64 `gorm:"column:payment_fee_refunded"`
 }
 
 // getRefundAdjustments 按退款发生日计算退款金额与同比例冲回的成本。
@@ -39,7 +41,8 @@ func (r *Store) getRefundAdjustments(startAt, endAt time.Time) ([]refundAdjustme
 		Select(fmt.Sprintf(`
 			%s as day,
 			order_refund_records.order_id as order_id,
-			COALESCE(SUM(order_refund_records.amount), 0) as refund_amount
+			COALESCE(SUM(order_refund_records.amount), 0) as refund_amount,
+			COALESCE(SUM(order_refund_records.payment_fee_refunded_amount), 0) as payment_fee_refunded
 		`, refundDayExpr)).
 		Where("order_refund_records.deleted_at IS NULL AND order_refund_records.created_at >= ? AND order_refund_records.created_at < ?", startAt, endAt).
 		Group(fmt.Sprintf("%s, order_refund_records.order_id", refundDayExpr)).
@@ -109,8 +112,9 @@ func (r *Store) getRefundAdjustments(startAt, endAt time.Time) ([]refundAdjustme
 	adjustments := make([]refundAdjustmentRow, 0, len(refundRows))
 	for _, row := range refundRows {
 		adjustment := refundAdjustmentRow{
-			Day:          row.Day,
-			RefundAmount: row.RefundAmount,
+			Day:                row.Day,
+			RefundAmount:       row.RefundAmount,
+			PaymentFeeRefunded: row.PaymentFeeRefunded,
 		}
 		orderTotal := orderTotalByID[row.OrderID]
 		if orderTotal > 0 && row.RefundAmount > 0 {
@@ -140,9 +144,11 @@ func (r *Store) GetProfitOverview(startAt, endAt time.Time) (dashboard.ProfitOve
 	if err != nil {
 		return result, err
 	}
+	paymentFeeRefunded := 0.0
 	for _, adjustment := range refundAdjustments {
 		result.TotalRevenue -= adjustment.RefundAmount
 		result.RefundedCost += adjustment.RefundedCost
+		paymentFeeRefunded += adjustment.PaymentFeeRefunded
 	}
 	if err := r.db.Model(&paymentdomain.Payment{}).
 		Select("COALESCE(SUM(fee_amount), 0)").
@@ -150,6 +156,7 @@ func (r *Store) GetProfitOverview(startAt, endAt time.Time) (dashboard.ProfitOve
 		Scan(&result.PaymentFee).Error; err != nil {
 		return result, err
 	}
+	result.PaymentFee -= paymentFeeRefunded
 	return result, nil
 }
 
@@ -205,6 +212,7 @@ func (r *Store) GetProfitTrends(startAt, endAt time.Time) ([]dashboard.ProfitTre
 		row.Day = day
 		row.Revenue -= refundRow.RefundAmount
 		row.RefundedCost += refundRow.RefundedCost
+		row.PaymentFee -= refundRow.PaymentFeeRefunded
 		byDay[day] = row
 	}
 	for _, paymentFeeRow := range paymentFeeRows {

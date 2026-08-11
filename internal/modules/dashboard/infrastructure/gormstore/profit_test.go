@@ -247,6 +247,77 @@ func TestProfitStatisticsDeductSuccessfulExternalPaymentFees(t *testing.T) {
 	}
 }
 
+func TestProfitStatisticsReverseReturnedPaymentFeeOnRefundDay(t *testing.T) {
+	repo, db := setupDashboardRepositoryTest(t)
+	base := time.Date(2026, 8, 11, 10, 0, 0, 0, time.UTC)
+	refundAt := base.Add(24 * time.Hour)
+
+	category := createDashboardCategory(t, db, "dashboard-profit-refunded-payment-fee-category")
+	product := &productdomain.Product{
+		CategoryID:      category.ID,
+		Slug:            "dashboard-profit-refunded-payment-fee-product",
+		TitleJSON:       jsonmap.JSON{"zh-CN": "退款手续费冲回测试商品"},
+		PriceAmount:     money.FromDecimal(decimal.NewFromInt(100)),
+		PurchaseType:    constants.ProductPurchaseMember,
+		FulfillmentType: constants.FulfillmentTypeManual,
+		IsActive:        true,
+	}
+	if err := db.Create(product).Error; err != nil {
+		t.Fatalf("create product failed: %v", err)
+	}
+	order := createDashboardProfitOrderWithItem(t, db, product, "DJ-PROFIT-REFUNDED-PAYMENT-FEE", constants.OrderStatusRefunded, 100, 40, "退款手续费冲回测试商品", base)
+	if err := db.Create(&paymentdomain.Payment{
+		OrderID: order.ID, ProviderType: constants.PaymentProviderOfficial,
+		ChannelType: constants.PaymentChannelTypeAlipay, InteractionMode: constants.PaymentInteractionRedirect,
+		Amount: money.FromDecimal(decimal.NewFromInt(100)), FeeAmount: money.FromDecimal(decimal.RequireFromString("3.00")), FeePolicy: constants.PaymentFeePolicyMerchantAbsorbed,
+		Currency: "CNY", Status: constants.PaymentStatusSuccess, CreatedAt: base, UpdatedAt: base,
+	}).Error; err != nil {
+		t.Fatalf("create payment failed: %v", err)
+	}
+	if err := db.Create(&orderdomain.OrderRefundRecord{
+		OrderID: order.ID, Type: constants.OrderRefundTypeManual,
+		Amount:                   money.FromDecimal(decimal.NewFromInt(100)),
+		PaymentFeeRefunded:       true,
+		PaymentFeeRefundedAmount: money.FromDecimal(decimal.RequireFromString("3.00")),
+		Currency:                 "CNY",
+		CreatedAt:                refundAt,
+		UpdatedAt:                refundAt,
+	}).Error; err != nil {
+		t.Fatalf("create refund record failed: %v", err)
+	}
+
+	overview, err := repo.GetProfitOverview(base.Add(-time.Hour), refundAt.Add(time.Hour))
+	if err != nil {
+		t.Fatalf("get profit overview failed: %v", err)
+	}
+	if math.Abs(overview.PaymentFee) > 0.000001 {
+		t.Fatalf("net payment fee = %v, want 0", overview.PaymentFee)
+	}
+
+	rows, err := repo.GetProfitTrends(base.Add(-time.Hour), refundAt.Add(time.Hour))
+	if err != nil {
+		t.Fatalf("get profit trends failed: %v", err)
+	}
+	rowMap := make(map[string]dashboard.ProfitTrendRow, len(rows))
+	for _, row := range rows {
+		rowMap[row.Day] = row
+	}
+	if math.Abs(rowMap["2026-08-11"].PaymentFee-3) > 0.000001 {
+		t.Fatalf("payment-day fee = %v, want 3", rowMap["2026-08-11"].PaymentFee)
+	}
+	if math.Abs(rowMap["2026-08-12"].PaymentFee+3) > 0.000001 {
+		t.Fatalf("refund-day fee = %v, want -3", rowMap["2026-08-12"].PaymentFee)
+	}
+
+	refundOnly, err := repo.GetProfitOverview(refundAt.Add(-time.Hour), refundAt.Add(time.Hour))
+	if err != nil {
+		t.Fatalf("get refund-only overview failed: %v", err)
+	}
+	if math.Abs(refundOnly.PaymentFee+3) > 0.000001 {
+		t.Fatalf("refund-only payment fee = %v, want -3", refundOnly.PaymentFee)
+	}
+}
+
 func TestGetProfitOverviewDeductsInWindowRefundForOutOfWindowOrder(t *testing.T) {
 	repo, db := setupDashboardRepositoryTest(t)
 	now := time.Now().UTC().Truncate(time.Second)
