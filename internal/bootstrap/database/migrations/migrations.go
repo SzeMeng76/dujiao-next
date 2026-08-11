@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dujiao-next/internal/constants"
 	cardsecretdomain "github.com/dujiao-next/internal/modules/cardsecret/domain"
 	cartdomain "github.com/dujiao-next/internal/modules/cart/domain"
 	externalidentitydomain "github.com/dujiao-next/internal/modules/identity/externalidentity/domain"
@@ -27,6 +28,7 @@ const (
 	categoryParentMigrationSettingKey               = "migration/category_parent_v1"
 	paymentProviderBepusdtRenameMigrationSettingKey = "migration/payment_provider_bepusdt_rename_v1"
 	paymentChannelBepusdtConfigMigrationSettingKey  = "migration/payment_channel_bepusdt_config_v2"
+	paymentFeePolicyMigrationSettingKey             = "migration/payment_fee_policy_v1"
 	orderItemOriginalPriceMigrationKey              = "migration/order_item_original_price_v1"
 	manualStockUnlimitedValue                       = -1
 	cartProductForeignKeyConstraint                 = "fk_cart_items_product"
@@ -211,6 +213,45 @@ func migrationDone(value jsonmap.JSON) bool {
 	}
 	flag, ok := done.(bool)
 	return ok && flag
+}
+
+// ensurePaymentFeePolicyMigration 为升级前的支付记录补充不可变手续费策略快照。
+// 旧版本只在 fee_amount 中记录手续费，且实际向用户加收，因此非零记录明确标为 legacy。
+func ensurePaymentFeePolicyMigration() error {
+	if gormdb.DB == nil {
+		return errors.New("database is not initialized")
+	}
+
+	var marker settingsstore.SettingRecord
+	if err := gormdb.DB.First(&marker, "key = ?", paymentFeePolicyMigrationSettingKey).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+	} else if migrationDone(marker.ValueJSON) {
+		return nil
+	}
+
+	return gormdb.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&paymentdomain.Payment{}).
+			Where("fee_amount > 0 AND (fee_policy IS NULL OR fee_policy = '' OR fee_policy = ?)", constants.PaymentFeePolicyNone).
+			Update("fee_policy", constants.PaymentFeePolicyLegacyCustomerSurcharge).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&paymentdomain.Payment{}).
+			Where("fee_amount = 0 AND (fee_policy IS NULL OR fee_policy = '')").
+			Update("fee_policy", constants.PaymentFeePolicyNone).Error; err != nil {
+			return err
+		}
+
+		marker := settingsstore.SettingRecord{
+			Key: paymentFeePolicyMigrationSettingKey,
+			ValueJSON: jsonmap.JSON{
+				"done":        true,
+				"migrated_at": time.Now().UTC().Format(time.RFC3339),
+			},
+		}
+		return tx.Save(&marker).Error
+	})
 }
 
 // ensureOrderItemOriginalPriceMigration 为历史订单项回填原价快照。

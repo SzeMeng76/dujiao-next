@@ -460,6 +460,10 @@ export interface AdminPayment {
   fee_rate: number | string
   fixed_fee?: number | string
   fee_amount: number
+  fee_policy?: 'none' | 'merchant_absorbed' | 'customer_surcharge' | 'legacy_customer_surcharge'
+  exception_code?: string
+  superseded_at?: string
+  superseded_by_payment_id?: number
   currency: string
   status: string
   provider_trade_no?: string

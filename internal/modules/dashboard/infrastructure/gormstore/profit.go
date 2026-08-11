@@ -3,9 +3,11 @@ package gormstore
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
+	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
 
 	"github.com/dujiao-next/internal/constants"
 	dashboard "github.com/dujiao-next/internal/modules/dashboard/contract"
@@ -142,6 +144,12 @@ func (r *Store) GetProfitOverview(startAt, endAt time.Time) (dashboard.ProfitOve
 		result.TotalRevenue -= adjustment.RefundAmount
 		result.RefundedCost += adjustment.RefundedCost
 	}
+	if err := r.db.Model(&paymentdomain.Payment{}).
+		Select("COALESCE(SUM(fee_amount), 0)").
+		Where("deleted_at IS NULL AND created_at >= ? AND created_at < ? AND status = ? AND provider_type <> ? AND fee_policy = ?", startAt, endAt, constants.PaymentStatusSuccess, constants.PaymentProviderWallet, constants.PaymentFeePolicyMerchantAbsorbed).
+		Scan(&result.PaymentFee).Error; err != nil {
+		return result, err
+	}
 	return result, nil
 }
 
@@ -167,6 +175,23 @@ func (r *Store) GetProfitTrends(startAt, endAt time.Time) ([]dashboard.ProfitTre
 		return nil, err
 	}
 
+	type paymentFeeTrendRow struct {
+		Day        string
+		PaymentFee float64 `gorm:"column:payment_fee"`
+	}
+	paymentFeeRows := make([]paymentFeeTrendRow, 0)
+	paymentFeeDayExpr := dateGroupExpr(r.db, "payments.created_at", startAt.Location(), startAt)
+	if err := r.db.Model(&paymentdomain.Payment{}).
+		Select(fmt.Sprintf(`
+			%s as day,
+			COALESCE(SUM(fee_amount), 0) as payment_fee
+		`, paymentFeeDayExpr)).
+		Where("deleted_at IS NULL AND created_at >= ? AND created_at < ? AND status = ? AND provider_type <> ? AND fee_policy = ?", startAt, endAt, constants.PaymentStatusSuccess, constants.PaymentProviderWallet, constants.PaymentFeePolicyMerchantAbsorbed).
+		Group(paymentFeeDayExpr).
+		Scan(&paymentFeeRows).Error; err != nil {
+		return nil, err
+	}
+
 	byDay := make(map[string]dashboard.ProfitTrendRow, len(rows)+len(refundRows))
 	for _, row := range rows {
 		byDay[row.Day] = row
@@ -180,6 +205,16 @@ func (r *Store) GetProfitTrends(startAt, endAt time.Time) ([]dashboard.ProfitTre
 		row.Day = day
 		row.Revenue -= refundRow.RefundAmount
 		row.RefundedCost += refundRow.RefundedCost
+		byDay[day] = row
+	}
+	for _, paymentFeeRow := range paymentFeeRows {
+		day := strings.TrimSpace(paymentFeeRow.Day)
+		if day == "" {
+			continue
+		}
+		row := byDay[day]
+		row.Day = day
+		row.PaymentFee += paymentFeeRow.PaymentFee
 		byDay[day] = row
 	}
 

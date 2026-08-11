@@ -5,11 +5,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dujiao-next/internal/constants"
 	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
 	settingsstore "github.com/dujiao-next/internal/modules/settings/infrastructure/gormstore"
 	"github.com/dujiao-next/internal/platform/database/gormdb"
 	"github.com/dujiao-next/internal/shared/jsonmap"
+	"github.com/dujiao-next/internal/shared/money"
 	"github.com/glebarez/sqlite"
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
 
@@ -23,10 +26,69 @@ func setupPaymentProviderRenameTestDB(t *testing.T) *gorm.DB {
 		t.Fatalf("open sqlite failed: %v", err)
 	}
 	gormdb.DB = db
-	if err := db.AutoMigrate(&paymentdomain.PaymentChannel{}, &settingsstore.SettingRecord{}); err != nil {
+	if err := db.AutoMigrate(&paymentdomain.PaymentChannel{}, &paymentdomain.Payment{}, &settingsstore.SettingRecord{}); err != nil {
 		t.Fatalf("auto migrate failed: %v", err)
 	}
 	return db
+}
+
+func TestEnsurePaymentFeePolicyMigrationClassifiesHistoryAndIsIdempotent(t *testing.T) {
+	db := setupPaymentProviderRenameTestDB(t)
+	now := time.Now().UTC().Truncate(time.Second)
+	payments := []paymentdomain.Payment{
+		{
+			OrderID: 1, ProviderType: constants.PaymentProviderOfficial, ChannelType: constants.PaymentChannelTypeAlipay,
+			InteractionMode: constants.PaymentInteractionRedirect, Amount: money.FromDecimal(decimal.NewFromInt(103)),
+			FeeAmount: money.FromDecimal(decimal.NewFromInt(3)), Currency: "CNY", Status: constants.PaymentStatusSuccess,
+			CreatedAt: now, UpdatedAt: now,
+		},
+		{
+			OrderID: 2, ProviderType: constants.PaymentProviderOfficial, ChannelType: constants.PaymentChannelTypeWechat,
+			InteractionMode: constants.PaymentInteractionQR, Amount: money.FromDecimal(decimal.NewFromInt(100)),
+			FeeAmount: money.FromDecimal(decimal.Zero), Currency: "CNY", Status: constants.PaymentStatusPending,
+			CreatedAt: now, UpdatedAt: now,
+		},
+		{
+			OrderID: 3, ProviderType: constants.PaymentProviderOfficial, ChannelType: constants.PaymentChannelTypeWechat,
+			InteractionMode: constants.PaymentInteractionQR, Amount: money.FromDecimal(decimal.NewFromInt(100)),
+			FeeAmount: money.FromDecimal(decimal.NewFromInt(3)), FeePolicy: constants.PaymentFeePolicyMerchantAbsorbed,
+			Currency: "CNY", Status: constants.PaymentStatusPending, CreatedAt: now, UpdatedAt: now,
+		},
+	}
+	if err := db.Create(&payments).Error; err != nil {
+		t.Fatalf("seed historical payments failed: %v", err)
+	}
+	if err := ensurePaymentFeePolicyMigration(); err != nil {
+		t.Fatalf("migrate payment fee policies failed: %v", err)
+	}
+	var migrated []paymentdomain.Payment
+	if err := db.Order("id asc").Find(&migrated).Error; err != nil {
+		t.Fatalf("load migrated payments failed: %v", err)
+	}
+	if migrated[0].FeePolicy != constants.PaymentFeePolicyLegacyCustomerSurcharge {
+		t.Fatalf("fee-bearing history policy = %q", migrated[0].FeePolicy)
+	}
+	if migrated[1].FeePolicy != constants.PaymentFeePolicyNone {
+		t.Fatalf("fee-free history policy = %q", migrated[1].FeePolicy)
+	}
+	if migrated[2].FeePolicy != constants.PaymentFeePolicyMerchantAbsorbed {
+		t.Fatalf("explicit payment policy was overwritten = %q", migrated[2].FeePolicy)
+	}
+
+	migrated[0].FeePolicy = constants.PaymentFeePolicyMerchantAbsorbed
+	if err := db.Save(&migrated[0]).Error; err != nil {
+		t.Fatalf("update post-migration payment failed: %v", err)
+	}
+	if err := ensurePaymentFeePolicyMigration(); err != nil {
+		t.Fatalf("second migration failed: %v", err)
+	}
+	var unchanged paymentdomain.Payment
+	if err := db.First(&unchanged, migrated[0].ID).Error; err != nil {
+		t.Fatalf("reload post-migration payment failed: %v", err)
+	}
+	if unchanged.FeePolicy != constants.PaymentFeePolicyMerchantAbsorbed {
+		t.Fatalf("idempotency rewrote payment policy to %q", unchanged.FeePolicy)
+	}
 }
 
 func TestEnsurePaymentProviderBepusdtRenameMigration_RenamesAndIsIdempotent(t *testing.T) {

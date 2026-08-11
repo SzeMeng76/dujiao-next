@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import {
   getCachedPaymentRestorePolicy,
   getPaymentResetPolicy,
+  isCustomerSurchargePayment,
   isRedirectPaymentInteractionMode,
   resolvePaymentInteractionLabelKey,
   resolvePaymentLinkNavigationTarget,
@@ -49,7 +50,7 @@ test('Alipay page and WAP modes use redirect presentation while QR stays scannab
   assert.equal(resolvePaymentResultTitleKey('page'), 'payment.modePage')
 })
 
-test('all redirect-style payments with a pay link are auto opened', () => {
+test('redirect-style payments auto open unless a customer fee needs confirmation', () => {
   assert.equal(
     shouldAutoOpenPaymentLink({ interaction_mode: 'redirect', pay_url: 'https://pay.example.com' }),
     true,
@@ -70,6 +71,16 @@ test('all redirect-style payments with a pay link are auto opened', () => {
     shouldAutoOpenPaymentLink({ interaction_mode: 'redirect', pay_url: '   ' }),
     false,
   )
+  assert.equal(
+    shouldAutoOpenPaymentLink({ interaction_mode: 'redirect', pay_url: 'https://pay.example.com', fee_policy: 'customer_surcharge' }),
+    false,
+  )
+  assert.equal(
+    shouldAutoOpenPaymentLink({ interaction_mode: 'redirect', pay_url: 'https://pay.example.com', fee_policy: 'legacy_customer_surcharge' }),
+    false,
+  )
+  assert.equal(isCustomerSurchargePayment({ fee_policy: 'merchant_absorbed' }), false)
+  assert.equal(isCustomerSurchargePayment({ fee_policy: 'legacy_customer_surcharge' }), true)
 })
 
 test('automatic cashier navigation uses the current tab to avoid popup blocking', () => {

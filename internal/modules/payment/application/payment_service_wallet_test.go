@@ -36,6 +36,9 @@ import (
 	productgormstore "github.com/dujiao-next/internal/modules/catalog/product/store/gormstore"
 
 	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
+	userstore "github.com/dujiao-next/internal/modules/identity/user/infrastructure/gormstore"
+	settingsapp "github.com/dujiao-next/internal/modules/settings/application"
+	settingsstore "github.com/dujiao-next/internal/modules/settings/infrastructure/gormstore"
 	walletapp "github.com/dujiao-next/internal/modules/wallet/application"
 	walletcontract "github.com/dujiao-next/internal/modules/wallet/contract"
 	walletgormstore "github.com/dujiao-next/internal/modules/wallet/infrastructure/gormstore"
@@ -71,6 +74,7 @@ func setupPaymentServiceWalletTest(t *testing.T) (*PaymentService, *gorm.DB) {
 		&walletdomain.RechargeOrder{},
 		&paymentdomain.PaymentChannel{},
 		&paymentdomain.Payment{},
+		&settingsstore.SettingRecord{},
 	); err != nil {
 		t.Fatalf("auto migrate failed: %v", err)
 	}
@@ -108,7 +112,9 @@ func setupPaymentServiceWalletTest(t *testing.T) (*PaymentService, *gorm.DB) {
 		PaymentStore:            paymentRepo,
 		ChannelStore:            channelRepo,
 		WalletRepo:              walletRepo,
+		UserStore:               userstore.New(db),
 		WalletService:           walletSvc,
+		SettingService:          settingsapp.NewService(settingsstore.New(db)),
 		ExpireMinutes:           15,
 		PaymentProviderRegistry: reg,
 	})

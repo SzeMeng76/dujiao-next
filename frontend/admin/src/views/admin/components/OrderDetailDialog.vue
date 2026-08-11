@@ -183,9 +183,19 @@ const itemProfit = (order: AdminOrder | null, item: AdminOrderItem) => {
   return Number(profit.toFixed(2))
 }
 
+const orderPaymentFee = (order: AdminOrder | null) => {
+  if (!order?.payments?.length) return 0
+  const fee = order.payments.reduce((sum, payment) => {
+    if (payment.status !== 'success' || payment.fee_policy !== 'merchant_absorbed') return sum
+    return sum + Math.max(parseMoneyValue(payment.fee_amount), 0)
+  }, 0)
+  return Number(fee.toFixed(2))
+}
+
 const orderProfit = (order: AdminOrder | null) => {
   if (!order?.items?.length) return 0
-  return Number(order.items.reduce((sum, item) => sum + itemProfit(order, item), 0).toFixed(2))
+  const itemTotal = order.items.reduce((sum, item) => sum + itemProfit(order, item), 0)
+  return Number((itemTotal - orderPaymentFee(order)).toFixed(2))
 }
 
 const hasWalletPayment = (order: AdminOrder) => hasPositiveAmount(order?.wallet_paid_amount)
@@ -911,6 +921,9 @@ watch(
             <div v-if="selectedOrder.items && selectedOrder.items.length" class="mt-3 flex flex-wrap justify-end gap-2">
               <div v-if="hasPositiveAmount(selectedOrder.refunded_amount)" class="rounded-lg border border-blue-200 bg-blue-50/60 px-4 py-2 text-sm font-semibold text-blue-700">
                 {{ t('admin.orders.itemRefund') }}：{{ formatMoney(selectedOrder.refunded_amount, selectedOrder.currency) }}
+              </div>
+              <div v-if="hasPositiveAmount(orderPaymentFee(selectedOrder))" class="rounded-lg border border-amber-200 bg-amber-50/60 px-4 py-2 text-sm font-semibold text-amber-700">
+                {{ t('admin.payments.table.feeAmount') }}：{{ formatMoney(orderPaymentFee(selectedOrder).toFixed(2), selectedOrder.currency) }}
               </div>
               <div class="rounded-lg border border-emerald-200 bg-emerald-50/50 px-4 py-2 text-sm font-semibold text-emerald-700">
                 {{ t('admin.orders.orderProfit') }}：{{ formatMoney(orderProfit(selectedOrder).toFixed(2), selectedOrder.currency) }}

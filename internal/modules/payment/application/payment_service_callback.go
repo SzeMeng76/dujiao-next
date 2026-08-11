@@ -131,6 +131,7 @@ func (s *PaymentService) HandleCallback(input PaymentCallbackInput) (*paymentdom
 		"previous_status", previousStatus,
 		"new_status", updated.Status,
 		"order_paid", orderPaid,
+		"exception_code", updated.ExceptionCode,
 	)
 	return updated, nil
 }
@@ -273,6 +274,8 @@ func (s *PaymentService) applyPaymentUpdate(payment *paymentdomain.Payment, orde
 			return err
 		}
 
+		canFulfillOrder := status == constants.PaymentStatusSuccess &&
+			lockedOrder.Status == constants.OrderStatusPendingPayment && lockedOrder.PaidAt == nil
 		switch status {
 		case constants.PaymentStatusSuccess:
 			paidAt := now
@@ -280,6 +283,15 @@ func (s *PaymentService) applyPaymentUpdate(payment *paymentdomain.Payment, orde
 				paidAt = *input.PaidAt
 			}
 			lockedPayment.PaidAt = &paidAt
+			if lockedPayment.SupersededAt != nil {
+				lockedPayment.ExceptionCode = constants.PaymentExceptionSupersededSucceeded
+			} else if !canFulfillOrder {
+				if lockedOrder.PaidAt != nil {
+					lockedPayment.ExceptionCode = constants.PaymentExceptionDuplicateSucceeded
+				} else {
+					lockedPayment.ExceptionCode = constants.PaymentExceptionClosedOrderSucceeded
+				}
+			}
 		case constants.PaymentStatusExpired:
 			lockedPayment.ExpiredAt = &now
 		}
@@ -297,7 +309,12 @@ func (s *PaymentService) applyPaymentUpdate(payment *paymentdomain.Payment, orde
 			return ErrPaymentUpdateFailed
 		}
 
-		if status == constants.PaymentStatusSuccess && lockedOrder.Status != constants.OrderStatusPaid {
+		if status == constants.PaymentStatusSuccess {
+			if _, err := paymentRepo.ExpirePendingByOrderIDs([]uint{lockedOrder.ID}, now); err != nil {
+				return ErrPaymentUpdateFailed
+			}
+		}
+		if canFulfillOrder {
 			if err := s.markOrderPaid(tx, lockedOrder, now); err != nil {
 				return err
 			}

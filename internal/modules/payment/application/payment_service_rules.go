@@ -14,6 +14,22 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+// calculatePaymentAmounts 按创建时配置计算用户实付金额、渠道手续费及不可变策略快照。
+func calculatePaymentAmounts(baseAmount, feeRate, fixedFee decimal.Decimal, customerFeeEnabled bool) (paymentAmount, feeAmount decimal.Decimal, feePolicy string) {
+	baseAmount = baseAmount.Round(2)
+	feeAmount = fixedFee.Round(2)
+	if feeRate.GreaterThan(decimal.Zero) {
+		feeAmount = feeAmount.Add(baseAmount.Mul(feeRate).Div(decimal.NewFromInt(100))).Round(2)
+	}
+	if feeAmount.IsZero() {
+		return baseAmount, feeAmount, constants.PaymentFeePolicyNone
+	}
+	if customerFeeEnabled {
+		return baseAmount.Add(feeAmount).Round(2), feeAmount, constants.PaymentFeePolicyCustomerSurcharge
+	}
+	return baseAmount, feeAmount, constants.PaymentFeePolicyMerchantAbsorbed
+}
+
 // normalizeOrderAmount 归一化金额精度与下限。
 func normalizeOrderAmount(amount decimal.Decimal) decimal.Decimal {
 	normalized := amount.Round(2)

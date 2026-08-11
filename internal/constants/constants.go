@@ -38,6 +38,21 @@ const (
 	PaymentStatusExpired   = "expired"
 )
 
+// 支付手续费策略常量。每笔支付在创建时保存快照，后续配置变化不会重解释历史记录。
+const (
+	PaymentFeePolicyNone                    = "none"
+	PaymentFeePolicyMerchantAbsorbed        = "merchant_absorbed"
+	PaymentFeePolicyCustomerSurcharge       = "customer_surcharge"
+	PaymentFeePolicyLegacyCustomerSurcharge = "legacy_customer_surcharge"
+)
+
+// 支付异常标记常量，供后台审计迟到或重复成功的支付。
+const (
+	PaymentExceptionSupersededSucceeded  = "superseded_payment_succeeded"
+	PaymentExceptionDuplicateSucceeded   = "duplicate_payment_succeeded"
+	PaymentExceptionClosedOrderSucceeded = "closed_order_payment_succeeded"
+)
+
 // 支付提供方常量
 const (
 	PaymentProviderOfficial  = "official"
@@ -493,6 +508,10 @@ const (
 
 	SettingKeyWalletConfig        = "wallet_config"
 	SettingFieldWalletOnlyPayment = "wallet_only_payment"
+
+	SettingKeyPaymentConfig                = "payment_config"
+	SettingFieldCustomerFeeEnabled         = "customer_fee_enabled"
+	SettingFieldReuseLegacyOrderFeePayment = "reuse_legacy_order_fee_payment"
 
 	SettingKeyRegistrationConfig            = "registration_config"
 	SettingFieldRegistrationEnabled         = "registration_enabled"

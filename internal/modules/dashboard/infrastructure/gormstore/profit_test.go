@@ -7,6 +7,7 @@ import (
 	"time"
 
 	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
+	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
 
 	productdomain "github.com/dujiao-next/internal/modules/catalog/product/domain"
 
@@ -163,6 +164,86 @@ func TestGetProfitTrendsDeductsRefundRecords(t *testing.T) {
 	}
 	if math.Abs(rowMap[day2].Revenue-60) > 0.000001 || math.Abs(rowMap[day2].Cost-40) > 0.000001 || math.Abs(rowMap[day2].RefundedCost-16) > 0.000001 {
 		t.Fatalf("unexpected day2 row: %+v", rowMap[day2])
+	}
+}
+
+func TestProfitStatisticsDeductSuccessfulExternalPaymentFees(t *testing.T) {
+	repo, db := setupDashboardRepositoryTest(t)
+	base := time.Date(2026, 8, 11, 10, 0, 0, 0, time.UTC)
+
+	category := createDashboardCategory(t, db, "dashboard-profit-payment-fee-category")
+	product := &productdomain.Product{
+		CategoryID:      category.ID,
+		Slug:            "dashboard-profit-payment-fee-product",
+		TitleJSON:       jsonmap.JSON{"zh-CN": "手续费利润测试商品"},
+		PriceAmount:     money.FromDecimal(decimal.NewFromInt(100)),
+		PurchaseType:    constants.ProductPurchaseMember,
+		FulfillmentType: constants.FulfillmentTypeManual,
+		IsActive:        true,
+	}
+	if err := db.Create(product).Error; err != nil {
+		t.Fatalf("create product failed: %v", err)
+	}
+	order := createDashboardProfitOrderWithItem(t, db, product, "DJ-PROFIT-PAYMENT-FEE", constants.OrderStatusPaid, 100, 40, "手续费利润测试商品", base)
+
+	payments := []paymentdomain.Payment{
+		{
+			OrderID: order.ID, ProviderType: constants.PaymentProviderOfficial,
+			ChannelType: constants.PaymentChannelTypeAlipay, InteractionMode: constants.PaymentInteractionRedirect,
+			Amount: money.FromDecimal(decimal.NewFromInt(100)), FeeAmount: money.FromDecimal(decimal.RequireFromString("3.00")), FeePolicy: constants.PaymentFeePolicyMerchantAbsorbed,
+			Currency: "CNY", Status: constants.PaymentStatusSuccess, CreatedAt: base, UpdatedAt: base,
+		},
+		{
+			OrderID: order.ID, ProviderType: constants.PaymentProviderOfficial,
+			ChannelType: constants.PaymentChannelTypeWechat, InteractionMode: constants.PaymentInteractionQR,
+			Amount: money.FromDecimal(decimal.NewFromInt(100)), FeeAmount: money.FromDecimal(decimal.RequireFromString("9.00")), FeePolicy: constants.PaymentFeePolicyMerchantAbsorbed,
+			Currency: "CNY", Status: constants.PaymentStatusFailed, CreatedAt: base, UpdatedAt: base,
+		},
+		{
+			OrderID: 0, ProviderType: constants.PaymentProviderOfficial,
+			ChannelType: constants.PaymentChannelTypeAlipay, InteractionMode: constants.PaymentInteractionRedirect,
+			Amount: money.FromDecimal(decimal.NewFromInt(50)), FeeAmount: money.FromDecimal(decimal.RequireFromString("2.00")), FeePolicy: constants.PaymentFeePolicyMerchantAbsorbed,
+			Currency: "CNY", Status: constants.PaymentStatusSuccess, CreatedAt: base, UpdatedAt: base,
+		},
+		{
+			OrderID: order.ID, ProviderType: constants.PaymentProviderWallet,
+			ChannelType: constants.PaymentChannelTypeBalance, InteractionMode: constants.PaymentInteractionBalance,
+			Amount: money.FromDecimal(decimal.NewFromInt(100)), FeeAmount: money.FromDecimal(decimal.RequireFromString("99.00")), FeePolicy: constants.PaymentFeePolicyMerchantAbsorbed,
+			Currency: "CNY", Status: constants.PaymentStatusSuccess, CreatedAt: base, UpdatedAt: base,
+		},
+		{
+			OrderID: order.ID, ProviderType: constants.PaymentProviderOfficial,
+			ChannelType: constants.PaymentChannelTypeAlipay, InteractionMode: constants.PaymentInteractionRedirect,
+			Amount: money.FromDecimal(decimal.NewFromInt(103)), FeeAmount: money.FromDecimal(decimal.RequireFromString("11.00")), FeePolicy: constants.PaymentFeePolicyLegacyCustomerSurcharge,
+			Currency: "CNY", Status: constants.PaymentStatusSuccess, CreatedAt: base, UpdatedAt: base,
+		},
+		{
+			OrderID: order.ID, ProviderType: constants.PaymentProviderOfficial,
+			ChannelType: constants.PaymentChannelTypeAlipay, InteractionMode: constants.PaymentInteractionRedirect,
+			Amount: money.FromDecimal(decimal.NewFromInt(100)), FeeAmount: money.FromDecimal(decimal.RequireFromString("7.00")), FeePolicy: constants.PaymentFeePolicyMerchantAbsorbed,
+			Currency: "CNY", Status: constants.PaymentStatusSuccess, CreatedAt: base.Add(48 * time.Hour), UpdatedAt: base.Add(48 * time.Hour),
+		},
+	}
+	if err := db.Create(&payments).Error; err != nil {
+		t.Fatalf("create payments failed: %v", err)
+	}
+
+	startAt := base.Add(-time.Hour)
+	endAt := base.Add(24 * time.Hour)
+	overview, err := repo.GetProfitOverview(startAt, endAt)
+	if err != nil {
+		t.Fatalf("get profit overview failed: %v", err)
+	}
+	if math.Abs(overview.TotalRevenue-100) > 0.000001 || math.Abs(overview.TotalCost-40) > 0.000001 || math.Abs(overview.PaymentFee-5) > 0.000001 {
+		t.Fatalf("unexpected profit overview: %+v", overview)
+	}
+
+	rows, err := repo.GetProfitTrends(startAt, endAt)
+	if err != nil {
+		t.Fatalf("get profit trends failed: %v", err)
+	}
+	if len(rows) != 1 || math.Abs(rows[0].PaymentFee-5) > 0.000001 {
+		t.Fatalf("unexpected profit trends: %+v", rows)
 	}
 }
 
