@@ -61,6 +61,8 @@ var (
 	ErrPaymentGatewayResponseInvalid = errors.New("payment gateway response invalid")
 	ErrPaymentCurrencyMismatch       = errors.New("payment currency mismatch")
 	ErrWalletOnlyPaymentRequired     = errors.New("wallet only payment required")
+	ErrPaymentAmountTooSmall         = errors.New("payment amount too small")
+	ErrPaymentAmountTooLarge         = errors.New("payment amount too large")
 )
 
 type TelegramIdentityInput struct {

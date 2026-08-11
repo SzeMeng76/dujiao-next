@@ -227,6 +227,8 @@ func mapError(err error) error {
 		{paymentapp.ErrPaymentGatewayRequestFailed, channeltransport.ErrPaymentGatewayRequestFailed},
 		{paymentapp.ErrPaymentGatewayResponseInvalid, channeltransport.ErrPaymentGatewayResponseInvalid},
 		{paymentapp.ErrPaymentCurrencyMismatch, channeltransport.ErrPaymentCurrencyMismatch},
+		{paymentapp.ErrPaymentAmountTooSmall, channeltransport.ErrPaymentAmountTooSmall},
+		{paymentapp.ErrPaymentAmountTooLarge, channeltransport.ErrPaymentAmountTooLarge},
 		{walletcontract.ErrOnlyPaymentRequired, channeltransport.ErrWalletOnlyPaymentRequired},
 	} {
 		if errors.Is(err, mapping.source) {

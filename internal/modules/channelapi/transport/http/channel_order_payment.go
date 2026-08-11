@@ -108,13 +108,16 @@ func (h *Handler) GetPaymentChannels(c *gin.Context) {
 	}
 
 	type channelItem struct {
-		ID              uint   `json:"id"`
-		Name            string `json:"name"`
-		ProviderType    string `json:"provider_type"`
-		ChannelType     string `json:"channel_type"`
-		InteractionMode string `json:"interaction_mode"`
-		FeeRate         string `json:"fee_rate"`
-		FixedFee        string `json:"fixed_fee"`
+		ID                 uint   `json:"id"`
+		Name               string `json:"name"`
+		ProviderType       string `json:"provider_type"`
+		ChannelType        string `json:"channel_type"`
+		InteractionMode    string `json:"interaction_mode"`
+		FeeRate            string `json:"fee_rate"`
+		FixedFee           string `json:"fixed_fee"`
+		MinAmount          string `json:"min_amount"`
+		MaxAmount          string `json:"max_amount"`
+		HideAmountOutRange bool   `json:"hide_amount_out_range"`
 	}
 
 	items := make([]channelItem, 0, len(channels))
@@ -123,13 +126,16 @@ func (h *Handler) GetPaymentChannels(c *gin.Context) {
 			continue
 		}
 		items = append(items, channelItem{
-			ID:              ch.ID,
-			Name:            ch.Name,
-			ProviderType:    ch.ProviderType,
-			ChannelType:     ch.ChannelType,
-			InteractionMode: ch.InteractionMode,
-			FeeRate:         ch.FeeRate.StringFixed(2),
-			FixedFee:        ch.FixedFee.StringFixed(2),
+			ID:                 ch.ID,
+			Name:               ch.Name,
+			ProviderType:       ch.ProviderType,
+			ChannelType:        ch.ChannelType,
+			InteractionMode:    ch.InteractionMode,
+			FeeRate:            ch.FeeRate.StringFixed(2),
+			FixedFee:           ch.FixedFee.StringFixed(2),
+			MinAmount:          ch.MinAmount.StringFixed(2),
+			MaxAmount:          ch.MaxAmount.StringFixed(2),
+			HideAmountOutRange: ch.HideAmountOutRange,
 		})
 	}
 

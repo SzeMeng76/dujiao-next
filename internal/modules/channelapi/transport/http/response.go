@@ -83,6 +83,8 @@ var channelPaymentCreateErrorRules = []mappedChannelError{
 	channelErrorRule(ErrPaymentGatewayResponseInvalid, http.StatusBadRequest, response.CodeBadRequest, "payment_create_failed", "error.payment_gateway_response_invalid"),
 	channelErrorRule(ErrPaymentCurrencyMismatch, http.StatusBadRequest, response.CodeBadRequest, "payment_create_failed", "error.payment_currency_mismatch"),
 	channelErrorRule(ErrWalletOnlyPaymentRequired, http.StatusBadRequest, response.CodeBadRequest, "wallet_only_payment_required", "error.wallet_only_payment_required"),
+	channelErrorRule(ErrPaymentAmountTooSmall, http.StatusBadRequest, response.CodeBadRequest, "payment_amount_too_small", "error.payment_amount_too_small"),
+	channelErrorRule(ErrPaymentAmountTooLarge, http.StatusBadRequest, response.CodeBadRequest, "payment_amount_too_large", "error.payment_amount_too_large"),
 }
 
 func respondChannelSuccess(c *gin.Context, data interface{}) {
