@@ -18,6 +18,12 @@ type paymentFeeReader interface {
 	ListByOrderID(orderID uint) ([]paymentdomain.Payment, error)
 }
 
+type paymentFeeRefundSnapshot struct {
+	rootOrderID   uint
+	paymentAmount decimal.Decimal
+	paymentFee    decimal.Decimal
+}
+
 // UpdatePaymentFeeRefundedInput updates the accounting fact attached to an
 // existing manual refund record. It does not call a payment gateway.
 type UpdatePaymentFeeRefundedInput struct {
@@ -29,19 +35,39 @@ func (s *Service) UpdatePaymentFeeRefunded(input UpdatePaymentFeeRefundedInput) 
 	if input.RefundRecordID == 0 {
 		return nil, ErrOrderNotFound
 	}
-	var updated *orderdomain.OrderRefundRecord
-	err := s.orderStore.WithinTransaction(func(tx ordercontract.Transaction) error {
-		orders := tx.Orders()
-		initial, err := orders.GetRefundRecordByID(input.RefundRecordID)
+	if s == nil || s.orderStore == nil {
+		return nil, ErrOrderFetchFailed
+	}
+
+	initial, err := s.orderStore.GetRefundRecordByID(input.RefundRecordID)
+	if err != nil {
+		return nil, ErrOrderFetchFailed
+	}
+	if initial == nil {
+		return nil, ErrOrderNotFound
+	}
+	if initial.Type != constants.OrderRefundTypeManual {
+		return nil, ErrOrderStatusInvalid
+	}
+	initialOrder, err := s.orderStore.GetByID(initial.OrderID)
+	if err != nil {
+		return nil, ErrOrderFetchFailed
+	}
+	if initialOrder == nil {
+		return nil, ErrOrderNotFound
+	}
+
+	feeSnapshot := paymentFeeRefundSnapshot{rootOrderID: paymentFeeRefundRootOrderID(initialOrder)}
+	if input.PaymentFeeRefunded {
+		feeSnapshot, err = s.loadPaymentFeeRefundSnapshot(initialOrder)
 		if err != nil {
-			return ErrOrderFetchFailed
+			return nil, err
 		}
-		if initial == nil {
-			return ErrOrderNotFound
-		}
-		if initial.Type != constants.OrderRefundTypeManual {
-			return ErrOrderStatusInvalid
-		}
+	}
+
+	var updated *orderdomain.OrderRefundRecord
+	err = s.orderStore.WithinTransaction(func(tx ordercontract.Transaction) error {
+		orders := tx.Orders()
 		order, err := orders.GetByIDForUpdate(initial.OrderID)
 		if err != nil {
 			return ErrOrderFetchFailed
@@ -56,10 +82,16 @@ func (s *Service) UpdatePaymentFeeRefunded(input UpdatePaymentFeeRefundedInput) 
 		if record == nil || record.OrderID != order.ID {
 			return ErrOrderNotFound
 		}
+		if record.Type != constants.OrderRefundTypeManual {
+			return ErrOrderStatusInvalid
+		}
 
 		feeAmount := money.FromDecimal(decimal.Zero)
 		if input.PaymentFeeRefunded {
-			feeAmount, err = s.resolvePaymentFeeRefundAmount(orders, order, record.Amount.Decimal, record.ID)
+			if paymentFeeRefundRootOrderID(order) != feeSnapshot.rootOrderID {
+				return ErrOrderFetchFailed
+			}
+			feeAmount, err = resolvePaymentFeeRefundAmount(orders, feeSnapshot, record.Amount.Decimal, record.ID)
 			if err != nil {
 				return err
 			}
@@ -80,32 +112,42 @@ func (s *Service) UpdatePaymentFeeRefunded(input UpdatePaymentFeeRefundedInput) 
 	return updated, nil
 }
 
-func (s *Service) resolvePaymentFeeRefundAmount(
+func (s *Service) loadPaymentFeeRefundSnapshot(order *orderdomain.Order) (paymentFeeRefundSnapshot, error) {
+	if s == nil || s.payments == nil || order == nil {
+		return paymentFeeRefundSnapshot{}, ErrOrderUpdateFailed
+	}
+	rootOrderID := paymentFeeRefundRootOrderID(order)
+	if rootOrderID == 0 {
+		return paymentFeeRefundSnapshot{}, ErrOrderNotFound
+	}
+	payments, err := s.payments.ListByOrderID(rootOrderID)
+	if err != nil {
+		return paymentFeeRefundSnapshot{}, ErrOrderFetchFailed
+	}
+	paymentAmount, paymentFee := refundablePaymentFeeSnapshot(payments, order.Currency)
+	return paymentFeeRefundSnapshot{
+		rootOrderID:   rootOrderID,
+		paymentAmount: paymentAmount,
+		paymentFee:    paymentFee,
+	}, nil
+}
+
+func resolvePaymentFeeRefundAmount(
 	orders ordercontract.Store,
-	order *orderdomain.Order,
+	snapshot paymentFeeRefundSnapshot,
 	refundAmount decimal.Decimal,
 	excludeRefundRecordID uint,
 ) (money.Amount, error) {
 	zero := money.FromDecimal(decimal.Zero)
-	if s == nil || s.payments == nil || orders == nil || order == nil {
+	if orders == nil || snapshot.rootOrderID == 0 {
 		return zero, ErrOrderUpdateFailed
 	}
-
-	rootID := order.ID
-	if order.ParentID != nil && *order.ParentID > 0 {
-		rootID = *order.ParentID
-	}
-	payments, err := s.payments.ListByOrderID(rootID)
-	if err != nil {
-		return zero, ErrOrderFetchFailed
-	}
-	paymentAmount, paymentFee := refundablePaymentFeeSnapshot(payments, order.Currency)
-	if paymentAmount.LessThanOrEqual(decimal.Zero) || paymentFee.LessThanOrEqual(decimal.Zero) {
+	if snapshot.paymentAmount.LessThanOrEqual(decimal.Zero) || snapshot.paymentFee.LessThanOrEqual(decimal.Zero) {
 		return zero, nil
 	}
 
-	orderIDs := []uint{rootID}
-	children, err := orders.ListChildren(rootID)
+	orderIDs := []uint{snapshot.rootOrderID}
+	children, err := orders.ListChildren(snapshot.rootOrderID)
 	if err != nil {
 		return zero, ErrOrderFetchFailed
 	}
@@ -127,13 +169,23 @@ func (s *Service) resolvePaymentFeeRefundAmount(
 	}
 
 	amount := orderdomain.CalculatePaymentFeeRefundAmount(
-		paymentAmount,
-		paymentFee,
+		snapshot.paymentAmount,
+		snapshot.paymentFee,
 		refundedPrincipalBefore,
 		refundedFeeBefore,
 		refundAmount,
 	)
 	return money.FromDecimal(amount), nil
+}
+
+func paymentFeeRefundRootOrderID(order *orderdomain.Order) uint {
+	if order == nil {
+		return 0
+	}
+	if order.ParentID != nil && *order.ParentID > 0 {
+		return *order.ParentID
+	}
+	return order.ID
 }
 
 func refundablePaymentFeeSnapshot(payments []paymentdomain.Payment, currency string) (decimal.Decimal, decimal.Decimal) {

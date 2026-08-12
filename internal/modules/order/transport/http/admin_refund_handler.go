@@ -309,7 +309,7 @@ func (h *AdminRefundHandler) UpdateAdminOrderRefundPaymentFee(c *gin.Context) {
 		ginutil.RespondBindError(c, err)
 		return
 	}
-	record, err := h.writes.UpdatePaymentFeeRefunded(AdminUpdateRefundPaymentFeeInput{
+	_, err = h.writes.UpdatePaymentFeeRefunded(AdminUpdateRefundPaymentFeeInput{
 		RefundRecordID:     id,
 		PaymentFeeRefunded: *req.PaymentFeeRefunded,
 	})
@@ -324,7 +324,17 @@ func (h *AdminRefundHandler) UpdateAdminOrderRefundPaymentFee(c *gin.Context) {
 		}
 		return
 	}
-	response.Success(c, record)
+	item, err := h.refunds.GetAdminRefundItem(id)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrOrderNotFound):
+			ginutil.RespondError(c, response.CodeNotFound, "error.order_not_found", nil)
+		default:
+			ginutil.RespondError(c, response.CodeInternal, "error.order_fetch_failed", err)
+		}
+		return
+	}
+	response.Success(c, item)
 }
 
 // enqueueOrderRefundStatusEmail 异步发送退款后的订单状态邮件（优先父订单维度）。

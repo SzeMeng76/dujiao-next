@@ -413,4 +413,28 @@ func TestUpdateAdminOrderRefundPaymentFeeSupportsHistoricalManualRefund(t *testi
 	if !record.PaymentFeeRefunded || !record.PaymentFeeRefundedAmount.Decimal.Equal(decimal.RequireFromString("0.30")) {
 		t.Fatalf("unexpected updated payment fee refund: %+v", record)
 	}
+
+	var resp struct {
+		StatusCode int                    `json:"status_code"`
+		Data       map[string]interface{} `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal response failed: %v", err)
+	}
+	if resp.StatusCode != 0 {
+		t.Fatalf("status_code want 0 got %d", resp.StatusCode)
+	}
+	if resp.Data["order_no"] != "DJ-ADMIN-REFUND-ORDER-1" {
+		t.Fatalf("unexpected order_no: %+v", resp.Data["order_no"])
+	}
+	if resp.Data["refund_type_label"] != "manual" {
+		t.Fatalf("unexpected refund_type_label: %+v", resp.Data["refund_type_label"])
+	}
+	if resp.Data["user_email"] != "refund-member@example.com" {
+		t.Fatalf("unexpected user_email: %+v", resp.Data["user_email"])
+	}
+	items, ok := resp.Data["items"].([]interface{})
+	if !ok || len(items) == 0 {
+		t.Fatalf("items should not be empty: %+v", resp.Data["items"])
+	}
 }

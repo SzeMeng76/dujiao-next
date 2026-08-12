@@ -260,6 +260,9 @@ func (s *Service) AdminManualRefund(input AdminManualRefundInput) (*orderdomain.
 	}
 	recordRemark := strings.TrimSpace(input.Remark)
 	var createdRecord *orderdomain.OrderRefundRecord
+	if s == nil || s.orderStore == nil {
+		return nil, nil, ErrOrderFetchFailed
+	}
 
 	cfg := settingsapp.DefaultOrderRefundConfig()
 	if s.settingService != nil {
@@ -268,6 +271,20 @@ func (s *Service) AdminManualRefund(input AdminManualRefundInput) (*orderdomain.
 			return nil, nil, cfgErr
 		}
 		cfg = cfgLoaded
+	}
+	initialOrder, err := s.orderStore.GetByID(input.OrderID)
+	if err != nil {
+		return nil, nil, ErrOrderFetchFailed
+	}
+	if initialOrder == nil {
+		return nil, nil, ErrOrderNotFound
+	}
+	feeSnapshot := paymentFeeRefundSnapshot{rootOrderID: paymentFeeRefundRootOrderID(initialOrder)}
+	if input.PaymentFeeRefunded {
+		feeSnapshot, err = s.loadPaymentFeeRefundSnapshot(initialOrder)
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 
 	if err := s.orderStore.WithinTransaction(func(tx ordercontract.Transaction) error {
@@ -326,7 +343,10 @@ func (s *Service) AdminManualRefund(input AdminManualRefundInput) (*orderdomain.
 		}
 		feeRefundedAmount := money.FromDecimal(decimal.Zero)
 		if input.PaymentFeeRefunded {
-			feeRefundedAmount, err = s.resolvePaymentFeeRefundAmount(orders, &order, amount, 0)
+			if paymentFeeRefundRootOrderID(&order) != feeSnapshot.rootOrderID {
+				return ErrOrderFetchFailed
+			}
+			feeRefundedAmount, err = resolvePaymentFeeRefundAmount(orders, feeSnapshot, amount, 0)
 			if err != nil {
 				return err
 			}
