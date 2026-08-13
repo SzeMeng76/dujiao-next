@@ -205,14 +205,22 @@ const getCurrentLangName = () => {
 }
 
 const handleAutoTranslate = () => {
-  translateFields({
+  const fields: Record<string, LocalizedText> = {
     title: form.title,
     description: form.description,
     content: form.content,
     instructions: form.instructions,
     seoKeywords: form.seo_meta.keywords,
     seoDescription: form.seo_meta.description,
+  }
+  form.manual_form_schema.fields.forEach((field, index) => {
+    fields[`manual_form_label_${index}`] = field.label
+    fields[`manual_form_placeholder_${index}`] = field.placeholder
   })
+  form.skus.forEach((sku, index) => {
+    fields[`sku_spec_${index}`] = sku.spec_values
+  })
+  translateFields(fields)
 }
 
 const emptyI18nString = () => ({ 'zh-CN': '', 'zh-TW': '', 'en-US': '' })
