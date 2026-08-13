@@ -22,6 +22,7 @@ import SettingsOrderEmailTemplateTab from './components/SettingsOrderEmailTempla
 import SettingsNavigationTab from './components/SettingsNavigationTab.vue'
 import SettingsHomeAnnouncementTab from './components/SettingsHomeAnnouncementTab.vue'
 import SettingsUpstreamSyncTab from './components/SettingsUpstreamSyncTab.vue'
+import SettingsTranslationTab from './components/SettingsTranslationTab.vue'
 
 const { t } = useI18n()
 const loading = ref(false)
@@ -31,6 +32,7 @@ const orderEmailTemplateTabRef = ref<InstanceType<typeof SettingsOrderEmailTempl
 const navigationTabRef = ref<InstanceType<typeof SettingsNavigationTab>>()
 const homeAnnouncementTabRef = ref<InstanceType<typeof SettingsHomeAnnouncementTab>>()
 const upstreamSyncTabRef = ref<InstanceType<typeof SettingsUpstreamSyncTab>>()
+const translationTabRef = ref<InstanceType<typeof SettingsTranslationTab>>()
 const siteIconPickerRef = ref<InstanceType<typeof MediaPicker> | null>(null)
 const siteLogoPickerRef = ref<InstanceType<typeof MediaPicker> | null>(null)
 const supportedLanguages = ['zh-CN', 'zh-TW', 'en-US'] as const
@@ -82,6 +84,7 @@ const tabs = computed(() => [
   { label: t('admin.settings.tabs.captcha'), value: 'captcha' },
   { label: t('admin.settings.tabs.telegram'), value: 'telegram' },
   { label: t('admin.settings.tabs.google'), value: 'google' },
+  { label: t('admin.settings.tabs.translation'), value: 'translation' },
   { label: t('admin.settings.tabs.dashboard'), value: 'dashboard' },
   { label: t('admin.settings.tabs.upstreamSync'), value: 'upstream_sync' },
 ])
@@ -288,6 +291,14 @@ const googleForm = reactive({
   client_id: '',
 })
 
+const translationData = reactive({
+  enabled: false,
+  api_key: '',
+  has_api_key: false,
+  base_url: '',
+  model: '',
+})
+
 const createOrderEmailLocalizedTemplate = () => ({ subject: '', body: '' })
 const createOrderEmailSceneTemplate = () => ({
   'zh-CN': createOrderEmailLocalizedTemplate(),
@@ -371,7 +382,7 @@ const notifyErrorIfNeeded = (err: unknown, fallback: string) => {
 const fetchSettings = async () => {
   loading.value = true
   try {
-    const [siteRes, orderRes, smtpRes, captchaRes, telegramRes, googleRes, dashboardRes, registrationRes, orderEmailTmplRes] = await Promise.all([
+    const [siteRes, orderRes, smtpRes, captchaRes, telegramRes, googleRes, dashboardRes, registrationRes, orderEmailTmplRes, translationRes] = await Promise.all([
       adminAPI.getSettings({ key: 'site_config' }),
       adminAPI.getSettings({ key: 'order_config' }),
       adminAPI.getSMTPSettings(),
@@ -381,6 +392,7 @@ const fetchSettings = async () => {
       adminAPI.getSettings({ key: 'dashboard_config' }),
       adminAPI.getSettings({ key: 'registration_config' }),
       adminAPI.getOrderEmailTemplateSettings(),
+      adminAPI.getTranslationSettings(),
     ])
 
     if (siteRes.data && siteRes.data.data) {
@@ -536,6 +548,15 @@ const fetchSettings = async () => {
       const google = googleRes.data.data as Record<string, unknown>
       googleForm.enabled = !!google.enabled
       googleForm.client_id = String(google.client_id || '')
+    }
+
+    if (translationRes.data && translationRes.data.data) {
+      const translation = translationRes.data.data as Record<string, unknown>
+      translationData.enabled = !!translation.enabled
+      translationData.api_key = ''
+      translationData.has_api_key = !!translation.has_api_key
+      translationData.base_url = String(translation.base_url || '')
+      translationData.model = String(translation.model || '')
     }
 
     if (dashboardRes.data && dashboardRes.data.data) {
@@ -784,6 +805,10 @@ const saveSettings = async () => {
     await upstreamSyncTabRef.value?.save()
     return
   }
+  if (currentTab.value === 'translation') {
+    await translationTabRef.value?.save()
+    return
+  }
   loading.value = true
   try {
     if (currentTab.value === 'telegram') {
@@ -829,7 +854,7 @@ onMounted(() => {
             {{ lang.name }}
           </button>
         </div>
-        <Button size="sm" class="w-full sm:w-auto" :disabled="loading || smtpTabRef?.submitting || smtpTabRef?.smtpTesting || captchaTabRef?.submitting || orderEmailTemplateTabRef?.submitting || navigationTabRef?.submitting || homeAnnouncementTabRef?.submitting || upstreamSyncTabRef?.submitting" @click="saveSettings">
+        <Button size="sm" class="w-full sm:w-auto" :disabled="loading || smtpTabRef?.submitting || smtpTabRef?.smtpTesting || captchaTabRef?.submitting || orderEmailTemplateTabRef?.submitting || navigationTabRef?.submitting || homeAnnouncementTabRef?.submitting || upstreamSyncTabRef?.submitting || translationTabRef?.submitting" @click="saveSettings">
           <span v-if="loading" class="h-3 w-3 animate-spin rounded-full border-2 border-primary/30 border-t-primary"></span>
           {{ loading ? t('admin.settings.actions.saving') : t('admin.settings.actions.save') }}
         </Button>
@@ -1379,6 +1404,10 @@ onMounted(() => {
 
       <TabsContent value="smtp" :forceMount="true" v-show="currentTab === 'smtp'" class="mt-0">
         <SettingsSMTPTab ref="smtpTabRef" :data="smtpData" @saved="fetchSettings" />
+      </TabsContent>
+
+      <TabsContent value="translation" :forceMount="true" v-show="currentTab === 'translation'" class="mt-0">
+        <SettingsTranslationTab ref="translationTabRef" :data="translationData" @saved="fetchSettings" />
       </TabsContent>
 
       <TabsContent value="order_email_template" :forceMount="true" v-show="currentTab === 'order_email_template'" class="mt-0">

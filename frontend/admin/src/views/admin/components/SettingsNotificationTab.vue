@@ -11,8 +11,11 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { getLocalizedText } from '@/utils/format'
 import { notifyError, notifySuccess } from '@/utils/notify'
+import AutoTranslateButton from '@/components/admin/AutoTranslateButton.vue'
+import { useAutoTranslate } from '@/composables/useAutoTranslate'
 
 const { t } = useI18n()
+const { translating, translateFields } = useAutoTranslate()
 
 const supportedLanguages = ['zh-CN', 'zh-TW', 'en-US'] as const
 type SupportedLanguage = (typeof supportedLanguages)[number]
@@ -267,6 +270,32 @@ const removeIgnoredProduct = (productID: number) => {
 }
 
 void syncIgnoredProductsFromText()
+
+const templateScenes = ['wallet_recharge_success', 'order_paid_success', 'manual_fulfillment_pending', 'restock_success', 'exception_alert'] as const
+
+const handleAutoTranslate = async () => {
+  const fields: Record<string, Record<string, string>> = {}
+  templateScenes.forEach((scene) => {
+    fields[`${scene}_title`] = {
+      'zh-CN': form.templates[scene]['zh-CN'].title,
+      'zh-TW': form.templates[scene]['zh-TW'].title,
+      'en-US': form.templates[scene]['en-US'].title,
+    }
+    fields[`${scene}_body`] = {
+      'zh-CN': form.templates[scene]['zh-CN'].body,
+      'zh-TW': form.templates[scene]['zh-TW'].body,
+      'en-US': form.templates[scene]['en-US'].body,
+    }
+  })
+  const ok = await translateFields(fields)
+  if (!ok) return
+  templateScenes.forEach((scene) => {
+    form.templates[scene]['zh-TW'].title = fields[`${scene}_title`]!['zh-TW']!
+    form.templates[scene]['en-US'].title = fields[`${scene}_title`]!['en-US']!
+    form.templates[scene]['zh-TW'].body = fields[`${scene}_body`]!['zh-TW']!
+    form.templates[scene]['en-US'].body = fields[`${scene}_body`]!['en-US']!
+  })
+}
 
 watch(() => props.data, () => {
   syncFromProps()
@@ -575,7 +604,10 @@ defineExpose({ save, submitting })
         <div class="rounded-xl border border-border">
           <div class="flex flex-col gap-2 border-b border-border bg-muted/30 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <h3 class="text-sm font-semibold">{{ t('admin.settings.notification.templates.title') }}</h3>
-            <span class="w-fit rounded bg-muted px-2 py-1 text-xs text-muted-foreground">{{ currentLang }}</span>
+            <div class="flex items-center gap-2">
+              <span class="w-fit rounded bg-muted px-2 py-1 text-xs text-muted-foreground">{{ currentLang }}</span>
+              <AutoTranslateButton :loading="translating" @click="handleAutoTranslate" />
+            </div>
           </div>
           <div class="space-y-4 p-4">
             <div class="rounded-lg border border-border bg-muted/10 p-4">

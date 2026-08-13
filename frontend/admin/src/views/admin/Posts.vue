@@ -5,6 +5,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { adminAPI } from '@/api/admin'
 import type { AdminPost, AdminProduct, LocalizedText } from '@/api/types'
 import MediaPicker from '@/components/admin/MediaPicker.vue'
+import AutoTranslateButton from '@/components/admin/AutoTranslateButton.vue'
+import { useAutoTranslate } from '@/composables/useAutoTranslate'
 import RichEditor from '@/components/RichEditor.vue'
 import IdCell from '@/components/IdCell.vue'
 import { getImageUrl } from '@/utils/image'
@@ -38,6 +40,7 @@ interface CategoryItem {
 }
 
 const { t } = useI18n()
+const { translating, translateFields } = useAutoTranslate()
 const route = useRoute()
 const router = useRouter()
 const loading = ref(false)
@@ -154,6 +157,10 @@ const { errors, validate, clearErrors } = useFormValidation({
 
 const getCurrentLangName = () => {
   return languages.value.find((item) => item.code === currentLang.value)?.name || t('admin.common.lang.zhCN')
+}
+
+const handleAutoTranslate = () => {
+  translateFields({ title: form.title, summary: form.summary, content: form.content })
 }
 
 const fetchPosts = async () => {
@@ -469,17 +476,20 @@ watch(
         </DialogHeader>
         <form class="space-y-6" @submit.prevent="handleSubmit">
           <div class="border-b border-border">
-            <div class="flex gap-4 overflow-x-auto pb-1">
-              <button
-                v-for="lang in languages"
-                :key="lang.code"
-                type="button"
-                class="shrink-0 border-b-2 px-4 py-2 text-sm font-medium transition-colors"
-                :class="currentLang === lang.code ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'"
-                @click="currentLang = lang.code"
-              >
-                {{ lang.name }}
-              </button>
+            <div class="flex flex-wrap items-center justify-between gap-2 pb-1">
+              <div class="flex gap-4 overflow-x-auto">
+                <button
+                  v-for="lang in languages"
+                  :key="lang.code"
+                  type="button"
+                  class="shrink-0 border-b-2 px-4 py-2 text-sm font-medium transition-colors"
+                  :class="currentLang === lang.code ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'"
+                  @click="currentLang = lang.code"
+                >
+                  {{ lang.name }}
+                </button>
+              </div>
+              <AutoTranslateButton :loading="translating" @click="handleAutoTranslate" />
             </div>
           </div>
 

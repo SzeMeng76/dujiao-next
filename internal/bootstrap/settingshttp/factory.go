@@ -3,6 +3,7 @@ package settingsbootstrap
 import (
 	"github.com/dujiao-next/internal/app/container"
 	"github.com/dujiao-next/internal/config"
+	openaitranslate "github.com/dujiao-next/internal/modules/settings/infrastructure/openai"
 	settingstransport "github.com/dujiao-next/internal/modules/settings/transport/http"
 )
 
@@ -27,5 +28,11 @@ func NewTelegramAuthHandler(c *container.Container, cfg *config.Config) *setting
 func NewGoogleAuthHandler(c *container.Container, cfg *config.Config) *settingstransport.GoogleAuthHandler {
 	return settingstransport.NewGoogleAuthHandler(settingsGoogleAuthAdapter{
 		settings: c.SettingService, cfg: cfg, googleAuth: c.GoogleAuthService,
+	})
+}
+
+func NewTranslationHandler(c *container.Container) *settingstransport.TranslationHandler {
+	return settingstransport.NewTranslationHandler(settingsTranslationAdapter{
+		settings: c.SettingService, client: openaitranslate.New(),
 	})
 }

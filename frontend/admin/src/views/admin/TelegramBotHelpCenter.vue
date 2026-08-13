@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { ArrowDown, ArrowUp, Loader2, Plus, Save, Trash2 } from 'lucide-vue-next'
+import AutoTranslateButton from '@/components/admin/AutoTranslateButton.vue'
 
 const { t } = useI18n()
 const {
@@ -22,7 +23,24 @@ const {
   removeHelpItem,
   saveConfig,
   saving,
+  translating,
+  translateFields,
 } = useTelegramBotSettings()
+
+const handleAutoTranslate = () => {
+  const fields: Record<string, Record<string, string>> = {
+    title: form.value.help.title,
+    intro: form.value.help.intro,
+    center_hint: form.value.help.center_hint,
+    support_hint: form.value.help.support_hint,
+  }
+  form.value.help.items.forEach((item, index) => {
+    fields[`help_item_summary_${index}`] = item.summary
+    fields[`help_item_title_${index}`] = item.title
+    fields[`help_item_content_${index}`] = item.content
+  })
+  translateFields(fields)
+}
 
 onMounted(() => {
   fetchConfig()
@@ -65,6 +83,7 @@ onMounted(() => {
           </div>
           <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
             <span class="rounded bg-muted px-2 py-1 text-xs text-muted-foreground">{{ currentLang }}</span>
+            <AutoTranslateButton :loading="translating" @click="handleAutoTranslate" />
             <Button type="button" size="sm" variant="outline" class="w-full sm:w-auto" @click="addHelpItem">
               <Plus class="mr-1 h-4 w-4" />
               {{ t('telegramBot.settings.helpAdd') }}

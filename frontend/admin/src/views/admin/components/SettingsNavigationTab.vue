@@ -6,9 +6,12 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import AutoTranslateButton from '@/components/admin/AutoTranslateButton.vue'
+import { useAutoTranslate } from '@/composables/useAutoTranslate'
 import { notifyError, notifySuccess } from '@/utils/notify'
 
 const { t } = useI18n()
+const { translating, translateFields } = useAutoTranslate()
 
 const MAX_CUSTOM_ITEMS = 10
 const supportedLanguages = ['zh-CN', 'zh-TW', 'en-US'] as const
@@ -81,6 +84,14 @@ const addItem = () => {
 
 const removeItem = (index: number) => {
   form.customItems.splice(index, 1)
+}
+
+const handleAutoTranslate = () => {
+  const fields: Record<string, Record<string, string>> = {}
+  form.customItems.forEach((item, index) => {
+    fields[`nav_item_${index}`] = item.title
+  })
+  translateFields(fields)
 }
 
 const fetchNavConfig = async () => {
@@ -195,6 +206,10 @@ defineExpose({ save, submitting })
             {{ form.customItems.length >= MAX_CUSTOM_ITEMS ? t('admin.settings.navigation.custom.maxReached') : t('admin.settings.navigation.custom.add') }}
           </button>
         </div>
+      </div>
+
+      <div v-if="form.customItems.length > 0" class="flex justify-end px-6 pt-4">
+        <AutoTranslateButton :loading="translating" @click="handleAutoTranslate" />
       </div>
 
       <div v-if="form.customItems.length === 0" class="px-6 py-8 text-center text-sm text-muted-foreground">

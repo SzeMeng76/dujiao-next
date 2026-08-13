@@ -14,6 +14,8 @@ import IdCell from '@/components/IdCell.vue'
 import MediaPicker from '@/components/admin/MediaPicker.vue'
 import RichEditor from '@/components/RichEditor.vue'
 import ResellerLocaleSwitch from '@/components/admin/ResellerLocaleSwitch.vue'
+import AutoTranslateButton from '@/components/admin/AutoTranslateButton.vue'
+import { useAutoTranslate } from '@/composables/useAutoTranslate'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -72,6 +74,7 @@ type ResellerSiteConfigForm = {
 }
 
 const { t, locale } = useI18n()
+const { translating, translateFields } = useAutoTranslate()
 const route = useRoute()
 const loading = ref(true)
 const { refreshing, refreshList } = useListRefresh()
@@ -302,6 +305,22 @@ const removeFooterLink = (index: number) => {
   form.footer_links.splice(index, 1)
 }
 
+const handleAnnouncementAutoTranslate = () => {
+  translateFields({ title: form.announcement.title, content: form.announcement.content })
+}
+
+const handleSeoAutoTranslate = () => {
+  translateFields({ title: form.seo.title, keywords: form.seo.keywords, description: form.seo.description })
+}
+
+const handleFooterLinksAutoTranslate = () => {
+  const fields: Record<string, Record<string, string>> = {}
+  form.footer_links.forEach((link, index) => {
+    fields[`footer_link_${index}`] = link.name
+  })
+  translateFields(fields)
+}
+
 const saveConfig = async () => {
   if (!selectedRow.value) return
   saving.value = true
@@ -502,7 +521,10 @@ onMounted(() => {
             </div>
             <div class="flex items-center justify-between gap-3">
               <Label>{{ t('admin.resellerSiteConfigs.editor.language') }}</Label>
-              <ResellerLocaleSwitch v-model="activeLocale" :labels="localeLabels" />
+              <div class="flex items-center gap-2">
+                <AutoTranslateButton :loading="translating" @click="handleAnnouncementAutoTranslate" />
+                <ResellerLocaleSwitch v-model="activeLocale" :labels="localeLabels" />
+              </div>
             </div>
             <div class="grid gap-2">
               <Label>{{ t('admin.resellerSiteConfigs.fields.announcementTitle') }}</Label>
@@ -538,7 +560,10 @@ onMounted(() => {
           <TabsContent value="seo" class="mt-4 space-y-4">
             <div class="flex items-center justify-between gap-3">
               <Label>{{ t('admin.resellerSiteConfigs.editor.language') }}</Label>
-              <ResellerLocaleSwitch v-model="activeLocale" :labels="localeLabels" />
+              <div class="flex items-center gap-2">
+                <AutoTranslateButton :loading="translating" @click="handleSeoAutoTranslate" />
+                <ResellerLocaleSwitch v-model="activeLocale" :labels="localeLabels" />
+              </div>
             </div>
             <div class="grid gap-2">
               <Label>{{ t('admin.resellerSiteConfigs.fields.seoTitle') }}</Label>
@@ -561,7 +586,10 @@ onMounted(() => {
           <!-- 页脚链接 -->
           <TabsContent value="footer" class="mt-4 space-y-4">
             <div class="flex flex-wrap items-center justify-between gap-3">
-              <ResellerLocaleSwitch v-model="activeLocale" :labels="localeLabels" />
+              <div class="flex items-center gap-2">
+                <ResellerLocaleSwitch v-model="activeLocale" :labels="localeLabels" />
+                <AutoTranslateButton :loading="translating" :disabled="form.footer_links.length === 0" @click="handleFooterLinksAutoTranslate" />
+              </div>
               <Button type="button" size="sm" variant="outline" @click="addFooterLink">
                 {{ t('admin.resellerSiteConfigs.actions.addLink') }}
               </Button>

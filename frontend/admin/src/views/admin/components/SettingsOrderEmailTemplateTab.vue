@@ -8,8 +8,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { notifyError, notifySuccess } from '@/utils/notify'
 import { orderEmailSceneKeys } from '@/utils/orderEmailTemplates'
+import AutoTranslateButton from '@/components/admin/AutoTranslateButton.vue'
+import { useAutoTranslate } from '@/composables/useAutoTranslate'
 
 const { t } = useI18n()
+const { translating, translateFields } = useAutoTranslate()
 
 const supportedLanguages = ['zh-CN', 'zh-TW', 'en-US'] as const
 type SupportedLanguage = (typeof supportedLanguages)[number]
@@ -85,6 +88,23 @@ const syncFromProps = () => {
 syncFromProps()
 
 watch(() => props.data, syncFromProps, { deep: true })
+
+const handleAutoTranslate = async () => {
+  const scene = form.templates[currentScene.value]
+  const fields: Record<string, Record<string, string>> = {
+    subject: { 'zh-CN': scene['zh-CN'].subject, 'zh-TW': scene['zh-TW'].subject, 'en-US': scene['en-US'].subject },
+    body: { 'zh-CN': scene['zh-CN'].body, 'zh-TW': scene['zh-TW'].body, 'en-US': scene['en-US'].body },
+    guest_tip: { ...form.guest_tip },
+  }
+  const ok = await translateFields(fields)
+  if (!ok) return
+  scene['zh-TW'].subject = fields.subject!['zh-TW']!
+  scene['en-US'].subject = fields.subject!['en-US']!
+  scene['zh-TW'].body = fields.body!['zh-TW']!
+  scene['en-US'].body = fields.body!['en-US']!
+  form.guest_tip['zh-TW'] = fields.guest_tip!['zh-TW']!
+  form.guest_tip['en-US'] = fields.guest_tip!['en-US']!
+}
 
 const templateVariables = [
   { key: 'order_no', label: () => t('admin.settings.orderEmailTemplate.variableList.order_no') },
@@ -192,6 +212,9 @@ defineExpose({ save, submitting })
 
         <!-- 当前场景模板编辑 -->
         <div class="space-y-4 rounded-lg border border-border p-4">
+          <div class="flex justify-end">
+            <AutoTranslateButton :loading="translating" @click="handleAutoTranslate" />
+          </div>
           <div class="space-y-2">
             <label class="text-xs font-medium text-muted-foreground">{{ t('admin.settings.orderEmailTemplate.subject') }}</label>
             <Input v-model="form.templates[currentScene][currentLang].subject" />

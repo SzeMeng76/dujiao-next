@@ -39,6 +39,12 @@ func RegisterAdminOrderEmailTemplateRoutes(admin gin.IRoutes, handler *OrderEmai
 	admin.POST("/settings/order-email-template/reset", handler.ResetOrderEmailTemplate)
 }
 
+func RegisterAdminTranslationRoutes(admin gin.IRoutes, handler *TranslationHandler) {
+	admin.GET("/settings/translation", handler.GetTranslation)
+	admin.PUT("/settings/translation", handler.UpdateTranslation)
+	admin.POST("/settings/translation/translate", handler.Translate)
+}
+
 func RegisterAdminTelegramBotRoutes(admin gin.IRoutes, handler *TelegramBotHandler) {
 	admin.GET("/settings/telegram-bot", handler.GetTelegramBotConfig)
 	admin.PUT("/settings/telegram-bot", handler.UpdateTelegramBotConfig)

@@ -483,6 +483,7 @@ const (
 	SettingKeyTelegramBotConfig        = "telegram_bot_config"
 	SettingKeyTelegramBotRuntimeStatus = "telegram_bot_runtime_status"
 	SettingKeyOrderEmailTemplateConfig = "order_email_template_config"
+	SettingKeyTranslationConfig        = "translation_config"
 	SettingFieldSiteCurrency           = "currency"
 	SettingFieldStorefrontTemplate     = "storefront_template"
 	SettingFieldPaymentExpireMinutes   = "payment_expire_minutes"

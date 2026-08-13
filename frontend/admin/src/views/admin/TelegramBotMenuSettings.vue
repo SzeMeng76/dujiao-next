@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { ArrowDown, ArrowUp, Loader2, Plus, Save, Trash2 } from 'lucide-vue-next'
+import AutoTranslateButton from '@/components/admin/AutoTranslateButton.vue'
 
 const { t } = useI18n()
 const {
@@ -25,7 +26,17 @@ const {
   removeMenuItem,
   saveConfig,
   saving,
+  translating,
+  translateFields,
 } = useTelegramBotSettings()
+
+const handleAutoTranslate = () => {
+  const fields: Record<string, Record<string, string>> = {}
+  form.value.menu.items.forEach((item, index) => {
+    fields[`menu_item_${index}`] = item.label
+  })
+  translateFields(fields)
+}
 
 onMounted(() => {
   fetchConfig()
@@ -70,6 +81,7 @@ onMounted(() => {
           </div>
           <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
             <span class="w-fit rounded bg-muted px-2 py-1 text-xs text-muted-foreground">{{ currentLang }}</span>
+            <AutoTranslateButton :loading="translating" :disabled="form.menu.items.length === 0" @click="handleAutoTranslate" />
             <Button class="w-full sm:w-auto" type="button" size="sm" variant="outline" @click="addMenuItem">
               <Plus class="mr-1 h-4 w-4" />
               {{ t('telegramBot.settings.menuAdd') }}

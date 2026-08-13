@@ -116,6 +116,7 @@ func registerAdminRoutes(
 	settingstransport.RegisterAdminCaptchaRoutes(authorized, settingsbootstrap.NewCaptchaHandler(c, cfg))
 	settingstransport.RegisterAdminTelegramAuthRoutes(authorized, settingsbootstrap.NewTelegramAuthHandler(c, cfg))
 	settingstransport.RegisterAdminGoogleAuthRoutes(authorized, settingsbootstrap.NewGoogleAuthHandler(c, cfg))
+	settingstransport.RegisterAdminTranslationRoutes(authorized, settingsbootstrap.NewTranslationHandler(c))
 	notificationtransport.RegisterAdminRoutes(authorized, adminNotificationHandler)
 	settingstransport.RegisterAdminOrderEmailTemplateRoutes(authorized, settingstransport.NewOrderEmailTemplateHandler(c.SettingService))
 	settingstransport.RegisterAdminAffiliateRoutes(authorized, settingstransport.NewAffiliateHandler(c.SettingService))

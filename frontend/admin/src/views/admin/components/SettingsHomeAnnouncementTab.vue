@@ -3,6 +3,8 @@ import { onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
 import RichEditor from '@/components/RichEditor.vue'
+import AutoTranslateButton from '@/components/admin/AutoTranslateButton.vue'
+import { useAutoTranslate } from '@/composables/useAutoTranslate'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -10,6 +12,7 @@ import { Switch } from '@/components/ui/switch'
 import { notifyError, notifySuccess } from '@/utils/notify'
 
 const { t } = useI18n()
+const { translating, translateFields } = useAutoTranslate()
 
 const supportedLanguages = ['zh-CN', 'zh-TW', 'en-US'] as const
 type SupportedLanguage = (typeof supportedLanguages)[number]
@@ -116,6 +119,10 @@ onMounted(() => {
   fetchAnnouncement()
 })
 
+const handleAutoTranslate = () => {
+  translateFields({ title: form.title, content: form.content })
+}
+
 defineExpose({ save, submitting })
 </script>
 
@@ -123,8 +130,13 @@ defineExpose({ save, submitting })
   <div v-if="loaded" class="space-y-6">
     <div class="rounded-xl border border-border bg-card">
       <div class="border-b border-border bg-muted/40 px-6 py-4">
-        <h2 class="text-lg font-semibold">{{ t('admin.settings.homeAnnouncement.title') }}</h2>
-        <p class="mt-1 text-xs text-muted-foreground">{{ t('admin.settings.homeAnnouncement.subtitle') }}</p>
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 class="text-lg font-semibold">{{ t('admin.settings.homeAnnouncement.title') }}</h2>
+            <p class="mt-1 text-xs text-muted-foreground">{{ t('admin.settings.homeAnnouncement.subtitle') }}</p>
+          </div>
+          <AutoTranslateButton :loading="translating" @click="handleAutoTranslate" />
+        </div>
       </div>
       <div class="space-y-5 px-6 py-5">
         <!-- 启用开关 -->

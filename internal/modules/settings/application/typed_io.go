@@ -295,6 +295,38 @@ func (s *Service) ResetOrderEmailTemplateSetting() (settingsmessaging.OrderEmail
 	return defaultSetting, nil
 }
 
+// GetTranslationSetting 获取 AI 翻译设置（优先 settings，空时回退默认）。
+func (s *Service) GetTranslationSetting() (settingsintegration.TranslationSetting, error) {
+	fallback := settingsintegration.DefaultTranslationSetting()
+	if s == nil {
+		return fallback, nil
+	}
+	value, err := s.GetByKey(constants.SettingKeyTranslationConfig)
+	if err != nil {
+		return fallback, err
+	}
+	if value == nil {
+		return fallback, nil
+	}
+	return settingsintegration.DecodeTranslationSetting(value, fallback), nil
+}
+
+// PatchTranslationSetting 基于补丁更新 AI 翻译设置。api_key 为空时保留原值。
+func (s *Service) PatchTranslationSetting(patch settingsintegration.TranslationSetting) (settingsintegration.TranslationSetting, error) {
+	current, err := s.GetTranslationSetting()
+	if err != nil {
+		return settingsintegration.TranslationSetting{}, err
+	}
+	next, err := settingsintegration.ApplyTranslationSettingPatch(current, patch)
+	if err != nil {
+		return settingsintegration.TranslationSetting{}, err
+	}
+	if _, err := s.Update(constants.SettingKeyTranslationConfig, map[string]interface{}(settingsintegration.EncodeTranslationSetting(next))); err != nil {
+		return settingsintegration.TranslationSetting{}, err
+	}
+	return next, nil
+}
+
 // GetTelegramBotConfig 获取 Telegram Bot 配置。
 func (s *Service) GetTelegramBotConfig() (settingsmessaging.TelegramBotConfigSetting, error) {
 	fallback := settingsmessaging.DefaultTelegramBotConfig()

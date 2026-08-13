@@ -10,6 +10,7 @@ import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import MediaPicker from '@/components/admin/MediaPicker.vue'
+import AutoTranslateButton from '@/components/admin/AutoTranslateButton.vue'
 import { Loader2, Save } from 'lucide-vue-next'
 
 const { t } = useI18n()
@@ -21,7 +22,13 @@ const {
   loading,
   saveConfig,
   saving,
+  translating,
+  translateFields,
 } = useTelegramBotSettings()
+
+const handleAutoTranslate = () => {
+  translateFields({ description: form.value.basic.description, welcome_message: form.value.welcome.message })
+}
 
 onMounted(() => {
   fetchConfig()
@@ -47,6 +54,7 @@ onMounted(() => {
             {{ lang.name }}
           </button>
         </div>
+        <AutoTranslateButton :loading="translating" @click="handleAutoTranslate" />
         <Button class="w-full sm:w-auto" :disabled="saving || loading" @click="saveConfig">
           <Loader2 v-if="saving" class="mr-2 h-4 w-4 animate-spin" />
           <Save v-else class="mr-2 h-4 w-4" />

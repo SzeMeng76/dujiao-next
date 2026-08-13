@@ -15,6 +15,13 @@ const messages = {
         requestFailedStatus: '请求失败 (状态码: {status})',
         networkError: '网络连接失败',
       },
+      translate: {
+        button: 'AI 翻译',
+        translating: '翻译中...',
+        success: '翻译完成，请检查并按需调整',
+        failed: '翻译失败',
+        noContent: '请先填写中文内容',
+      },
     },
     order: {
       status: {
@@ -2719,6 +2726,7 @@ const messages = {
           captcha: '验证码配置 (Captcha)',
           telegram: 'Telegram设置',
           google: 'Google登录',
+          translation: 'AI 翻译 (Translation)',
           notification: '通知中心 (Notification)',
           orderEmailTemplate: '订单邮件模板 (Order Email)',
           dashboard: '仪表盘 (Dashboard)',
@@ -3109,6 +3117,21 @@ const messages = {
           testEmailRequired: '请先输入测试收件邮箱',
           testSuccess: '测试邮件发送成功',
           testFailed: '测试邮件发送失败',
+        },
+
+        translation: {
+          title: 'AI 翻译配置',
+          subtitle: '配置 OpenAI（或兼容接口）后，各内容管理页可一键将中文内容翻译为繁体中文与英文',
+          enabled: '启用 AI 翻译',
+          apiKey: 'API Key',
+          apiKeyPlaceholder: '留空表示保持不变',
+          apiKeyHintKeep: '当前已配置 API Key，留空将保持不变',
+          apiKeyHintEmpty: '当前尚未配置 API Key',
+          baseUrl: 'Base URL',
+          baseUrlPlaceholder: '默认 https://api.openai.com，可填第三方中转/代理地址',
+          model: '模型名称',
+          modelPlaceholder: '如 gpt-5-mini，可填任意兼容模型名',
+          modelHint: '按你使用的服务商自行填写模型名称，不做限制',
         },
 
         captcha: {
@@ -4472,6 +4495,13 @@ const messages = {
         serviceUnavailable: '服務不可用',
         requestFailedStatus: '請求失敗 (狀態碼: {status})',
         networkError: '網路連線失敗',
+      },
+      translate: {
+        button: 'AI 翻譯',
+        translating: '翻譯中...',
+        success: '翻譯完成，請檢查並按需調整',
+        failed: '翻譯失敗',
+        noContent: '請先填寫中文內容',
       },
     },
     order: {
@@ -7177,6 +7207,7 @@ const messages = {
           captcha: '驗證碼配置 (Captcha)',
           telegram: 'Telegram設定',
           google: 'Google登入',
+          translation: 'AI 翻譯 (Translation)',
           notification: '通知中心 (Notification)',
           orderEmailTemplate: '訂單郵件模板 (Order Email)',
           dashboard: '儀表板 (Dashboard)',
@@ -7568,6 +7599,21 @@ const messages = {
           testEmailRequired: '請先輸入測試收件郵箱',
           testSuccess: '測試郵件發送成功',
           testFailed: '測試郵件發送失敗',
+        },
+
+        translation: {
+          title: 'AI 翻譯配置',
+          subtitle: '配置 OpenAI（或相容介面）後，各內容管理頁可一鍵將中文內容翻譯為繁體中文與英文',
+          enabled: '啟用 AI 翻譯',
+          apiKey: 'API Key',
+          apiKeyPlaceholder: '留空表示保持不變',
+          apiKeyHintKeep: '目前已配置 API Key，留空將保持不變',
+          apiKeyHintEmpty: '目前尚未配置 API Key',
+          baseUrl: 'Base URL',
+          baseUrlPlaceholder: '預設 https://api.openai.com，可填第三方中轉/代理位址',
+          model: '模型名稱',
+          modelPlaceholder: '例如 gpt-5-mini，可填任意相容模型名稱',
+          modelHint: '依你使用的服務商自行填寫模型名稱，不做限制',
         },
 
         captcha: {
@@ -8931,6 +8977,13 @@ const messages = {
         serviceUnavailable: 'Service unavailable',
         requestFailedStatus: 'Request failed (status: {status})',
         networkError: 'Network error',
+      },
+      translate: {
+        button: 'AI Translate',
+        translating: 'Translating...',
+        success: 'Translation complete, please review and adjust as needed',
+        failed: 'Translation failed',
+        noContent: 'Please fill in the Chinese content first',
       },
     },
     order: {
@@ -11636,6 +11689,7 @@ const messages = {
           captcha: 'Captcha',
           telegram: 'Telegram Settings',
           google: 'Google Login',
+          translation: 'AI Translation',
           notification: 'Notification',
           orderEmailTemplate: 'Order Email Template',
           dashboard: 'Dashboard',
@@ -12027,6 +12081,21 @@ const messages = {
           testEmailRequired: 'Please enter recipient email first',
           testSuccess: 'Test email sent successfully',
           testFailed: 'Failed to send test email',
+        },
+
+        translation: {
+          title: 'AI Translation Configuration',
+          subtitle: 'Once OpenAI (or a compatible API) is configured, content pages can auto-translate Chinese text into zh-TW and en-US with one click',
+          enabled: 'Enable AI translation',
+          apiKey: 'API Key',
+          apiKeyPlaceholder: 'Leave blank to keep current key',
+          apiKeyHintKeep: 'An API key is already configured. Leave blank to keep it.',
+          apiKeyHintEmpty: 'No API key configured yet.',
+          baseUrl: 'Base URL',
+          baseUrlPlaceholder: 'Defaults to https://api.openai.com; you may enter a third-party relay/proxy URL',
+          model: 'Model',
+          modelPlaceholder: 'e.g. gpt-5-mini, any compatible model name',
+          modelHint: 'Enter the model name for your provider; no restrictions are enforced',
         },
 
         captcha: {

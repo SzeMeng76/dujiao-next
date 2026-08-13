@@ -16,12 +16,15 @@ import TableSkeleton from '@/components/TableSkeleton.vue'
 import ListPagination from '@/components/ListPagination.vue'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import MediaPicker from '@/components/admin/MediaPicker.vue'
+import AutoTranslateButton from '@/components/admin/AutoTranslateButton.vue'
+import { useAutoTranslate } from '@/composables/useAutoTranslate'
 import { getImageUrl } from '@/utils/image'
 import { notifyError } from '@/utils/notify'
 import { confirmAction } from '@/utils/confirm'
 import { useFormValidation, rules } from '@/composables/useFormValidation'
 
 const { t } = useI18n()
+const { translating, translateFields } = useAutoTranslate()
 const route = useRoute()
 const loading = ref(false)
 const submitting = ref(false)
@@ -94,6 +97,10 @@ const getLocalizedText = (jsonData: LocalizedText | null | undefined) => {
 
 const getCurrentLangName = () => {
   return languages.value.find((item) => item.code === currentLang.value)?.name || t('admin.common.lang.zhCN')
+}
+
+const handleAutoTranslate = () => {
+  translateFields({ title: form.title, subtitle: form.subtitle })
 }
 
 const getPositionLabel = (value: string) => {
@@ -409,17 +416,20 @@ watch(
 
         <form class="space-y-6" @submit.prevent="handleSubmit">
           <div class="border-b border-border">
-            <div class="flex gap-4 overflow-x-auto pb-1">
-              <button
-                v-for="lang in languages"
-                :key="lang.code"
-                type="button"
-                class="shrink-0 border-b-2 px-4 py-2 text-sm font-medium"
-                :class="currentLang === lang.code ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'"
-                @click="currentLang = lang.code"
-              >
-                {{ lang.name }}
-              </button>
+            <div class="flex flex-wrap items-center justify-between gap-2 pb-1">
+              <div class="flex gap-4 overflow-x-auto">
+                <button
+                  v-for="lang in languages"
+                  :key="lang.code"
+                  type="button"
+                  class="shrink-0 border-b-2 px-4 py-2 text-sm font-medium"
+                  :class="currentLang === lang.code ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'"
+                  @click="currentLang = lang.code"
+                >
+                  {{ lang.name }}
+                </button>
+              </div>
+              <AutoTranslateButton :loading="translating" @click="handleAutoTranslate" />
             </div>
           </div>
 

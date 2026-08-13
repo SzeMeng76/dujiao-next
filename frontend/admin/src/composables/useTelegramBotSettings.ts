@@ -2,6 +2,7 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
 import { notifyError, notifySuccess } from '@/utils/notify'
+import { useAutoTranslate } from '@/composables/useAutoTranslate'
 
 const supportedLanguages = ['zh-CN', 'zh-TW', 'en-US'] as const
 type SupportedLanguage = (typeof supportedLanguages)[number]
@@ -163,6 +164,7 @@ const parseHelpItem = (raw: unknown): HelpItem => {
 
 export function useTelegramBotSettings() {
   const { t } = useI18n()
+  const { translating, translateFields } = useAutoTranslate()
 
   const currentLang = ref<SupportedLanguage>('zh-CN')
   const loading = ref(false)
@@ -325,5 +327,7 @@ export function useTelegramBotSettings() {
     saveConfig,
     saving,
     uploadingCover,
+    translating,
+    translateFields,
   }
 }
