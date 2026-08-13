@@ -23,8 +23,11 @@ import SettingsNavigationTab from './components/SettingsNavigationTab.vue'
 import SettingsHomeAnnouncementTab from './components/SettingsHomeAnnouncementTab.vue'
 import SettingsUpstreamSyncTab from './components/SettingsUpstreamSyncTab.vue'
 import SettingsTranslationTab from './components/SettingsTranslationTab.vue'
+import AutoTranslateButton from '@/components/admin/AutoTranslateButton.vue'
+import { useAutoTranslate } from '@/composables/useAutoTranslate'
 
 const { t } = useI18n()
+const { translating, translateFields } = useAutoTranslate()
 const loading = ref(false)
 const smtpTabRef = ref<InstanceType<typeof SettingsSMTPTab>>()
 const captchaTabRef = ref<InstanceType<typeof SettingsCaptchaTab>>()
@@ -711,6 +714,33 @@ const removeFooterLinkItem = (index: number) => {
   form.footer_links.splice(index, 1)
 }
 
+const handleBrandAutoTranslate = () => {
+  translateFields({ siteDescription: form.brand.site_description })
+}
+
+const handleSeoAutoTranslate = () => {
+  translateFields({ title: form.seo.title, keywords: form.seo.keywords, description: form.seo.description })
+}
+
+const handleAboutAutoTranslate = () => {
+  const fields: Record<string, Record<SupportedLanguage, string>> = {
+    heroTitle: form.about.hero.title,
+    heroSubtitle: form.about.hero.subtitle,
+    introduction: form.about.introduction,
+    servicesTitle: form.about.services.title,
+    contactTitle: form.about.contact.title,
+    contactText: form.about.contact.text,
+  }
+  form.about.services.items.forEach((item, index) => {
+    fields[`serviceItem_${index}`] = item
+  })
+  translateFields(fields)
+}
+
+const handleLegalAutoTranslate = () => {
+  translateFields({ terms: form.legal.terms, privacy: form.legal.privacy })
+}
+
 
 const saveTelegramAuthSettings = async () => {
   const payload: Record<string, unknown> = {
@@ -1012,7 +1042,10 @@ onMounted(() => {
           <div class="space-y-2 md:col-span-2">
             <div class="flex items-center justify-between">
               <label class="text-xs font-medium text-muted-foreground">{{ t('admin.settings.brand.siteDescription') }}</label>
-              <span class="rounded bg-muted px-2 py-1 text-xs text-muted-foreground">{{ currentLang }}</span>
+              <div class="flex items-center gap-2">
+                <span class="rounded bg-muted px-2 py-1 text-xs text-muted-foreground">{{ currentLang }}</span>
+                <AutoTranslateButton :loading="translating" @click="handleBrandAutoTranslate" />
+              </div>
             </div>
             <Input v-model="form.brand.site_description[currentLang]" :placeholder="t('admin.settings.brand.siteDescriptionPlaceholder')" />
             <p class="text-xs text-muted-foreground">{{ t('admin.settings.brand.siteDescriptionTip') }}</p>
@@ -1026,7 +1059,10 @@ onMounted(() => {
             <h2 class="text-lg font-semibold">{{ t('admin.settings.seo.title') }}</h2>
             <p class="mt-1 text-xs text-muted-foreground">{{ t('admin.settings.seo.subtitle', { lang: getCurrentLangName() }) }}</p>
           </div>
-          <span class="rounded bg-muted px-2 py-1 text-xs text-muted-foreground">{{ currentLang }}</span>
+          <div class="flex items-center gap-2">
+            <span class="rounded bg-muted px-2 py-1 text-xs text-muted-foreground">{{ currentLang }}</span>
+            <AutoTranslateButton :loading="translating" @click="handleSeoAutoTranslate" />
+          </div>
         </div>
         <div class="space-y-6 p-6">
           <div class="space-y-2">
@@ -1291,7 +1327,10 @@ onMounted(() => {
             <h2 class="text-lg font-semibold">{{ t('admin.settings.about.title') }}</h2>
             <p class="mt-1 text-xs text-muted-foreground">{{ t('admin.settings.about.subtitle', { lang: getCurrentLangName() }) }}</p>
           </div>
-          <span class="rounded bg-muted px-2 py-1 text-xs text-muted-foreground">{{ currentLang }}</span>
+          <div class="flex items-center gap-2">
+            <span class="rounded bg-muted px-2 py-1 text-xs text-muted-foreground">{{ currentLang }}</span>
+            <AutoTranslateButton :loading="translating" @click="handleAboutAutoTranslate" />
+          </div>
         </div>
 
         <div class="space-y-6 p-6">
@@ -1377,7 +1416,10 @@ onMounted(() => {
             <h2 class="text-lg font-semibold">{{ t('admin.settings.legal.termsTitle') }}</h2>
             <p class="mt-1 text-xs text-muted-foreground">{{ t('admin.settings.legal.termsSubtitle', { lang: getCurrentLangName() }) }}</p>
           </div>
-          <span class="rounded bg-muted px-2 py-1 text-xs text-muted-foreground">{{ currentLang }}</span>
+          <div class="flex items-center gap-2">
+            <span class="rounded bg-muted px-2 py-1 text-xs text-muted-foreground">{{ currentLang }}</span>
+            <AutoTranslateButton :loading="translating" @click="handleLegalAutoTranslate" />
+          </div>
         </div>
         <div class="p-0">
           <RichEditor :key="`terms-${currentLang}`" v-model="form.legal.terms[currentLang]" :placeholder="t('admin.settings.legal.termsPlaceholder')" />
