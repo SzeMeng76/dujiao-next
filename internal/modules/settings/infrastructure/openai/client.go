@@ -20,7 +20,7 @@ import (
 
 const (
 	defaultBaseURL   = "https://api.openai.com"
-	requestTimeout   = 30 * time.Second
+	requestTimeout   = 90 * time.Second
 	maxResponseBytes = 1 << 20
 	targetLocaleZhTW = "zh-TW"
 	targetLocaleEnUS = "en-US"
