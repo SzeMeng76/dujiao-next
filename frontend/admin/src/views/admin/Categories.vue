@@ -238,7 +238,7 @@ watch(
 
     <div v-if="isVaultTemplate" class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300">
       {{ t('admin.categories.homeLimitHint', { limit: homeCategoryLimit, count: topLevelCategoryCount }) }}
-      <RouterLink to="/admin/settings" class="ml-1 font-medium underline underline-offset-2">{{ t('admin.categories.homeLimitHintLink') }}</RouterLink>
+      <RouterLink to="/settings" class="ml-1 font-medium underline underline-offset-2">{{ t('admin.categories.homeLimitHintLink') }}</RouterLink>
     </div>
 
     <div class="rounded-xl border border-border bg-card overflow-x-auto">
