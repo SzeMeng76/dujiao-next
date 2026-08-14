@@ -226,6 +226,7 @@ const form = reactive({
   footer_links: [] as FooterLinkItem[],
   storefront_template: 'classic' as 'classic' | 'vault',
   template_mode: 'card' as 'card' | 'list',
+  home_category_limit: 10 as number,
 })
 
 const smtpData = reactive({
@@ -473,6 +474,8 @@ const fetchSettings = async () => {
 
       const rawStorefrontTemplate = String(data.storefront_template || 'classic').trim()
       form.storefront_template = rawStorefrontTemplate === 'vault' ? 'vault' : 'classic'
+
+      form.home_category_limit = clampNumber(data.home_category_limit, 1, 20, 10)
     }
 
     if (orderRes.data && orderRes.data.data) {
@@ -642,6 +645,7 @@ const saveSiteSettings = async () => {
       footer_links: form.footer_links,
       storefront_template: form.storefront_template,
       template_mode: form.template_mode,
+      home_category_limit: clampNumber(form.home_category_limit, 1, 20, 10),
     },
   }
   await adminAPI.updateSettings(payload)
@@ -1316,6 +1320,23 @@ onMounted(() => {
               </div>
             </Label>
           </RadioGroup>
+        </div>
+      </div>
+
+      <!-- Vault theme: homepage category card count -->
+      <div v-if="form.storefront_template === 'vault'" class="rounded-xl border border-border bg-card">
+        <div class="flex flex-col gap-3 border-b border-border bg-muted/40 px-6 py-4">
+          <div>
+            <h2 class="text-lg font-semibold">{{ t('admin.settings.template.homeCategoryLimitTitle') }}</h2>
+            <p class="mt-1 text-xs text-muted-foreground">{{ t('admin.settings.template.homeCategoryLimitSubtitle') }}</p>
+          </div>
+        </div>
+        <div class="px-6 py-6">
+          <div class="max-w-xs space-y-2">
+            <label class="text-xs font-medium text-muted-foreground">{{ t('admin.settings.template.homeCategoryLimitLabel') }}</label>
+            <Input v-model.number="form.home_category_limit" type="number" min="1" max="20" />
+            <p class="text-xs text-muted-foreground">{{ t('admin.settings.template.homeCategoryLimitHint') }}</p>
+          </div>
         </div>
       </div>
       </TabsContent>

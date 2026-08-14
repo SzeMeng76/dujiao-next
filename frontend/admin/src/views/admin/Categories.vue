@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, reactive, onMounted, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, RouterLink } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
 import type { AdminCategory, LocalizedText } from '@/api/types'
@@ -48,6 +48,21 @@ const form = reactive({
 
 const categoryMap = computed(() => createAdminCategoryMap(categories.value))
 const categoryHierarchyItems = computed(() => flattenAdminCategories(categories.value))
+
+const homeCategoryLimit = ref(0)
+const isVaultTemplate = ref(false)
+const topLevelCategoryCount = computed(() => categories.value.filter((item) => !item.parent_id).length)
+
+const fetchHomeDisplaySettings = async () => {
+  try {
+    const res = await adminAPI.getSettings({ key: 'site_config' })
+    const data = res.data.data || {}
+    isVaultTemplate.value = data.storefront_template === 'vault'
+    homeCategoryLimit.value = Number(data.home_category_limit) || 10
+  } catch (err) {
+    isVaultTemplate.value = false
+  }
+}
 
 const hasChildren = (categoryId: number) => categories.value.some((item) => item.parent_id === categoryId)
 
@@ -198,6 +213,7 @@ const openEditById = async (rawId: unknown) => {
 
 onMounted(() => {
   fetchCategories()
+  fetchHomeDisplaySettings()
   if (route.query.category_id) {
     openEditById(route.query.category_id)
   }
@@ -218,6 +234,11 @@ watch(
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <h1 class="text-2xl font-semibold">{{ t('admin.categories.title') }}</h1>
       <Button class="w-full sm:w-auto" @click="openCreateModal">{{ t('admin.categories.create') }}</Button>
+    </div>
+
+    <div v-if="isVaultTemplate" class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300">
+      {{ t('admin.categories.homeLimitHint', { limit: homeCategoryLimit, count: topLevelCategoryCount }) }}
+      <RouterLink to="/admin/settings" class="ml-1 font-medium underline underline-offset-2">{{ t('admin.categories.homeLimitHintLink') }}</RouterLink>
     </div>
 
     <div class="rounded-xl border border-border bg-card overflow-x-auto">

@@ -26,6 +26,10 @@ const (
 
 	settingRegistrationEmailDomainMaxCount  = 100
 	settingRegistrationEmailDomainMaxLength = 253
+
+	settingHomeCategoryLimitMin     = 1
+	settingHomeCategoryLimitMax     = 20
+	settingHomeCategoryLimitDefault = 10
 )
 
 // normalizeSiteSetting 归一化站点配置结构。
@@ -45,6 +49,7 @@ func normalizeSiteSetting(value map[string]interface{}) jsonmap.JSON {
 	normalized[constants.SettingFieldSiteCurrency] = normalizeSiteCurrency(value[constants.SettingFieldSiteCurrency])
 	normalized["template_mode"] = normalizeSiteTemplateMode(value["template_mode"])
 	normalized[constants.SettingFieldStorefrontTemplate] = normalizeStorefrontTemplate(value[constants.SettingFieldStorefrontTemplate])
+	normalized[constants.SettingFieldHomeCategoryLimit] = normalizeHomeCategoryLimit(value[constants.SettingFieldHomeCategoryLimit])
 
 	if raw, ok := value["languages"]; ok {
 		normalized["languages"] = normalizeSiteLanguages(raw)
@@ -315,6 +320,21 @@ func normalizeStorefrontTemplate(raw interface{}) string {
 		return constants.StorefrontTemplateVault
 	}
 	return constants.StorefrontTemplateDefault
+}
+
+// normalizeHomeCategoryLimit 归一化首页展示的顶级分类数量，范围 1-20，默认 10。
+func normalizeHomeCategoryLimit(raw interface{}) int {
+	limit, err := parseSettingInt(raw)
+	if err != nil {
+		return settingHomeCategoryLimitDefault
+	}
+	if limit < settingHomeCategoryLimitMin {
+		return settingHomeCategoryLimitMin
+	}
+	if limit > settingHomeCategoryLimitMax {
+		return settingHomeCategoryLimitMax
+	}
+	return limit
 }
 
 func normalizeNavConfig(value map[string]interface{}) jsonmap.JSON {

@@ -288,7 +288,8 @@ const loadProducts = async () => {
 const loadCategories = async () => {
   try {
     const res = await categoryAPI.list()
-    topCategories.value = buildCategoryGroups(res.data.data || []).slice(0, 10)
+    const limit = Number(appStore.config?.home_category_limit) || 10
+    topCategories.value = buildCategoryGroups(res.data.data || []).slice(0, limit)
   } catch (err) {
     console.error('Failed to load categories:', err)
   }

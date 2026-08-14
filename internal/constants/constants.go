@@ -487,6 +487,7 @@ const (
 	SettingFieldSiteCurrency           = "currency"
 	SettingFieldStorefrontTemplate     = "storefront_template"
 	SettingFieldPaymentExpireMinutes   = "payment_expire_minutes"
+	SettingFieldHomeCategoryLimit      = "home_category_limit"
 
 	SettingKeyNavConfig = "nav_config"
 

@@ -1743,6 +1743,8 @@ const messages = {
       categories: {
         title: '分类管理',
         create: '新增分类',
+        homeLimitHint: '当前使用数字保险库模板，首页仅展示前 {limit} 个顶级分类（当前共 {count} 个），超出部分及所有子分类不会在首页显示卡片。',
+        homeLimitHintLink: '前往设置调整',
         table: {
           id: 'ID',
           icon: '图标',
@@ -2949,6 +2951,10 @@ const messages = {
           cardModeDesc: '默认模板，以卡片网格展示商品，适合图片展示型商品',
           listMode: '列表模式',
           listModeDesc: '以列表形式紧凑展示商品，适合商品数量较多的场景',
+          homeCategoryLimitTitle: '首页分类展示数量',
+          homeCategoryLimitSubtitle: '数字保险库模板首页卡片模式下，仅展示排序靠前的顶级分类，超出数量的分类不会显示',
+          homeCategoryLimitLabel: '首页展示分类数（1-20）',
+          homeCategoryLimitHint: '仅对顶级分类生效；子分类不会在首页单独展示卡片',
         },
         brand: {
           title: '品牌展示配置',
@@ -6224,6 +6230,8 @@ const messages = {
       categories: {
         title: '分類管理',
         create: '新增分類',
+        homeLimitHint: '目前使用數位保險庫模板，首頁僅展示前 {limit} 個頂級分類（目前共 {count} 個），超出部分及所有子分類不會在首頁顯示卡片。',
+        homeLimitHintLink: '前往設定調整',
         table: {
           id: 'ID',
           icon: '圖標',
@@ -7431,6 +7439,10 @@ const messages = {
           cardModeDesc: '預設模板，以卡片網格展示商品，適合圖片展示型商品',
           listMode: '列表模式',
           listModeDesc: '以列表形式緊湊展示商品，適合商品數量較多的場景',
+          homeCategoryLimitTitle: '首頁分類展示數量',
+          homeCategoryLimitSubtitle: '數位保險庫模板首頁卡片模式下，僅展示排序靠前的頂級分類，超出數量的分類不會顯示',
+          homeCategoryLimitLabel: '首頁展示分類數（1-20）',
+          homeCategoryLimitHint: '僅對頂級分類生效；子分類不會在首頁單獨展示卡片',
         },
         brand: {
           title: '品牌展示配置',
@@ -10706,6 +10718,8 @@ const messages = {
       categories: {
         title: 'Categories',
         create: 'Add category',
+        homeLimitHint: 'The storefront is using the Digital Vault theme — the homepage only shows the top {limit} top-level categories (currently {count} total). Anything beyond that, and all subcategories, won\'t get a homepage card.',
+        homeLimitHintLink: 'Adjust in Settings',
         table: {
           id: 'ID',
           icon: 'Icon',
@@ -11913,6 +11927,10 @@ const messages = {
           cardModeDesc: 'Default template, displays products in a card grid, ideal for image-rich products',
           listMode: 'List Mode',
           listModeDesc: 'Displays products in a compact list, ideal for stores with many products',
+          homeCategoryLimitTitle: 'Homepage Category Count',
+          homeCategoryLimitSubtitle: 'In card mode, the Digital Vault theme homepage only shows the top-ranked top-level categories; anything beyond the limit is hidden',
+          homeCategoryLimitLabel: 'Categories shown on homepage (1-20)',
+          homeCategoryLimitHint: 'Only applies to top-level categories; subcategories never get their own card on the homepage',
         },
         brand: {
           title: 'Brand Display',
