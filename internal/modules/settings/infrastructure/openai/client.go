@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"io"
 	"net/http"
 	"strings"
@@ -222,8 +223,8 @@ func (c Client) Translate(ctx context.Context, cfg settingsintegration.Translati
 	out := make(map[string]map[string]string, len(result.Translations))
 	for _, entry := range result.Translations {
 		out[entry.Key] = map[string]string{
-			targetLocaleZhTW: entry.ZhTW,
-			targetLocaleEnUS: entry.EnUS,
+			targetLocaleZhTW: html.UnescapeString(entry.ZhTW),
+			targetLocaleEnUS: html.UnescapeString(entry.EnUS),
 		}
 	}
 	return out, nil
