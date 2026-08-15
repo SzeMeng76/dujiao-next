@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	settingsintegration "github.com/dujiao-next/internal/modules/settings/schema/integration"
 )
@@ -65,10 +66,11 @@ type jsonSchemaFormatDetail struct {
 }
 
 type chatRequest struct {
-	Model          string           `json:"model"`
-	Messages       []chatMessage    `json:"messages"`
-	Temperature    float64          `json:"temperature"`
-	ResponseFormat jsonSchemaFormat `json:"response_format"`
+	Model               string           `json:"model"`
+	Messages            []chatMessage    `json:"messages"`
+	Temperature         float64          `json:"temperature"`
+	ResponseFormat      jsonSchemaFormat `json:"response_format"`
+	MaxCompletionTokens int              `json:"max_completion_tokens"`
 }
 
 type chatResponse struct {
@@ -76,6 +78,7 @@ type chatResponse struct {
 		Message struct {
 			Content string `json:"content"`
 		} `json:"message"`
+		FinishReason string `json:"finish_reason"`
 	} `json:"choices"`
 	Error *struct {
 		Message string `json:"message"`
@@ -168,6 +171,7 @@ func (c Client) Translate(ctx context.Context, cfg settingsintegration.Translati
 				Schema: translationJSONSchema,
 			},
 		},
+		MaxCompletionTokens: completionTokenBudget(items),
 	}
 	bodyBytes, err := json.Marshal(reqBody)
 	if err != nil {
@@ -205,9 +209,13 @@ func (c Client) Translate(ctx context.Context, cfg settingsintegration.Translati
 	if len(payload.Choices) == 0 {
 		return nil, fmt.Errorf("%w: no choices returned", ErrBadResponse)
 	}
+	choice := payload.Choices[0]
+	if choice.FinishReason == "length" {
+		return nil, fmt.Errorf("%w: output truncated (finish_reason=length), source text too long for the model's output budget", ErrBadResponse)
+	}
 
 	var result translationPayload
-	if err := json.Unmarshal([]byte(payload.Choices[0].Message.Content), &result); err != nil {
+	if err := json.Unmarshal([]byte(choice.Message.Content), &result); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrBadResponse, err)
 	}
 
@@ -226,4 +234,34 @@ func truncate(s string, max int) string {
 		return s
 	}
 	return s[:max] + "..."
+}
+
+// completionTokenBudget estimates how many output tokens the model needs to
+// return both a zh-TW and an en-US translation of every item, plus JSON
+// structure overhead and headroom for reasoning-model "thinking" tokens
+// (spent before any visible output and counted against the same budget).
+// Without an explicit budget the provider's default is often too small for
+// long source text (e.g. a multi-paragraph product description), causing the
+// response to be cut off mid-JSON and the whole translation request to fail.
+func completionTokenBudget(items []Item) int {
+	const (
+		minBudget       = 2048
+		maxBudget       = 32000
+		reasoningBuffer = 2000
+		perItemOverhead = 64
+	)
+	var totalRunes int
+	for _, item := range items {
+		totalRunes += utf8.RuneCountInString(item.Text)
+	}
+	// Two translations of roughly source length, budgeted generously at
+	// ~1 token per rune to cover CJK output as well as English expansion.
+	budget := totalRunes*3 + reasoningBuffer + perItemOverhead*len(items)
+	if budget < minBudget {
+		return minBudget
+	}
+	if budget > maxBudget {
+		return maxBudget
+	}
+	return budget
 }
