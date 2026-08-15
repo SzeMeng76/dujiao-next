@@ -30,7 +30,7 @@ export function useAutoTranslate() {
     translating.value = true
     try {
       // 提交异步翻译任务
-      const submitRes = await adminAPI.post('/settings/translation/jobs', { fields: payload })
+      const submitRes = await adminAPI.submitTranslationJob(payload)
       const jobId = submitRes.data?.data?.job_id
 
       if (!jobId) {
@@ -71,7 +71,7 @@ export function useAutoTranslate() {
     const pollInterval = 2000
 
     while (Date.now() - startTime < maxWaitTime) {
-      const statusRes = await adminAPI.get(`/settings/translation/jobs/${jobId}`)
+      const statusRes = await adminAPI.getTranslationJobStatus(jobId)
       const job = statusRes.data?.data
 
       if (job.status === 'completed') {
