@@ -1,4 +1,4 @@
-package settingsapp
+package settingsstore
 
 import (
 	"context"
@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	settingsstore "github.com/dujiao-next/internal/modules/settings/infrastructure/gormstore"
 	openaitranslate "github.com/dujiao-next/internal/modules/settings/infrastructure/openai"
 	settingsintegration "github.com/dujiao-next/internal/modules/settings/schema/integration"
 	"github.com/dujiao-next/internal/shared/jsonmap"
@@ -15,7 +14,7 @@ import (
 
 // TranslationJobProcessor 翻译任务处理器
 type TranslationJobProcessor struct {
-	store    *settingsstore.Store
+	store    *Store
 	client   openaitranslate.Client
 	settings translationSettingGetter
 }
@@ -25,7 +24,7 @@ type translationSettingGetter interface {
 }
 
 func NewTranslationJobProcessor(
-	store *settingsstore.Store,
+	store *Store,
 	client openaitranslate.Client,
 	settings translationSettingGetter,
 ) *TranslationJobProcessor {
@@ -43,9 +42,9 @@ func (p *TranslationJobProcessor) SubmitJob(ctx context.Context, fields map[stri
 		fieldsMap[key] = text
 	}
 
-	job := &settingsstore.TranslationJobRecord{
+	job := &TranslationJobRecord{
 		ID:        uuid.New().String(),
-		Status:    settingsstore.TranslationJobStatusPending,
+		Status:    TranslationJobStatusPending,
 		Fields:    fieldsMap,
 		Progress:  0,
 		CreatedAt: time.Now(),
@@ -78,11 +77,11 @@ func (p *TranslationJobProcessor) GetJobStatus(ctx context.Context, jobID string
 		"updated_at": job.UpdatedAt,
 	}
 
-	if job.Status == settingsstore.TranslationJobStatusCompleted && job.Result != nil {
+	if job.Status == TranslationJobStatusCompleted && job.Result != nil {
 		response["result"] = job.Result
 	}
 
-	if job.Status == settingsstore.TranslationJobStatusFailed && job.Error != "" {
+	if job.Status == TranslationJobStatusFailed && job.Error != "" {
 		response["error"] = job.Error
 	}
 
@@ -99,7 +98,7 @@ func (p *TranslationJobProcessor) processJobAsync(jobID string) {
 	}
 
 	// 更新为处理中
-	job.Status = settingsstore.TranslationJobStatusProcessing
+	job.Status = TranslationJobStatusProcessing
 	job.UpdatedAt = time.Now()
 	_ = p.store.UpdateTranslationJob(job)
 
@@ -125,10 +124,10 @@ func (p *TranslationJobProcessor) processJobAsync(jobID string) {
 		return
 	}
 
-	// 按长度分组：>1500 字切片；300-1500 字单独请求；≤300 字批量请求
+	// 按长度分组：>1500 字沿 HTML 安全边界切片；300-1500 字单独请求；≤300 字批量请求
 	const longFieldThreshold = 300
 	const chunkThreshold = 1500 // 超过此长度需要切片
-	const chunkSize = 800       // 每个切片的字符数
+	const chunkSize = 800       // 每个切片的目标字符数
 	longFields := make(map[string]string)
 	shortFields := make(map[string]string)
 	chunkedFields := make(map[string][]string) // 需要切片的超长字段
@@ -137,20 +136,10 @@ func (p *TranslationJobProcessor) processJobAsync(jobID string) {
 		if text == "" {
 			continue
 		}
-		runes := []rune(text)
-		runeCount := len(runes)
+		runeCount := len([]rune(text))
 
 		if runeCount > chunkThreshold {
-			// 超长字段切片
-			var chunks []string
-			for i := 0; i < runeCount; i += chunkSize {
-				end := i + chunkSize
-				if end > runeCount {
-					end = runeCount
-				}
-				chunks = append(chunks, string(runes[i:end]))
-			}
-			chunkedFields[key] = chunks
+			chunkedFields[key] = splitHTMLSafe(text, chunkSize)
 		} else if runeCount > longFieldThreshold {
 			longFields[key] = text
 		} else {
@@ -212,11 +201,10 @@ func (p *TranslationJobProcessor) processJobAsync(jobID string) {
 		_ = p.store.UpdateTranslationJob(job)
 	}
 
-	// 串行处理超长切片字段（每个切片单独请求）
+	// 串行处理超长切片字段（每个切片单独请求，按原始顺序拼接）
 	for key, chunks := range chunkedFields {
-		// 每个语言单独拼接
-		zwTWParts := make([]string, 0, len(chunks))
-		enUSParts := make([]string, 0, len(chunks))
+		zhTWParts := make([]string, len(chunks))
+		enUSParts := make([]string, len(chunks))
 
 		for i, chunk := range chunks {
 			chunkKey := fmt.Sprintf("%s_chunk_%d", key, i)
@@ -229,12 +217,8 @@ func (p *TranslationJobProcessor) processJobAsync(jobID string) {
 			}
 
 			if translations, ok := groupResult[chunkKey]; ok {
-				if zwTW, ok := translations["zh-TW"]; ok {
-					zwTWParts = append(zwTWParts, zwTW)
-				}
-				if enUS, ok := translations["en-US"]; ok {
-					enUSParts = append(enUSParts, enUS)
-				}
+				zhTWParts[i] = translations["zh-TW"]
+				enUSParts[i] = translations["en-US"]
 			}
 
 			completedGroups++
@@ -243,9 +227,8 @@ func (p *TranslationJobProcessor) processJobAsync(jobID string) {
 			_ = p.store.UpdateTranslationJob(job)
 		}
 
-		// 拼接所有切片的翻译结果
 		result[key] = map[string]string{
-			"zh-TW": strings.Join(zwTWParts, ""),
+			"zh-TW": strings.Join(zhTWParts, ""),
 			"en-US": strings.Join(enUSParts, ""),
 		}
 	}
@@ -256,16 +239,75 @@ func (p *TranslationJobProcessor) processJobAsync(jobID string) {
 		resultMap[key] = translations
 	}
 
-	job.Status = settingsstore.TranslationJobStatusCompleted
+	job.Status = TranslationJobStatusCompleted
 	job.Result = resultMap
 	job.Progress = 100
 	job.UpdatedAt = time.Now()
 	_ = p.store.UpdateTranslationJob(job)
 }
 
-func (p *TranslationJobProcessor) failJob(job *settingsstore.TranslationJobRecord, err error) {
-	job.Status = settingsstore.TranslationJobStatusFailed
+func (p *TranslationJobProcessor) failJob(job *TranslationJobRecord, err error) {
+	job.Status = TranslationJobStatusFailed
 	job.Error = err.Error()
 	job.UpdatedAt = time.Now()
 	_ = p.store.UpdateTranslationJob(job)
+}
+
+// htmlSafeBreakpoints 是切片时优先寻找的边界标记，按优先级从高到低排列：
+// 块级标签闭合处最安全，其次是句末标点，最后才退化到任意空白。
+// 在这些位置切开不会把一个 HTML 标签（如 <strong>）从中间切断，
+// 避免模型收到破损标签后把它当作普通文本照抄，导致输出里出现字面的
+// 转义序列（例如 <strong>）而不是真正被渲染的标签。
+var htmlSafeBreakpoints = []string{
+	"</p>", "</li>", "</ul>", "</ol>", "</div>", "<br>", "<br/>", "<br />",
+	"。", "！", "？", "\n\n", "\n",
+}
+
+// splitHTMLSafe 把 text 切成若干段，每段长度尽量接近 targetSize（按 rune 计数），
+// 且切点必须落在 htmlSafeBreakpoints 之一的结束位置，避免切断 HTML 标签或转义实体。
+func splitHTMLSafe(text string, targetSize int) []string {
+	runes := []rune(text)
+	total := len(runes)
+	if total <= targetSize {
+		return []string{text}
+	}
+
+	var chunks []string
+	start := 0
+	for start < total {
+		end := start + targetSize
+		if end >= total {
+			chunks = append(chunks, string(runes[start:total]))
+			break
+		}
+
+		cut := findSafeBreak(runes, start, end)
+		if cut <= start {
+			// 找不到安全边界（例如一大段没有标点的连续文本），
+			// 退化为硬切，但仍优先保证不落在多字节符文或 HTML 转义实体中间。
+			cut = end
+		}
+		chunks = append(chunks, string(runes[start:cut]))
+		start = cut
+	}
+	return chunks
+}
+
+// findSafeBreak 在 [searchStart, limit] 范围内从后往前找最靠近 limit 的安全切点。
+// 找不到时返回 -1，调用方据此退化为硬切。
+func findSafeBreak(runes []rune, searchStart, limit int) int {
+	window := string(runes[searchStart:limit])
+	best := -1
+	for _, marker := range htmlSafeBreakpoints {
+		if idx := strings.LastIndex(window, marker); idx >= 0 {
+			cut := searchStart + len([]rune(window[:idx])) + len([]rune(marker))
+			if cut > best {
+				best = cut
+			}
+		}
+	}
+	if best <= searchStart {
+		return -1
+	}
+	return best
 }

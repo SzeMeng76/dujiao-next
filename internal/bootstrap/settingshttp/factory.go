@@ -6,11 +6,11 @@ import (
 
 	"github.com/dujiao-next/internal/app/container"
 	"github.com/dujiao-next/internal/config"
+	settingsapp "github.com/dujiao-next/internal/modules/settings/application"
+	settingsstore "github.com/dujiao-next/internal/modules/settings/infrastructure/gormstore"
 	openaitranslate "github.com/dujiao-next/internal/modules/settings/infrastructure/openai"
 	settingsintegration "github.com/dujiao-next/internal/modules/settings/schema/integration"
 	settingstransport "github.com/dujiao-next/internal/modules/settings/transport/http"
-
-	settingsapp "github.com/dujiao-next/internal/modules/settings/application"
 )
 
 func NewSMTPHandler(c *container.Container, cfg *config.Config) *settingstransport.SMTPHandler {
@@ -39,7 +39,7 @@ func NewGoogleAuthHandler(c *container.Container, cfg *config.Config) *settingst
 
 func NewTranslationHandler(c *container.Container) *settingstransport.TranslationHandler {
 	// 创建异步翻译processor
-	jobProcessor := settingsapp.NewTranslationJobProcessor(
+	jobProcessor := settingsstore.NewTranslationJobProcessor(
 		c.SettingsStore,
 		openaitranslate.New(),
 		c.SettingService,
