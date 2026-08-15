@@ -3,13 +3,13 @@
     <!-- 顶栏 -->
     <header class="sticky top-0 z-50 border-b bg-[color:var(--bg)]">
       <div class="mx-auto flex h-[70px] w-full max-w-[1180px] items-center gap-3 px-4 sm:gap-5 sm:px-6">
-        <RouterLink class="inline-flex max-w-[240px] shrink-0 items-center gap-2.5 text-[19px] font-extrabold tracking-[-0.02em] text-foreground" to="/" :title="brandName">
+        <RouterLink class="inline-flex shrink-0 items-center gap-2.5 text-[19px] font-extrabold tracking-[-0.02em] text-foreground" to="/" :title="brandName">
           <img v-if="brandLogo" :src="brandLogo" :alt="brandName" class="h-8 max-w-[120px] object-contain sm:max-w-[160px]" />
-          <span v-else class="truncate">{{ brandName }}</span>
+          <span v-else class="max-w-[240px] truncate">{{ brandName }}</span>
         </RouterLink>
 
-        <nav class="vault-scroll-x flex min-w-0 gap-0.5 overflow-x-auto max-[900px]:hidden">
-          <template v-for="item in menuItems" :key="item.key">
+        <nav ref="navContainer" class="flex min-w-0 gap-0.5 max-[900px]:hidden">
+          <template v-for="item in visibleMenuItems" :key="item.key">
             <RouterLink
               v-if="item.type === 'route'"
               :to="item.path"
@@ -24,6 +24,19 @@
               class="shrink-0 whitespace-nowrap rounded-full px-3.5 py-2 text-[15px] font-semibold text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
             >{{ item.label }}</a>
           </template>
+
+          <!-- Priority+ More 按钮 -->
+          <div v-if="overflowMenuItems.length > 0" class="relative" ref="navMoreEl">
+            <button class="shrink-0 whitespace-nowrap rounded-full px-3.5 py-2 text-[15px] font-semibold text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground" type="button" @click="toggleNavMore">
+              {{ t('navbar.more') }} <span class="ml-0.5 inline-block text-[11px]">▾</span>
+            </button>
+            <div v-if="navMoreOpen" class="absolute left-0 top-[calc(100%+8px)] z-[60] flex min-w-[168px] flex-col gap-0.5 rounded-md border bg-card p-2 shadow-[var(--shadow-lg)]">
+              <template v-for="item in overflowMenuItems" :key="`more-${item.key}`">
+                <RouterLink v-if="item.type === 'route'" :to="item.path" class="flex w-full items-center gap-2.5 rounded-sm px-3 py-2.5 text-sm font-semibold text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground" @click="navMoreOpen = false">{{ item.label }}</RouterLink>
+                <a v-else :href="item.path" :target="item.target" rel="noopener noreferrer" class="flex w-full items-center gap-2.5 rounded-sm px-3 py-2.5 text-sm font-semibold text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground" @click="navMoreOpen = false">{{ item.label }}</a>
+              </template>
+            </div>
+          </div>
         </nav>
 
         <div class="ml-auto flex shrink-0 items-center gap-2">
@@ -135,7 +148,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   Search, Moon, Sun, ShoppingCart, Languages, Menu, X, User, Info, ClipboardList, LogOut, Github,
@@ -168,8 +181,14 @@ const { theme, toggleTheme } = useTheme()
 
 const langOpen = ref(false)
 const moreOpen = ref(false)
+const navMoreOpen = ref(false)
 const langEl = ref<HTMLElement | null>(null)
 const moreEl = ref<HTMLElement | null>(null)
+const navMoreEl = ref<HTMLElement | null>(null)
+const navContainer = ref<HTMLElement | null>(null)
+
+const visibleMenuItems = ref<NavItem[]>([])
+const overflowMenuItems = ref<NavItem[]>([])
 
 const year = new Date().getFullYear()
 
@@ -227,12 +246,59 @@ const changeLanguage = (code: string) => {
   langOpen.value = false
 }
 
-const toggleLang = () => { langOpen.value = !langOpen.value; moreOpen.value = false }
-const toggleMore = () => { moreOpen.value = !moreOpen.value; langOpen.value = false }
+// 监听 menuItems 变化(语言切换导致的 label 变化等),重新计算
+watch(menuItems, () => {
+  calculateVisibleItems()
+}, { deep: true })
+
+const toggleLang = () => { langOpen.value = !langOpen.value; moreOpen.value = false; navMoreOpen.value = false }
+const toggleMore = () => { moreOpen.value = !moreOpen.value; langOpen.value = false; navMoreOpen.value = false }
+const toggleNavMore = () => { navMoreOpen.value = !navMoreOpen.value; langOpen.value = false; moreOpen.value = false }
+
+/** Priority+ Navigation: 根据容器宽度动态计算可见/溢出菜单项 */
+const calculateVisibleItems = () => {
+  if (!navContainer.value || menuItems.value.length === 0) {
+    visibleMenuItems.value = menuItems.value
+    overflowMenuItems.value = []
+    return
+  }
+
+  // 容器可用宽度（减去 gap 等）
+  const containerWidth = navContainer.value.offsetWidth
+  // More 按钮预估宽度（含文字 + padding + gap，实测约 80-90px）
+  const moreButtonWidth = 90
+  // 每个菜单项的最小宽度估算（根据实际文字长度会不同，这里用保守值）
+  const minItemWidth = 60
+
+  let totalWidth = 0
+  let visibleCount = 0
+
+  // 遍历所有菜单项，累加宽度直到放不下
+  for (let i = 0; i < menuItems.value.length; i++) {
+    const estimatedWidth = menuItems.value[i].label.length * 10 + 28 // 粗略估算：字符宽度 + padding
+    const needMoreButton = i < menuItems.value.length - 1 // 不是最后一项时需要预留 More 按钮空间
+
+    if (totalWidth + estimatedWidth + (needMoreButton ? moreButtonWidth : 0) <= containerWidth) {
+      totalWidth += estimatedWidth + 2 // gap 0.5 = 2px
+      visibleCount++
+    } else {
+      break
+    }
+  }
+
+  // 至少显示 1 项（即使会溢出），避免全部收起来
+  if (visibleCount === 0 && menuItems.value.length > 0) visibleCount = 1
+
+  visibleMenuItems.value = menuItems.value.slice(0, visibleCount)
+  overflowMenuItems.value = menuItems.value.slice(visibleCount)
+}
 
 const onDocClick = (e: MouseEvent) => {
   const target = e.target as Node
   if (langOpen.value && langEl.value && !langEl.value.contains(target)) langOpen.value = false
+  if (moreOpen.value && moreEl.value && !moreEl.value.contains(target)) moreOpen.value = false
+  if (navMoreOpen.value && navMoreEl.value && !navMoreEl.value.contains(target)) navMoreOpen.value = false
+}
   if (moreOpen.value && moreEl.value && !moreEl.value.contains(target)) moreOpen.value = false
 }
 
@@ -241,6 +307,24 @@ onMounted(() => {
   // Teleport 到 body 的浮层（Toast / ConfirmDialog / 公告弹窗 / Select 下拉）在
   // .vault-scope 之外，靠 body 上的这个 class 拿到 vault 配色，详见 styles/vault.css
   document.body.classList.add('vault-tokens')
+
+  // Priority+ Navigation: 初始计算 + 窗口 resize 时重新计算
+  calculateVisibleItems()
+
+  let resizeObserver: ResizeObserver | null = null
+  if (navContainer.value) {
+    resizeObserver = new ResizeObserver(() => {
+      calculateVisibleItems()
+    })
+    resizeObserver.observe(navContainer.value)
+  }
+
+  // cleanup
+  onUnmounted(() => {
+    if (resizeObserver && navContainer.value) {
+      resizeObserver.unobserve(navContainer.value)
+    }
+  })
 })
 onUnmounted(() => {
   document.removeEventListener('click', onDocClick)

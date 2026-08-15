@@ -187,13 +187,6 @@ body.vault-tokens {
   .vault-scope ::selection { background: var(--gold-soft); color: var(--ink); }
 }
 
-/* ---------- 顶栏导航：内容超宽时横向滚动，不隐藏滚动条 UI 但样式收敛 ---------- */
-.vault-scroll-x {
-  scrollbar-width: thin;
-}
-.vault-scroll-x::-webkit-scrollbar { height: 4px; }
-.vault-scroll-x::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 999px; }
-
 /* ---------- 响应式 / 无障碍 ---------- */
 @media (max-width: 900px) {
   .vault-scope { --gap-block: 44px; }
