@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/dujiao-next/internal/shared/jsonmap"
-	openaitranslate "github.com/dujiao-next/internal/modules/settings/infrastructure/openai"
 	settingsstore "github.com/dujiao-next/internal/modules/settings/infrastructure/gormstore"
+	openaitranslate "github.com/dujiao-next/internal/modules/settings/infrastructure/openai"
 	settingsintegration "github.com/dujiao-next/internal/modules/settings/schema/integration"
+	"github.com/dujiao-next/internal/shared/jsonmap"
 	"github.com/google/uuid"
 )
 

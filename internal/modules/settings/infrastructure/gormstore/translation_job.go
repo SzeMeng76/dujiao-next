@@ -20,10 +20,10 @@ const (
 type TranslationJobRecord struct {
 	ID        string               `gorm:"primarykey;size:64" json:"id"`
 	Status    TranslationJobStatus `gorm:"size:20;not null;index" json:"status"`
-	Fields    jsonmap.JSON         `gorm:"type:json;not null" json:"fields"`      // 待翻译字段 map[string]string
-	Result    jsonmap.JSON         `gorm:"type:json" json:"result"`               // 翻译结果 map[string]map[string]string
-	Error     string               `gorm:"type:text" json:"error"`                // 错误信息
-	Progress  int                  `gorm:"not null;default:0" json:"progress"`    // 进度百分比 0-100
+	Fields    jsonmap.JSON         `gorm:"type:json;not null" json:"fields"`   // 待翻译字段 map[string]string
+	Result    jsonmap.JSON         `gorm:"type:json" json:"result"`            // 翻译结果 map[string]map[string]string
+	Error     string               `gorm:"type:text" json:"error"`             // 错误信息
+	Progress  int                  `gorm:"not null;default:0" json:"progress"` // 进度百分比 0-100
 	CreatedAt time.Time            `gorm:"not null" json:"created_at"`
 	UpdatedAt time.Time            `gorm:"not null" json:"updated_at"`
 }
