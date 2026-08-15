@@ -270,15 +270,16 @@ const calculateVisibleItems = () => {
   const containerWidth = navContainer.value.offsetWidth
   // More 按钮预估宽度（含文字 + padding + gap，实测约 80-90px）
   const moreButtonWidth = 90
-  // 每个菜单项的最小宽度估算（根据实际文字长度会不同，这里用保守值）
-  const minItemWidth = 60
 
   let totalWidth = 0
   let visibleCount = 0
 
   // 遍历所有菜单项，累加宽度直到放不下
   for (let i = 0; i < menuItems.value.length; i++) {
-    const estimatedWidth = menuItems.value[i].label.length * 10 + 28 // 粗略估算：字符宽度 + padding
+    const item = menuItems.value[i]
+    if (!item) break
+
+    const estimatedWidth = item.label.length * 10 + 28 // 粗略估算：字符宽度 + padding
     const needMoreButton = i < menuItems.value.length - 1 // 不是最后一项时需要预留 More 按钮空间
 
     if (totalWidth + estimatedWidth + (needMoreButton ? moreButtonWidth : 0) <= containerWidth) {
