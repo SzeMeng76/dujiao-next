@@ -3,6 +3,7 @@ package settingsapp
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	settingsstore "github.com/dujiao-next/internal/modules/settings/infrastructure/gormstore"
@@ -124,22 +125,44 @@ func (p *TranslationJobProcessor) processJobAsync(jobID string) {
 		return
 	}
 
-	// 按长度分组：>300 字为长字段，单独请求；≤300 字批量请求
+	// 按长度分组：>1500 字切片；300-1500 字单独请求；≤300 字批量请求
 	const longFieldThreshold = 300
+	const chunkThreshold = 1500 // 超过此长度需要切片
+	const chunkSize = 800       // 每个切片的字符数
 	longFields := make(map[string]string)
 	shortFields := make(map[string]string)
+	chunkedFields := make(map[string][]string) // 需要切片的超长字段
+
 	for key, text := range fields {
 		if text == "" {
 			continue
 		}
-		if len([]rune(text)) > longFieldThreshold {
+		runes := []rune(text)
+		runeCount := len(runes)
+
+		if runeCount > chunkThreshold {
+			// 超长字段切片
+			var chunks []string
+			for i := 0; i < runeCount; i += chunkSize {
+				end := i + chunkSize
+				if end > runeCount {
+					end = runeCount
+				}
+				chunks = append(chunks, string(runes[i:end]))
+			}
+			chunkedFields[key] = chunks
+		} else if runeCount > longFieldThreshold {
 			longFields[key] = text
 		} else {
 			shortFields[key] = text
 		}
 	}
 
-	totalGroups := len(longFields)
+	// 计算总组数
+	totalGroups := len(longFields) + len(chunkedFields)
+	for _, chunks := range chunkedFields {
+		totalGroups += len(chunks) - 1 // 每个切片字段的多个chunk
+	}
 	if len(shortFields) > 0 {
 		totalGroups++
 	}
@@ -187,6 +210,44 @@ func (p *TranslationJobProcessor) processJobAsync(jobID string) {
 		job.Progress = (completedGroups * 100) / totalGroups
 		job.UpdatedAt = time.Now()
 		_ = p.store.UpdateTranslationJob(job)
+	}
+
+	// 串行处理超长切片字段（每个切片单独请求）
+	for key, chunks := range chunkedFields {
+		// 每个语言单独拼接
+		zwTWParts := make([]string, 0, len(chunks))
+		enUSParts := make([]string, 0, len(chunks))
+
+		for i, chunk := range chunks {
+			chunkKey := fmt.Sprintf("%s_chunk_%d", key, i)
+			items := []openaitranslate.Item{{Key: chunkKey, Text: chunk}}
+
+			groupResult, err := p.client.Translate(ctx, setting, items)
+			if err != nil {
+				p.failJob(job, fmt.Errorf("translate field %s chunk %d: %w", key, i, err))
+				return
+			}
+
+			if translations, ok := groupResult[chunkKey]; ok {
+				if zwTW, ok := translations["zh-TW"]; ok {
+					zwTWParts = append(zwTWParts, zwTW)
+				}
+				if enUS, ok := translations["en-US"]; ok {
+					enUSParts = append(enUSParts, enUS)
+				}
+			}
+
+			completedGroups++
+			job.Progress = (completedGroups * 100) / totalGroups
+			job.UpdatedAt = time.Now()
+			_ = p.store.UpdateTranslationJob(job)
+		}
+
+		// 拼接所有切片的翻译结果
+		result[key] = map[string]string{
+			"zh-TW": strings.Join(zwTWParts, ""),
+			"en-US": strings.Join(enUSParts, ""),
+		}
 	}
 
 	// 完成任务
