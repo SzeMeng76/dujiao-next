@@ -190,6 +190,9 @@ const navContainer = ref<HTMLElement | null>(null)
 const visibleMenuItems = ref<NavItem[]>([])
 const overflowMenuItems = ref<NavItem[]>([])
 
+// ResizeObserver 实例，需要在 cleanup 时 unobserve
+let navResizeObserver: ResizeObserver | null = null
+
 const year = new Date().getFullYear()
 
 const brandName = computed(() => String(appStore.config?.brand?.site_name || '').trim() || 'D&J Studio')
@@ -299,8 +302,6 @@ const onDocClick = (e: MouseEvent) => {
   if (moreOpen.value && moreEl.value && !moreEl.value.contains(target)) moreOpen.value = false
   if (navMoreOpen.value && navMoreEl.value && !navMoreEl.value.contains(target)) navMoreOpen.value = false
 }
-  if (moreOpen.value && moreEl.value && !moreEl.value.contains(target)) moreOpen.value = false
-}
 
 onMounted(() => {
   document.addEventListener('click', onDocClick)
@@ -311,23 +312,21 @@ onMounted(() => {
   // Priority+ Navigation: 初始计算 + 窗口 resize 时重新计算
   calculateVisibleItems()
 
-  let resizeObserver: ResizeObserver | null = null
   if (navContainer.value) {
-    resizeObserver = new ResizeObserver(() => {
+    navResizeObserver = new ResizeObserver(() => {
       calculateVisibleItems()
     })
-    resizeObserver.observe(navContainer.value)
+    navResizeObserver.observe(navContainer.value)
   }
-
-  // cleanup
-  onUnmounted(() => {
-    if (resizeObserver && navContainer.value) {
-      resizeObserver.unobserve(navContainer.value)
-    }
-  })
 })
+
 onUnmounted(() => {
   document.removeEventListener('click', onDocClick)
   document.body.classList.remove('vault-tokens')
+
+  if (navResizeObserver && navContainer.value) {
+    navResizeObserver.unobserve(navContainer.value)
+    navResizeObserver = null
+  }
 })
 </script>
