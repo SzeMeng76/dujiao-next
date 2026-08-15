@@ -70,6 +70,7 @@ import (
 	resellergormstore "github.com/dujiao-next/internal/modules/reseller/infrastructure/gormstore"
 	settingsapp "github.com/dujiao-next/internal/modules/settings/application"
 	settingscontract "github.com/dujiao-next/internal/modules/settings/contract"
+	settingsstore "github.com/dujiao-next/internal/modules/settings/infrastructure/gormstore"
 	siteconnectionapp "github.com/dujiao-next/internal/modules/siteconnection/application"
 	siteconnectioncontract "github.com/dujiao-next/internal/modules/siteconnection/contract"
 	sitemapapp "github.com/dujiao-next/internal/modules/sitemap/application"
@@ -108,6 +109,7 @@ type Container struct {
 	WalletRepo             *walletgormstore.Store
 	CategoryRepo           categorycontract.Repository
 	SettingRepo            settingscontract.Store
+	SettingsStore          *settingsstore.Store
 	UserLoginLogRepo       auditlogcontract.UserLoginRepository
 	AuthzAuditLogRepo      auditlogcontract.AuthzRepository
 	NotificationLogRepo    *notificationgormstore.LogStore

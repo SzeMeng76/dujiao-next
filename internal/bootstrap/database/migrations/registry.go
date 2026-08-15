@@ -81,6 +81,7 @@ func AutoMigrate() error {
 		&contentdomain.PostCategory{},
 		&contentdomain.Banner{},
 		&settingsstore.SettingRecord{},
+		&settingsstore.TranslationJobRecord{},
 		&apicredentialdomain.ApiCredential{},
 		&siteconnectiondomain.Connection{},
 		&mappingdomain.Mapping{},

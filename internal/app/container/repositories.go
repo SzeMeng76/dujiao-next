@@ -62,6 +62,7 @@ func (c *Container) initRepositories() error {
 	c.WalletRepo = walletgormstore.New(db)
 	c.CategoryRepo = categorygormstore.NewCategoryStore(db)
 	c.SettingRepo = settingsstore.New(db)
+	c.SettingsStore = settingsstore.New(db)
 	c.UserLoginLogRepo = auditloggormstore.NewUserLoginStore(db)
 	c.AuthzAuditLogRepo = auditloggormstore.NewAuthzStore(db)
 	c.NotificationLogRepo = notificationgormstore.NewLogStore(db)

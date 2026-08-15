@@ -43,6 +43,8 @@ func RegisterAdminTranslationRoutes(admin gin.IRoutes, handler *TranslationHandl
 	admin.GET("/settings/translation", handler.GetTranslation)
 	admin.PUT("/settings/translation", handler.UpdateTranslation)
 	admin.POST("/settings/translation/translate", handler.Translate)
+	admin.POST("/settings/translation/jobs", handler.SubmitTranslateJob)
+	admin.GET("/settings/translation/jobs/:id", handler.GetTranslateJobStatus)
 }
 
 func RegisterAdminTelegramBotRoutes(admin gin.IRoutes, handler *TelegramBotHandler) {

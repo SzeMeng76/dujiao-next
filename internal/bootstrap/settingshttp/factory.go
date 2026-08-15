@@ -38,9 +38,20 @@ func NewGoogleAuthHandler(c *container.Container, cfg *config.Config) *settingst
 }
 
 func NewTranslationHandler(c *container.Container) *settingstransport.TranslationHandler {
-	return settingstransport.NewTranslationHandler(settingsTranslationAdapter{
-		settings: c.SettingService, client: openaitranslate.New(),
-	})
+	// 创建异步翻译processor
+	jobProcessor := settingsapp.NewTranslationJobProcessor(
+		c.SettingsStore,
+		openaitranslate.New(),
+		c.SettingService,
+	)
+
+	return settingstransport.NewTranslationHandlerWithJobService(
+		settingsTranslationAdapter{
+			settings: c.SettingService,
+			client:   openaitranslate.New(),
+		},
+		jobProcessor,
+	)
 }
 
 type settingsTranslationAdapter struct {

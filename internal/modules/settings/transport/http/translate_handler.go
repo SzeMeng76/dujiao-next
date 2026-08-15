@@ -15,6 +15,7 @@ import (
 var (
 	ErrTranslateNotConfigured = errors.New("translate: not configured")
 	ErrTranslateFailed        = errors.New("translate: upstream call failed")
+	ErrJobNotFound            = errors.New("translation job not found")
 )
 
 const translateFieldsMax = 20
@@ -26,9 +27,16 @@ type TranslationAdminService interface {
 	Translate(ctx context.Context, fields map[string]string) (map[string]map[string]string, error)
 }
 
+// TranslationJobService 是异步翻译任务所需端口。
+type TranslationJobService interface {
+	SubmitJob(ctx context.Context, fields map[string]string) (string, error)
+	GetJobStatus(ctx context.Context, jobID string) (interface{}, error)
+}
+
 // TranslationHandler 处理后台 AI 翻译设置与翻译请求。
 type TranslationHandler struct {
 	translation TranslationAdminService
+	jobService  TranslationJobService
 }
 
 func NewTranslationHandler(translation TranslationAdminService) *TranslationHandler {
@@ -36,6 +44,13 @@ func NewTranslationHandler(translation TranslationAdminService) *TranslationHand
 		panic("settings translation handler: translation is nil")
 	}
 	return &TranslationHandler{translation: translation}
+}
+
+func NewTranslationHandlerWithJobService(translation TranslationAdminService, jobService TranslationJobService) *TranslationHandler {
+	if translation == nil {
+		panic("settings translation handler: translation is nil")
+	}
+	return &TranslationHandler{translation: translation, jobService: jobService}
 }
 
 // GetTranslation 获取 AI 翻译配置（脱敏）。
@@ -100,4 +115,52 @@ func (h *TranslationHandler) Translate(c *gin.Context) {
 		return
 	}
 	response.Success(c, gin.H{"fields": result})
+}
+
+// SubmitTranslateJob 提交异步翻译任务
+func (h *TranslationHandler) SubmitTranslateJob(c *gin.Context) {
+	if h.jobService == nil {
+		ginutil.RespondError(c, response.CodeInternal, "error.feature_not_available", nil)
+		return
+	}
+
+	var req translateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		ginutil.RespondBindError(c, err)
+		return
+	}
+	if len(req.Fields) == 0 {
+		ginutil.RespondError(c, response.CodeBadRequest, "error.bad_request", nil)
+		return
+	}
+
+	jobID, err := h.jobService.SubmitJob(c.Request.Context(), req.Fields)
+	if err != nil {
+		ginutil.RespondError(c, response.CodeInternal, "error.translation_job_submit_failed", err)
+		return
+	}
+
+	response.Success(c, gin.H{"job_id": jobID})
+}
+
+// GetTranslateJobStatus 查询翻译任务状态
+func (h *TranslationHandler) GetTranslateJobStatus(c *gin.Context) {
+	if h.jobService == nil {
+		ginutil.RespondError(c, response.CodeInternal, "error.feature_not_available", nil)
+		return
+	}
+
+	jobID := c.Param("id")
+	if jobID == "" {
+		ginutil.RespondError(c, response.CodeBadRequest, "error.bad_request", nil)
+		return
+	}
+
+	job, err := h.jobService.GetJobStatus(c.Request.Context(), jobID)
+	if err != nil {
+		ginutil.RespondError(c, response.CodeInternal, "error.translation_job_query_failed", err)
+		return
+	}
+
+	response.Success(c, job)
 }
