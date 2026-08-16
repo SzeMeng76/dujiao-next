@@ -63,8 +63,9 @@ type Config struct {
 	OrderMode  string `json:"order_mode"`  // 订单接口模式：transaction/cashier
 	Currencies string `json:"currencies"`  // 收银台模式限定交易币种，逗号分隔；留空不限制
 	Fiat       string `json:"fiat"`        // 法币类型，默认 CNY
-	NotifyURL  string `json:"notify_url"`  // 异步通知地址
-	ReturnURL  string `json:"return_url"`  // 同步跳转地址
+	NotifyURL string `json:"notify_url"` // 异步通知地址
+	ReturnURL string `json:"return_url"` // 同步跳转地址
+	Address   string `json:"address"`    // 指定收款钱包地址（可选），留空由 BEpusdt 自动分配
 }
 
 // CreateInput 创建订单输入
