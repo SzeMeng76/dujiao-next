@@ -65,7 +65,7 @@ type Config struct {
 	Fiat       string `json:"fiat"`        // 法币类型，默认 CNY
 	NotifyURL  string `json:"notify_url"`  // 异步通知地址
 	ReturnURL  string `json:"return_url"`  // 同步跳转地址
-	Address   string `json:"address"`    // 指定收款钱包地址（可选），留空由 BEpusdt 自动分配
+	Address    string `json:"address"`     // 指定收款钱包地址（可选），留空由 BEpusdt 自动分配
 }
 
 // CreateInput 创建订单输入
