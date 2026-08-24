@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref, watch } from 'vue'
+import { onMounted, reactive, ref, watch, computed } from 'vue'
 import { useDebounceFn } from '@vueuse/core'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -51,34 +51,25 @@ const detailPayment = ref<AdminPayment | null>(null)
 const exporting = ref(false)
 const exportError = ref('')
 
-// 动态获取的筛选选项
-const availableChannelTypes = ref<Array<{ value: string; label: string }>>([])
+// 动态获取的筛选选项：channelType 按 providerType 联动
+const rawChannels = ref<Array<{ provider_type: string; channel_type: string }>>([])
 const availableProviderTypes = ref<Array<{ value: string; label: string }>>([])
 
 const fetchFilterOptions = async () => {
   try {
     const response = await adminAPI.getPaymentChannels({ page: 1, page_size: 200 })
     const channels = response.data.data || []
+    rawChannels.value = channels.map((channel: any) => ({
+      provider_type: channel.provider_type,
+      channel_type: channel.channel_type,
+    }))
 
-    // 提取所有 channel_type，去重
-    const channelTypeSet = new Set<string>()
     const providerTypeSet = new Set<string>()
-
     channels.forEach((channel: any) => {
-      if (channel.channel_type) channelTypeSet.add(channel.channel_type)
       if (channel.provider_type) providerTypeSet.add(channel.provider_type)
     })
-
-    // 添加 wallet（钱包余额不在 channel 配置里）
+    // 钱包余额不在 channel 配置里，单独补充
     providerTypeSet.add('wallet')
-
-    // 转换为选项数组
-    availableChannelTypes.value = Array.from(channelTypeSet)
-      .sort()
-      .map(type => ({
-        value: type,
-        label: channelTypeLabel(type)
-      }))
 
     availableProviderTypes.value = Array.from(providerTypeSet)
       .sort()
@@ -89,6 +80,31 @@ const fetchFilterOptions = async () => {
   } catch (error) {
     console.error('Failed to fetch filter options:', error)
   }
+}
+
+const availableChannelTypes = computed(() => {
+  const selectedProvider = normalizeFilterValue(filters.providerType)
+  const channelTypeSet = new Set<string>()
+
+  rawChannels.value.forEach((channel) => {
+    if (!channel.channel_type) return
+    if (selectedProvider && channel.provider_type !== selectedProvider) return
+    channelTypeSet.add(channel.channel_type)
+  })
+
+  // wallet 特殊处理：钱包余额不在 channel 配置里
+  if (!selectedProvider || selectedProvider === 'wallet') {
+    channelTypeSet.add('balance')
+  }
+
+  return Array.from(channelTypeSet)
+    .sort()
+    .map(type => ({ value: type, label: channelTypeLabel(type) }))
+})
+
+const handleProviderTypeChange = () => {
+  filters.channelType = '__all__'
+  handleSearch()
 }
 
 const fetchPayments = async (page = 1, options: ListFetchOptions = {}) => {
@@ -349,6 +365,19 @@ watch(
           <Input v-model="filters.channelId" :placeholder="t('admin.payments.filterChannelId')" @update:modelValue="debouncedSearch" />
         </div>
         <div class="w-full md:w-40">
+          <Select v-model="filters.providerType" @update:modelValue="handleProviderTypeChange">
+            <SelectTrigger class="h-9 w-full">
+              <SelectValue :placeholder="t('admin.payments.filterProviderAll')" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">{{ t('admin.payments.filterProviderAll') }}</SelectItem>
+              <SelectItem v-for="opt in availableProviderTypes" :key="opt.value" :value="opt.value">
+                {{ opt.label }}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div class="w-full md:w-40">
           <Select v-model="filters.channelType" @update:modelValue="handleSearch">
             <SelectTrigger class="h-9 w-full">
               <SelectValue placeholder="全部支付方式" />
@@ -356,19 +385,6 @@ watch(
             <SelectContent>
               <SelectItem value="__all__">全部支付方式</SelectItem>
               <SelectItem v-for="opt in availableChannelTypes" :key="opt.value" :value="opt.value">
-                {{ opt.label }}
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div class="w-full md:w-40">
-          <Select v-model="filters.providerType" @update:modelValue="handleSearch">
-            <SelectTrigger class="h-9 w-full">
-              <SelectValue :placeholder="t('admin.payments.filterProviderAll')" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all__">{{ t('admin.payments.filterProviderAll') }}</SelectItem>
-              <SelectItem v-for="opt in availableProviderTypes" :key="opt.value" :value="opt.value">
                 {{ opt.label }}
               </SelectItem>
             </SelectContent>
