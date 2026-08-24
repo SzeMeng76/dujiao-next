@@ -35,6 +35,7 @@ const filters = reactive({
   userId: '',
   orderId: '',
   channelId: '',
+  channelType: '__all__',
   providerType: '__all__',
   createdFrom: '',
   createdTo: '',
@@ -50,6 +51,46 @@ const detailPayment = ref<AdminPayment | null>(null)
 const exporting = ref(false)
 const exportError = ref('')
 
+// 动态获取的筛选选项
+const availableChannelTypes = ref<Array<{ value: string; label: string }>>([])
+const availableProviderTypes = ref<Array<{ value: string; label: string }>>([])
+
+const fetchFilterOptions = async () => {
+  try {
+    const response = await adminAPI.getPaymentChannels({ page: 1, page_size: 200 })
+    const channels = response.data.data || []
+
+    // 提取所有 channel_type，去重
+    const channelTypeSet = new Set<string>()
+    const providerTypeSet = new Set<string>()
+
+    channels.forEach((channel: any) => {
+      if (channel.channel_type) channelTypeSet.add(channel.channel_type)
+      if (channel.provider_type) providerTypeSet.add(channel.provider_type)
+    })
+
+    // 添加 wallet（钱包余额不在 channel 配置里）
+    providerTypeSet.add('wallet')
+
+    // 转换为选项数组
+    availableChannelTypes.value = Array.from(channelTypeSet)
+      .sort()
+      .map(type => ({
+        value: type,
+        label: channelTypeLabel(type)
+      }))
+
+    availableProviderTypes.value = Array.from(providerTypeSet)
+      .sort()
+      .map(type => ({
+        value: type,
+        label: providerTypeLabel(type)
+      }))
+  } catch (error) {
+    console.error('Failed to fetch filter options:', error)
+  }
+}
+
 const fetchPayments = async (page = 1, options: ListFetchOptions = {}) => {
   if (!options.preserveRows) loading.value = true
   try {
@@ -61,6 +102,7 @@ const fetchPayments = async (page = 1, options: ListFetchOptions = {}) => {
       order_id: filters.orderId || undefined,
       channel_id: filters.channelId || undefined,
       provider_type: normalizeFilterValue(filters.providerType) || undefined,
+      channel_type: normalizeFilterValue(filters.channelType) || undefined,
       created_from: toRFC3339(filters.createdFrom),
       created_to: toRFC3339(filters.createdTo),
     })
@@ -108,6 +150,7 @@ const handleExport = async () => {
       order_id: filters.orderId || undefined,
       channel_id: filters.channelId || undefined,
       provider_type: normalizeFilterValue(filters.providerType) || undefined,
+      channel_type: normalizeFilterValue(filters.channelType) || undefined,
       created_from: toRFC3339(filters.createdFrom),
       created_to: toRFC3339(filters.createdTo),
       status: normalizeFilterValue(filters.status) || undefined,
@@ -255,6 +298,7 @@ const formatPayload = (payload: unknown) => {
 }
 
 onMounted(() => {
+  fetchFilterOptions()
   if (route.query.user_id) {
     filters.userId = String(route.query.user_id || '')
   }
@@ -305,17 +349,28 @@ watch(
           <Input v-model="filters.channelId" :placeholder="t('admin.payments.filterChannelId')" @update:modelValue="debouncedSearch" />
         </div>
         <div class="w-full md:w-40">
+          <Select v-model="filters.channelType" @update:modelValue="handleSearch">
+            <SelectTrigger class="h-9 w-full">
+              <SelectValue placeholder="全部支付方式" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">全部支付方式</SelectItem>
+              <SelectItem v-for="opt in availableChannelTypes" :key="opt.value" :value="opt.value">
+                {{ opt.label }}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div class="w-full md:w-40">
           <Select v-model="filters.providerType" @update:modelValue="handleSearch">
             <SelectTrigger class="h-9 w-full">
               <SelectValue :placeholder="t('admin.payments.filterProviderAll')" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="__all__">{{ t('admin.payments.filterProviderAll') }}</SelectItem>
-              <SelectItem value="wallet">{{ t('admin.paymentChannels.providerTypes.wallet') }}</SelectItem>
-              <SelectItem value="official">{{ t('admin.paymentChannels.providerTypes.official') }}</SelectItem>
-              <SelectItem value="epay">{{ t('admin.paymentChannels.providerTypes.epay') }}</SelectItem>
-              <SelectItem value="epusdt">{{ t('admin.paymentChannels.providerTypes.epusdt') }}</SelectItem>
-              <SelectItem value="tokenpay">{{ t('admin.paymentChannels.providerTypes.tokenpay') }}</SelectItem>
+              <SelectItem v-for="opt in availableProviderTypes" :key="opt.value" :value="opt.value">
+                {{ opt.label }}
+              </SelectItem>
             </SelectContent>
           </Select>
         </div>
