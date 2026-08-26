@@ -159,6 +159,20 @@ const statusClass = (status: string) => paymentStatusClass(status)
 
 const statusLabel = (status: string) => paymentStatusLabel(t, status)
 
+const feePolicyLabel = (policy?: string) => {
+  if (!policy) return '-'
+  const key = `admin.payments.feePolicies.${policy}`
+  const translated = t(key)
+  return translated === key ? policy : translated
+}
+
+const exceptionLabel = (code?: string) => {
+  if (!code) return '-'
+  const key = `admin.payments.exceptions.${code}`
+  const translated = t(key)
+  return translated === key ? code : translated
+}
+
 const providerTypeLabel = (value?: string) => {
   const map: Record<string, string> = {
     official: t('admin.paymentChannels.providerTypes.official'),
@@ -557,6 +571,18 @@ watch(
                 <CardContent class="p-4">
                   <div class="text-xs text-muted-foreground mb-2">{{ t('admin.payments.detailFeeAmount') }}</div>
                   <div class="text-foreground font-mono text-sm">{{ formatMoney(detailPayment.fee_amount, detailPayment.currency) }}</div>
+                </CardContent>
+              </Card>
+              <Card class="rounded-lg border-border bg-background shadow-none">
+                <CardContent class="p-4">
+                  <div class="text-xs text-muted-foreground mb-2">{{ t('admin.payments.detailFeePolicy') }}</div>
+                  <div class="text-foreground text-sm">{{ feePolicyLabel(detailPayment.fee_policy) }}</div>
+                </CardContent>
+              </Card>
+              <Card v-if="detailPayment.exception_code" class="rounded-lg border-warning/40 bg-warning/5 shadow-none">
+                <CardContent class="p-4">
+                  <div class="text-xs text-warning mb-2">{{ t('admin.payments.detailException') }}</div>
+                  <div class="text-warning text-sm">{{ exceptionLabel(detailPayment.exception_code) }}</div>
                 </CardContent>
               </Card>
               <Card class="rounded-lg border-border bg-background shadow-none">

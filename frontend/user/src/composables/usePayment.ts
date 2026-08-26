@@ -8,11 +8,12 @@ import { orderStatusLabel } from '../utils/status'
 import { fulfillmentTypeLabel } from '../utils/fulfillment'
 import { debounceAsync } from '../utils/debounce'
 import { copyText } from '../utils/clipboard'
-import { amountToCents, basisPointsToPercent, calculateFeeCents, centsToAmount, rateToBasisPoints } from '../utils/money'
+import { amountToCents, centsToAmount } from '../utils/money'
 import { buildSkuDisplayTextFromSnapshot } from '../utils/sku'
 import {
   getCachedPaymentRestorePolicy,
   getPaymentResetPolicy,
+  isCustomerSurchargePayment,
   resolvePaymentInteractionLabelKey,
   resolvePaymentLinkNavigationTarget,
   resolvePaymentPresentationMode,
@@ -389,75 +390,22 @@ export function usePayment() {
   const showResultView = computed(() => Boolean(paymentResult.value && order.value && order.value.status === 'pending_payment' && !orderExpired.value && !orderCanceled.value))
   const pollingActive = computed(() => pollTimer.value !== null)
   const orderItems = computed(() => (Array.isArray(order.value?.items) ? order.value.items : []))
-  const feeRateBasisPoints = computed(() => {
-    if (paymentResult.value?.fee_rate !== undefined) {
-      return rateToBasisPoints(paymentResult.value.fee_rate)
-    }
-    if (selectedChannel.value?.fee_rate !== undefined) {
-      return rateToBasisPoints(selectedChannel.value.fee_rate)
-    }
-    return null
-  })
-  const feeRateDisplay = computed(() => {
-    const rate = feeRateBasisPoints.value
-    const fixed = paymentResult.value?.fixed_fee !== undefined ? paymentResult.value.fixed_fee : selectedChannel.value?.fixed_fee
-
-    let display = ''
-    if (rate !== null && rate > 0) {
-      display += `${basisPointsToPercent(rate)}%`
-    }
-    if (fixed !== undefined && Number(fixed) > 0) {
-      if (display) display += ' + '
-      display += formatMoney(String(fixed), order.value?.currency)
-    }
-
-    if (!display) return t('payment.feeFree')
-    return display
-  })
-  const feeAmountCents = computed(() => {
-    if (paymentResult.value?.fee_amount !== undefined && paymentResult.value?.fee_amount !== null && paymentResult.value?.fee_amount !== '') {
-      return amountToCents(paymentResult.value.fee_amount)
-    }
-    const rate = feeRateBasisPoints.value
-    const base = amountToCents(order.value?.total_amount)
-
-    let fixedFeeCents = 0
-    if (paymentResult.value?.fixed_fee !== undefined) {
-      fixedFeeCents = amountToCents(paymentResult.value.fixed_fee) || 0
-    } else if (selectedChannel.value?.fixed_fee !== undefined) {
-      fixedFeeCents = amountToCents(selectedChannel.value.fixed_fee) || 0
-    }
-
-    if (rate === null || base === null) return null
-    let totalFee = fixedFeeCents
-    if (rate > 0 && base !== null) {
-      const fee = calculateFeeCents(base, rate)
-      if (fee !== null) {
-        totalFee += fee
-      }
-    }
-    return totalFee
-  })
-  const feeAmountDisplay = computed(() => {
-    const value = feeAmountCents.value
-    if (value === null) return '-'
-    return formatMoney(centsToAmount(value), order.value?.currency)
-  })
-  const fixedFeeDisplay = computed(() => {
-    const fixed = paymentResult.value?.fixed_fee !== undefined ? paymentResult.value.fixed_fee : selectedChannel.value?.fixed_fee
-    if (fixed === undefined || fixed === null || fixed === '') {
-      return formatMoney('0.00', order.value?.currency)
-    }
-    return formatMoney(String(fixed), order.value?.currency)
+  const customerFeeApplied = computed(() => isCustomerSurchargePayment(paymentResult.value) && (amountToCents(paymentResult.value?.fee_amount) || 0) > 0)
+  const customerFeeAmountDisplay = computed(() => {
+    if (!customerFeeApplied.value) return ''
+    return formatMoney(String(paymentResult.value?.fee_amount || '0'), order.value?.currency)
   })
   const payableAmountDisplay = computed(() => {
+    if (paymentResult.value?.payable_amount !== undefined && paymentResult.value?.payable_amount !== null && paymentResult.value?.payable_amount !== '') {
+      return formatMoney(String(paymentResult.value.payable_amount), order.value?.currency)
+    }
     if (paymentResult.value?.amount !== undefined && paymentResult.value?.amount !== null && paymentResult.value?.amount !== '') {
       return formatMoney(String(paymentResult.value.amount), order.value?.currency)
     }
-    const base = amountToCents(order.value?.total_amount)
-    const fee = feeAmountCents.value
-    if (base === null || fee === null) return '-'
-    return formatMoney(centsToAmount(base + fee), order.value?.currency)
+    if (paymentResult.value?.online_pay_amount !== undefined && paymentResult.value?.online_pay_amount !== null && paymentResult.value?.online_pay_amount !== '') {
+      return formatMoney(String(paymentResult.value.online_pay_amount), order.value?.currency)
+    }
+    return formatMoney(String(order.value?.total_amount ?? ''), order.value?.currency)
   })
   const walletBalanceDisplay = computed(() => formatMoney(walletBalance.value, order.value?.currency))
   const expectedWalletPaidCents = computed(() => {
@@ -1246,20 +1194,6 @@ export function usePayment() {
     return '-'
   }
 
-  const formatChannelFeeRate = (channel?: any) => {
-    const basisPoints = rateToBasisPoints(channel?.fee_rate)
-    if (basisPoints === null) return '0.00%'
-    return `${basisPointsToPercent(basisPoints)}%`
-  }
-
-  const formatChannelFixedFee = (channel?: any) => {
-    const fixedFee = channel?.fixed_fee
-    if (fixedFee === null || fixedFee === undefined || fixedFee === '') {
-      return formatMoney('0.00', order.value?.currency)
-    }
-    return formatMoney(String(fixedFee), order.value?.currency)
-  }
-
   onMounted(() => {
     if (isRechargeReturn.value && rechargeNoQuery.value) {
       void redirectToWalletRecharge()
@@ -1446,9 +1380,8 @@ export function usePayment() {
     pollingActive,
     orderItems,
     // amounts
-    feeRateDisplay,
-    feeAmountDisplay,
-    fixedFeeDisplay,
+    customerFeeApplied,
+    customerFeeAmountDisplay,
     payableAmountDisplay,
     walletBalanceDisplay,
     expectedWalletPaidDisplay,
@@ -1470,8 +1403,6 @@ export function usePayment() {
     getLocalizedText,
     orderItemSkuText,
     fulfillmentTypeLabelText,
-    formatChannelFeeRate,
-    formatChannelFixedFee,
     // actions
     handleCopyPayLink,
     handleCopyWalletAddress,

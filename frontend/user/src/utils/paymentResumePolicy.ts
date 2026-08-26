@@ -27,6 +27,11 @@ export type PaymentResultTitleKey =
 const REDIRECT_PAYMENT_INTERACTION_MODES = new Set(['redirect', 'wap', 'page'])
 const normalizeInteractionMode = (mode: unknown) => String(mode || '').trim().toLowerCase()
 
+export const isCustomerSurchargePayment = (payment?: { fee_policy?: unknown } | null) => {
+  const policy = String(payment?.fee_policy || '').trim().toLowerCase()
+  return policy === 'customer_surcharge' || policy === 'legacy_customer_surcharge'
+}
+
 export const isRedirectPaymentInteractionMode = (mode: unknown) => {
   return REDIRECT_PAYMENT_INTERACTION_MODES.has(normalizeInteractionMode(mode))
 }
@@ -88,8 +93,8 @@ export const getCachedPaymentRestorePolicy = (): CachedPaymentRestorePolicy => (
   autoOpenPayLink: false,
 })
 
-export const shouldAutoOpenPaymentLink = (payment?: { interaction_mode?: unknown; pay_url?: unknown } | null) => {
-  if (!payment) return false
+export const shouldAutoOpenPaymentLink = (payment?: { interaction_mode?: unknown; pay_url?: unknown; fee_policy?: unknown } | null) => {
+  if (!payment || isCustomerSurchargePayment(payment)) return false
   const payURL = String(payment.pay_url || '').trim()
   return isRedirectPaymentInteractionMode(payment.interaction_mode) && payURL !== ''
 }

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
+	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
 
 	productdomain "github.com/dujiao-next/internal/modules/catalog/product/domain"
 
@@ -163,6 +164,157 @@ func TestGetProfitTrendsDeductsRefundRecords(t *testing.T) {
 	}
 	if math.Abs(rowMap[day2].Revenue-60) > 0.000001 || math.Abs(rowMap[day2].Cost-40) > 0.000001 || math.Abs(rowMap[day2].RefundedCost-16) > 0.000001 {
 		t.Fatalf("unexpected day2 row: %+v", rowMap[day2])
+	}
+}
+
+func TestProfitStatisticsDeductSuccessfulExternalPaymentFees(t *testing.T) {
+	repo, db := setupDashboardRepositoryTest(t)
+	base := time.Date(2026, 8, 11, 10, 0, 0, 0, time.UTC)
+
+	category := createDashboardCategory(t, db, "dashboard-profit-payment-fee-category")
+	product := &productdomain.Product{
+		CategoryID:      category.ID,
+		Slug:            "dashboard-profit-payment-fee-product",
+		TitleJSON:       jsonmap.JSON{"zh-CN": "手续费利润测试商品"},
+		PriceAmount:     money.FromDecimal(decimal.NewFromInt(100)),
+		PurchaseType:    constants.ProductPurchaseMember,
+		FulfillmentType: constants.FulfillmentTypeManual,
+		IsActive:        true,
+	}
+	if err := db.Create(product).Error; err != nil {
+		t.Fatalf("create product failed: %v", err)
+	}
+	order := createDashboardProfitOrderWithItem(t, db, product, "DJ-PROFIT-PAYMENT-FEE", constants.OrderStatusPaid, 100, 40, "手续费利润测试商品", base)
+
+	payments := []paymentdomain.Payment{
+		{
+			OrderID: order.ID, ProviderType: constants.PaymentProviderOfficial,
+			ChannelType: constants.PaymentChannelTypeAlipay, InteractionMode: constants.PaymentInteractionRedirect,
+			Amount: money.FromDecimal(decimal.NewFromInt(100)), FeeAmount: money.FromDecimal(decimal.RequireFromString("3.00")), FeePolicy: constants.PaymentFeePolicyMerchantAbsorbed,
+			Currency: "CNY", Status: constants.PaymentStatusSuccess, CreatedAt: base, UpdatedAt: base,
+		},
+		{
+			OrderID: order.ID, ProviderType: constants.PaymentProviderOfficial,
+			ChannelType: constants.PaymentChannelTypeWechat, InteractionMode: constants.PaymentInteractionQR,
+			Amount: money.FromDecimal(decimal.NewFromInt(100)), FeeAmount: money.FromDecimal(decimal.RequireFromString("9.00")), FeePolicy: constants.PaymentFeePolicyMerchantAbsorbed,
+			Currency: "CNY", Status: constants.PaymentStatusFailed, CreatedAt: base, UpdatedAt: base,
+		},
+		{
+			OrderID: 0, ProviderType: constants.PaymentProviderOfficial,
+			ChannelType: constants.PaymentChannelTypeAlipay, InteractionMode: constants.PaymentInteractionRedirect,
+			Amount: money.FromDecimal(decimal.NewFromInt(50)), FeeAmount: money.FromDecimal(decimal.RequireFromString("2.00")), FeePolicy: constants.PaymentFeePolicyMerchantAbsorbed,
+			Currency: "CNY", Status: constants.PaymentStatusSuccess, CreatedAt: base, UpdatedAt: base,
+		},
+		{
+			OrderID: order.ID, ProviderType: constants.PaymentProviderWallet,
+			ChannelType: constants.PaymentChannelTypeBalance, InteractionMode: constants.PaymentInteractionBalance,
+			Amount: money.FromDecimal(decimal.NewFromInt(100)), FeeAmount: money.FromDecimal(decimal.RequireFromString("99.00")), FeePolicy: constants.PaymentFeePolicyMerchantAbsorbed,
+			Currency: "CNY", Status: constants.PaymentStatusSuccess, CreatedAt: base, UpdatedAt: base,
+		},
+		{
+			OrderID: order.ID, ProviderType: constants.PaymentProviderOfficial,
+			ChannelType: constants.PaymentChannelTypeAlipay, InteractionMode: constants.PaymentInteractionRedirect,
+			Amount: money.FromDecimal(decimal.NewFromInt(103)), FeeAmount: money.FromDecimal(decimal.RequireFromString("11.00")), FeePolicy: constants.PaymentFeePolicyLegacyCustomerSurcharge,
+			Currency: "CNY", Status: constants.PaymentStatusSuccess, CreatedAt: base, UpdatedAt: base,
+		},
+		{
+			OrderID: order.ID, ProviderType: constants.PaymentProviderOfficial,
+			ChannelType: constants.PaymentChannelTypeAlipay, InteractionMode: constants.PaymentInteractionRedirect,
+			Amount: money.FromDecimal(decimal.NewFromInt(100)), FeeAmount: money.FromDecimal(decimal.RequireFromString("7.00")), FeePolicy: constants.PaymentFeePolicyMerchantAbsorbed,
+			Currency: "CNY", Status: constants.PaymentStatusSuccess, CreatedAt: base.Add(48 * time.Hour), UpdatedAt: base.Add(48 * time.Hour),
+		},
+	}
+	if err := db.Create(&payments).Error; err != nil {
+		t.Fatalf("create payments failed: %v", err)
+	}
+
+	startAt := base.Add(-time.Hour)
+	endAt := base.Add(24 * time.Hour)
+	overview, err := repo.GetProfitOverview(startAt, endAt)
+	if err != nil {
+		t.Fatalf("get profit overview failed: %v", err)
+	}
+	if math.Abs(overview.TotalRevenue-100) > 0.000001 || math.Abs(overview.TotalCost-40) > 0.000001 || math.Abs(overview.PaymentFee-5) > 0.000001 {
+		t.Fatalf("unexpected profit overview: %+v", overview)
+	}
+
+	rows, err := repo.GetProfitTrends(startAt, endAt)
+	if err != nil {
+		t.Fatalf("get profit trends failed: %v", err)
+	}
+	if len(rows) != 1 || math.Abs(rows[0].PaymentFee-5) > 0.000001 {
+		t.Fatalf("unexpected profit trends: %+v", rows)
+	}
+}
+
+func TestProfitStatisticsReverseReturnedPaymentFeeOnRefundDay(t *testing.T) {
+	repo, db := setupDashboardRepositoryTest(t)
+	base := time.Date(2026, 8, 11, 10, 0, 0, 0, time.UTC)
+	refundAt := base.Add(24 * time.Hour)
+
+	category := createDashboardCategory(t, db, "dashboard-profit-refunded-payment-fee-category")
+	product := &productdomain.Product{
+		CategoryID:      category.ID,
+		Slug:            "dashboard-profit-refunded-payment-fee-product",
+		TitleJSON:       jsonmap.JSON{"zh-CN": "退款手续费冲回测试商品"},
+		PriceAmount:     money.FromDecimal(decimal.NewFromInt(100)),
+		PurchaseType:    constants.ProductPurchaseMember,
+		FulfillmentType: constants.FulfillmentTypeManual,
+		IsActive:        true,
+	}
+	if err := db.Create(product).Error; err != nil {
+		t.Fatalf("create product failed: %v", err)
+	}
+	order := createDashboardProfitOrderWithItem(t, db, product, "DJ-PROFIT-REFUNDED-PAYMENT-FEE", constants.OrderStatusRefunded, 100, 40, "退款手续费冲回测试商品", base)
+	if err := db.Create(&paymentdomain.Payment{
+		OrderID: order.ID, ProviderType: constants.PaymentProviderOfficial,
+		ChannelType: constants.PaymentChannelTypeAlipay, InteractionMode: constants.PaymentInteractionRedirect,
+		Amount: money.FromDecimal(decimal.NewFromInt(100)), FeeAmount: money.FromDecimal(decimal.RequireFromString("3.00")), FeePolicy: constants.PaymentFeePolicyMerchantAbsorbed,
+		Currency: "CNY", Status: constants.PaymentStatusSuccess, CreatedAt: base, UpdatedAt: base,
+	}).Error; err != nil {
+		t.Fatalf("create payment failed: %v", err)
+	}
+	if err := db.Create(&orderdomain.OrderRefundRecord{
+		OrderID: order.ID, Type: constants.OrderRefundTypeManual,
+		Amount:                   money.FromDecimal(decimal.NewFromInt(100)),
+		PaymentFeeRefunded:       true,
+		PaymentFeeRefundedAmount: money.FromDecimal(decimal.RequireFromString("3.00")),
+		Currency:                 "CNY",
+		CreatedAt:                refundAt,
+		UpdatedAt:                refundAt,
+	}).Error; err != nil {
+		t.Fatalf("create refund record failed: %v", err)
+	}
+
+	overview, err := repo.GetProfitOverview(base.Add(-time.Hour), refundAt.Add(time.Hour))
+	if err != nil {
+		t.Fatalf("get profit overview failed: %v", err)
+	}
+	if math.Abs(overview.PaymentFee) > 0.000001 {
+		t.Fatalf("net payment fee = %v, want 0", overview.PaymentFee)
+	}
+
+	rows, err := repo.GetProfitTrends(base.Add(-time.Hour), refundAt.Add(time.Hour))
+	if err != nil {
+		t.Fatalf("get profit trends failed: %v", err)
+	}
+	rowMap := make(map[string]dashboard.ProfitTrendRow, len(rows))
+	for _, row := range rows {
+		rowMap[row.Day] = row
+	}
+	if math.Abs(rowMap["2026-08-11"].PaymentFee-3) > 0.000001 {
+		t.Fatalf("payment-day fee = %v, want 3", rowMap["2026-08-11"].PaymentFee)
+	}
+	if math.Abs(rowMap["2026-08-12"].PaymentFee+3) > 0.000001 {
+		t.Fatalf("refund-day fee = %v, want -3", rowMap["2026-08-12"].PaymentFee)
+	}
+
+	refundOnly, err := repo.GetProfitOverview(refundAt.Add(-time.Hour), refundAt.Add(time.Hour))
+	if err != nil {
+		t.Fatalf("get refund-only overview failed: %v", err)
+	}
+	if math.Abs(refundOnly.PaymentFee+3) > 0.000001 {
+		t.Fatalf("refund-only payment fee = %v, want -3", refundOnly.PaymentFee)
 	}
 }
 

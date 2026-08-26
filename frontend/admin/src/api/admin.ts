@@ -208,6 +208,11 @@ export interface AdminRefundToWalletPayload {
 export interface AdminManualRefundPayload {
   amount: string
   remark?: string
+  payment_fee_refunded?: boolean
+}
+
+export interface AdminUpdateRefundPaymentFeePayload {
+  payment_fee_refunded: boolean
 }
 
 export interface AdminBatchCardSecretStatusPayload {
@@ -510,6 +515,8 @@ export const adminAPI = {
     api.post(`/admin/orders/${id}/manual-refund`, data),
   getOrderRefunds: (params?: Record<string, unknown>) => api.get('/admin/order-refunds', { params }),
   getOrderRefund: (id: number) => api.get(`/admin/order-refunds/${id}`),
+  updateOrderRefundPaymentFee: (id: number, data: AdminUpdateRefundPaymentFeePayload) =>
+    api.patch(`/admin/order-refunds/${id}/payment-fee`, data),
   createCoupon: (data: Partial<AdminCoupon>) => api.post('/admin/coupons', data),
   getCoupons: (params?: Record<string, unknown>) => api.get('/admin/coupons', { params }),
   updateCoupon: (id: number, data: Partial<AdminCoupon>) => api.put(`/admin/coupons/${id}`, data),

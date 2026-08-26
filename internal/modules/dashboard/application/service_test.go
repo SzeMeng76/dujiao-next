@@ -173,5 +173,52 @@ func TestEffectiveDashboardCostSupportsCrossPeriodRefundAdjustment(t *testing.T)
 	}
 }
 
+func TestDashboardProfitDeductsPaymentFees(t *testing.T) {
+	service := NewService(dashboardServiceRepoStub{
+		overview: dashboardcontract.OverviewRow{Currency: "CNY"},
+		profitOverview: dashboardcontract.ProfitOverviewRow{
+			TotalRevenue: 100,
+			TotalCost:    40,
+			PaymentFee:   3,
+		},
+	}, nil)
+
+	response, err := service.GetOverview(context.Background(), reportingdomain.Query{
+		Range:    "today",
+		Timezone: "Asia/Shanghai",
+	})
+	if err != nil {
+		t.Fatalf("get overview failed: %v", err)
+	}
+	if response.KPI.TotalCost != "43.00" || response.KPI.PaymentFee != "3.00" || response.KPI.TotalProfit != "57.00" || response.KPI.ProfitMargin != "57.00" {
+		t.Fatalf("unexpected profit KPI: %+v", response.KPI)
+	}
+}
+
+func TestDashboardProfitCombinesRefundCostReversalAndPaymentFees(t *testing.T) {
+	setting := settingsstorefront.DefaultDashboardSetting()
+	setting.Accounting.RefundReversesCost = true
+	service := NewService(dashboardServiceRepoStub{
+		overview: dashboardcontract.OverviewRow{Currency: "CNY"},
+		profitOverview: dashboardcontract.ProfitOverviewRow{
+			TotalRevenue: 100,
+			TotalCost:    40,
+			RefundedCost: 10,
+			PaymentFee:   3,
+		},
+	}, dashboardSettingReaderStub{setting: setting})
+
+	response, err := service.GetOverview(context.Background(), reportingdomain.Query{
+		Range:    "today",
+		Timezone: "Asia/Shanghai",
+	})
+	if err != nil {
+		t.Fatalf("get overview failed: %v", err)
+	}
+	if response.KPI.TotalCost != "33.00" || response.KPI.PaymentFee != "3.00" || response.KPI.TotalProfit != "67.00" || response.KPI.ProfitMargin != "67.00" {
+		t.Fatalf("unexpected combined profit KPI: %+v", response.KPI)
+	}
+}
+
 var _ dashboardcontract.Repository = dashboardServiceRepoStub{}
 var _ dashboardcontract.SettingReader = dashboardSettingReaderStub{}

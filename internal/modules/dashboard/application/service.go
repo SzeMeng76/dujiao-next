@@ -77,7 +77,7 @@ func (s *Service) GetOverview(ctx context.Context, input reportingdomain.Query) 
 		return nil, err
 	}
 
-	totalCost := effectiveDashboardCost(profitOverview.TotalCost, profitOverview.RefundedCost, setting.Accounting.RefundReversesCost)
+	totalCost := effectiveDashboardCost(profitOverview.TotalCost, profitOverview.RefundedCost, setting.Accounting.RefundReversesCost) + profitOverview.PaymentFee
 	totalProfit := profitOverview.TotalRevenue - totalCost
 	profitMargin := 0.0
 	if profitOverview.TotalRevenue > 0 {
@@ -113,6 +113,7 @@ func (s *Service) GetOverview(ctx context.Context, input reportingdomain.Query) 
 			ProcessingOrders:     overview.ProcessingOrders,
 			GMVPaid:              formatMoneyValue(overview.GMVPaid),
 			TotalCost:            formatMoneyValue(totalCost),
+			PaymentFee:           formatMoneyValue(profitOverview.PaymentFee),
 			TotalProfit:          formatMoneyValue(totalProfit),
 			ProfitMargin:         formatPercentValue(profitMargin),
 			PaymentsTotal:        overview.PaymentsTotal,
@@ -219,7 +220,7 @@ func (s *Service) GetTrends(ctx context.Context, input reportingdomain.Query) (*
 		orderItem := orderMap[day]
 		paymentItem := paymentMap[day]
 		profitItem := profitMap[day]
-		dayCost := effectiveDashboardCost(profitItem.Cost, profitItem.RefundedCost, setting.Accounting.RefundReversesCost)
+		dayCost := effectiveDashboardCost(profitItem.Cost, profitItem.RefundedCost, setting.Accounting.RefundReversesCost) + profitItem.PaymentFee
 		dayProfit := profitItem.Revenue - dayCost
 		points = append(points, TrendPoint{
 			Date:            day,
