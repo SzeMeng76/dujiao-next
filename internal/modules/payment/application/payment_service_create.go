@@ -189,6 +189,10 @@ func (s *PaymentService) CreatePayment(input CreatePaymentInput) (*CreatePayment
 			if err := paymentRepo.Create(payment); err != nil {
 				return ErrPaymentCreateFailed
 			}
+			// 余额已覆盖全额，订单遗留的在线链接必须同时作废，避免用户再付一次。
+			if _, err := paymentRepo.SupersedePendingByOrderID(lockedOrder.ID, payment.ID, paidAt); err != nil {
+				return ErrPaymentCreateFailed
+			}
 			if err := s.markOrderPaid(tx, &lockedOrder, paidAt); err != nil {
 				return err
 			}

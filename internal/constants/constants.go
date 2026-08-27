@@ -51,6 +51,7 @@ const (
 	PaymentExceptionSupersededSucceeded  = "superseded_payment_succeeded"
 	PaymentExceptionDuplicateSucceeded   = "duplicate_payment_succeeded"
 	PaymentExceptionClosedOrderSucceeded = "closed_order_payment_succeeded"
+	PaymentExceptionUnderpaidSucceeded   = "underpaid_payment_succeeded"
 )
 
 // 支付提供方常量
@@ -127,6 +128,8 @@ const (
 	WalletTxnTypeAdminAdjust = "admin_adjust"
 	WalletTxnTypeAdminRefund = "admin_refund"
 	WalletTxnTypeGiftCard    = "gift_card_redeem"
+	// WalletTxnTypeOrderUnderpaidCredit 记录"支付成功但金额不足以履约订单"时转入用户余额的款项。
+	WalletTxnTypeOrderUnderpaidCredit = "order_underpaid_credit"
 )
 
 // 钱包交易方向常量
