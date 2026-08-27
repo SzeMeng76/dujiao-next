@@ -30,6 +30,29 @@ func calculatePaymentAmounts(baseAmount, feeRate, fixedFee decimal.Decimal, cust
 	return baseAmount, feeAmount, constants.PaymentFeePolicyMerchantAbsorbed
 }
 
+// paymentCoveredOrderAmount 推算一笔支付创建时承诺覆盖的订单在线应付额。
+//
+// Amount / FeeAmount / FeePolicy 均为创建时快照：用户承担手续费的策略下 Amount
+// 含加收部分，必须扣除后才是订单侧的抵扣基数；商家承担或无手续费时 Amount 即基数。
+// 升级前未写入策略快照（FeePolicy 为空）且带正数手续费的历史记录，与 CreatePayment
+// 的 legacy 判定保持一致，按用户承担解释。
+func paymentCoveredOrderAmount(payment *paymentdomain.Payment) decimal.Decimal {
+	if payment == nil {
+		return decimal.Zero
+	}
+	covered := payment.Amount.Decimal
+	fee := payment.FeeAmount.Decimal
+	switch payment.FeePolicy {
+	case constants.PaymentFeePolicyCustomerSurcharge, constants.PaymentFeePolicyLegacyCustomerSurcharge:
+		covered = covered.Sub(fee)
+	case "":
+		if fee.IsPositive() {
+			covered = covered.Sub(fee)
+		}
+	}
+	return normalizeOrderAmount(covered)
+}
+
 // normalizeOrderAmount 归一化金额精度与下限。
 func normalizeOrderAmount(amount decimal.Decimal) decimal.Decimal {
 	normalized := amount.Round(2)

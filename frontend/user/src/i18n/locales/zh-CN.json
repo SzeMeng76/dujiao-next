@@ -514,7 +514,8 @@
         "order_refund": "订单退款",
         "gift_card_redeem": "礼品卡兑换",
         "admin_adjust": "管理员调账",
-        "admin_refund": "管理员退款"
+        "admin_refund": "管理员退款",
+        "order_underpaid_credit": "订单收款不足转入"
       },
       "errors": {
         "loadFailed": "钱包数据加载失败，请稍后重试",

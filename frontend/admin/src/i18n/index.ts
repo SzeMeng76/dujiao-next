@@ -1086,6 +1086,7 @@ const messages = {
           superseded_payment_succeeded: '已替换的旧支付链接迟到成功',
           duplicate_payment_succeeded: '订单已支付后又收到另一笔成功款',
           closed_order_payment_succeeded: '已关闭订单收到成功款',
+          underpaid_payment_succeeded: '收款金额不足以完成订单，款项已转入用户余额',
         },
         detailInteraction: '交互模式',
         detailCreatedAt: '创建时间',
@@ -2461,6 +2462,7 @@ const messages = {
             gift_card_redeem: '礼品卡兑换',
             admin_adjust: '管理员调账',
             admin_refund: '管理员退款',
+            order_underpaid_credit: '订单收款不足转入',
           },
           errors: {
             loadFailed: '钱包数据获取失败',
@@ -5607,6 +5609,7 @@ const messages = {
           superseded_payment_succeeded: '已替換的舊支付連結遲到成功',
           duplicate_payment_succeeded: '訂單已支付後又收到另一筆成功款',
           closed_order_payment_succeeded: '已關閉訂單收到成功款',
+          underpaid_payment_succeeded: '收款金額不足以完成訂單，款項已轉入用戶餘額',
         },
         detailInteraction: '互動模式',
         detailCreatedAt: '建立時間',
@@ -6982,6 +6985,7 @@ const messages = {
             gift_card_redeem: '禮品卡兌換',
             admin_adjust: '管理員調帳',
             admin_refund: '管理員退款',
+            order_underpaid_credit: '訂單收款不足轉入',
           },
           errors: {
             loadFailed: '錢包資料取得失敗',
@@ -10129,6 +10133,7 @@ const messages = {
           superseded_payment_succeeded: 'A superseded payment link succeeded late',
           duplicate_payment_succeeded: 'Another payment succeeded after the order was already paid',
           closed_order_payment_succeeded: 'A closed order received a successful payment',
+          underpaid_payment_succeeded: 'The amount received was not enough to fulfill the order; it was credited to the customer wallet',
         },
         detailInteraction: 'Interaction',
         detailCreatedAt: 'Created At',
@@ -11504,6 +11509,7 @@ const messages = {
             gift_card_redeem: 'Gift card redeem',
             admin_adjust: 'Admin adjustment',
             admin_refund: 'Admin refund',
+            order_underpaid_credit: 'Underpaid order credit',
           },
           errors: {
             loadFailed: 'Failed to load wallet data',
