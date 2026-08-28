@@ -1369,7 +1369,7 @@ watch(
               @submit.prevent="submitManualConfirmPayment"
             >
               <div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                {{ t('admin.orders.manualConfirmPaymentWarning') }}
+                {{ t(isManualConfirmPaymentOnCanceledOrder(selectedOrder) ? 'admin.orders.manualConfirmPaymentWarningCanceled' : 'admin.orders.manualConfirmPaymentWarning') }}
               </div>
               <Textarea
                 v-model="manualConfirmPaymentForm.remark"
