@@ -428,7 +428,6 @@ watch(
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="pending_payment">{{ t('order.status.pending_payment') }}</SelectItem>
-                    <SelectItem value="paid">{{ t('order.status.paid') }}</SelectItem>
                     <SelectItem value="fulfilling">{{ t('order.status.fulfilling') }}</SelectItem>
                     <SelectItem value="partially_delivered">{{ t('order.status.partially_delivered') }}</SelectItem>
                     <SelectItem value="partially_refunded">{{ t('order.status.partially_refunded') }}</SelectItem>

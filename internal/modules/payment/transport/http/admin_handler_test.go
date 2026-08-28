@@ -368,6 +368,7 @@ func setupAdminPaymentHandlerTest(t *testing.T) (*AdminHandler, adminPaymentFixt
 			{PaymentID: fixture.RechargePaymentUser1, RechargeNo: fixture.RechargeNoUser1, UserID: fixture.User1ID, Status: constants.WalletRechargeStatusPending},
 			{PaymentID: fixture.RechargePaymentUser2, RechargeNo: fixture.RechargeNoUser2, UserID: fixture.User2ID, Status: constants.WalletRechargeStatusPending},
 		}},
+		nil,
 	)
 	return h, fixture
 }
@@ -614,5 +615,158 @@ func TestGetAdminPaymentsBadQueryReturnsBadRequestCode(t *testing.T) {
 	}
 	if resp.StatusCode != 400 {
 		t.Fatalf("status_code want 400 got %d", resp.StatusCode)
+	}
+}
+
+type fakeAdminManualConfirmPayment struct {
+	order    *orderdomain.Order
+	payment  *paymentdomain.Payment
+	err      error
+	gotInput AdminManualConfirmPaymentInput
+}
+
+func (f *fakeAdminManualConfirmPayment) ManualConfirmPayment(input AdminManualConfirmPaymentInput) (*orderdomain.Order, *paymentdomain.Payment, error) {
+	f.gotInput = input
+	if f.err != nil {
+		return nil, nil, f.err
+	}
+	return f.order, f.payment, nil
+}
+
+func TestAdminConfirmManualPaymentSuccess(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	manualConfirm := &fakeAdminManualConfirmPayment{
+		order:   &orderdomain.Order{ID: 5, Status: constants.OrderStatusPaid},
+		payment: &paymentdomain.Payment{ID: 9, Status: constants.PaymentStatusSuccess},
+	}
+	h := NewAdminHandler(
+		&fakeAdminPaymentQuery{},
+		fakeAdminChannelLookup{},
+		fakeAdminOrderLookup{},
+		fakeAdminRechargeLookup{},
+		manualConfirm,
+	)
+
+	body := `{"provider_ref":"chain-tx-1","remark":"支付平台已确认到账，人工确认"}`
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Params = gin.Params{{Key: "order_id", Value: "5"}}
+	c.Request = httptest.NewRequest(http.MethodPost, "/admin/orders/5/manual-confirm-payment", strings.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+	c.Set("admin_id", uint(7))
+	c.Set("username", "root")
+
+	h.AdminConfirmManualPayment(c)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status want 200 got %d, body=%s", w.Code, w.Body.String())
+	}
+	if manualConfirm.gotInput.OrderID != 5 {
+		t.Fatalf("expected order id 5, got %d", manualConfirm.gotInput.OrderID)
+	}
+	if manualConfirm.gotInput.OperatorAdminID != 7 || manualConfirm.gotInput.OperatorUsername != "root" {
+		t.Fatalf("unexpected operator fields: %+v", manualConfirm.gotInput)
+	}
+	if manualConfirm.gotInput.ProviderRef != "chain-tx-1" || manualConfirm.gotInput.Remark == "" {
+		t.Fatalf("unexpected request fields: %+v", manualConfirm.gotInput)
+	}
+}
+
+func TestAdminConfirmManualPaymentRequiresRemark(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	manualConfirm := &fakeAdminManualConfirmPayment{}
+	h := NewAdminHandler(
+		&fakeAdminPaymentQuery{},
+		fakeAdminChannelLookup{},
+		fakeAdminOrderLookup{},
+		fakeAdminRechargeLookup{},
+		manualConfirm,
+	)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Params = gin.Params{{Key: "order_id", Value: "5"}}
+	c.Request = httptest.NewRequest(http.MethodPost, "/admin/orders/5/manual-confirm-payment", strings.NewReader(`{"remark":""}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+	c.Set("admin_id", uint(7))
+
+	h.AdminConfirmManualPayment(c)
+
+	var resp struct {
+		StatusCode int `json:"status_code"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal response failed: %v", err)
+	}
+	if resp.StatusCode != 400 {
+		t.Fatalf("status_code want 400 got %d, body=%s", resp.StatusCode, w.Body.String())
+	}
+}
+
+func TestAdminConfirmManualPaymentMapsNotAllowedError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	manualConfirm := &fakeAdminManualConfirmPayment{err: ErrOrderManualConfirmNotAllowed}
+	h := NewAdminHandler(
+		&fakeAdminPaymentQuery{},
+		fakeAdminChannelLookup{},
+		fakeAdminOrderLookup{},
+		fakeAdminRechargeLookup{},
+		manualConfirm,
+	)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Params = gin.Params{{Key: "order_id", Value: "5"}}
+	c.Request = httptest.NewRequest(http.MethodPost, "/admin/orders/5/manual-confirm-payment", strings.NewReader(`{"remark":"test"}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+	c.Set("admin_id", uint(7))
+
+	h.AdminConfirmManualPayment(c)
+
+	var resp struct {
+		StatusCode int `json:"status_code"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal response failed: %v", err)
+	}
+	if resp.StatusCode != 400 {
+		t.Fatalf("status_code want 400 got %d, body=%s", resp.StatusCode, w.Body.String())
+	}
+}
+
+func TestAdminConfirmManualPaymentRequiresAdminContext(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	manualConfirm := &fakeAdminManualConfirmPayment{
+		order:   &orderdomain.Order{ID: 5},
+		payment: &paymentdomain.Payment{ID: 9},
+	}
+	h := NewAdminHandler(
+		&fakeAdminPaymentQuery{},
+		fakeAdminChannelLookup{},
+		fakeAdminOrderLookup{},
+		fakeAdminRechargeLookup{},
+		manualConfirm,
+	)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Params = gin.Params{{Key: "order_id", Value: "5"}}
+	c.Request = httptest.NewRequest(http.MethodPost, "/admin/orders/5/manual-confirm-payment", strings.NewReader(`{"remark":"test"}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+	// 未设置 admin_id：模拟未通过鉴权中间件的情况。
+
+	h.AdminConfirmManualPayment(c)
+
+	if manualConfirm.gotInput.OrderID != 0 {
+		t.Fatalf("service should not be called without admin identity, got input: %+v", manualConfirm.gotInput)
+	}
+	var resp struct {
+		StatusCode int `json:"status_code"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal response failed: %v", err)
+	}
+	if resp.StatusCode != 401 {
+		t.Fatalf("status_code want 401 got %d, body=%s", resp.StatusCode, w.Body.String())
 	}
 }

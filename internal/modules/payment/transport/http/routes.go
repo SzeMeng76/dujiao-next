@@ -36,7 +36,7 @@ func RegisterUserWriteRoutes(user gin.IRoutes, handler *WriteHandler) {
 	user.POST("/payments/:id/capture", handler.CapturePayment)
 }
 
-// RegisterAdminRoutes 注册后台支付只读路由。
+// RegisterAdminRoutes 注册后台支付路由（只读查询 + 人工确认支付）。
 func RegisterAdminRoutes(authorized gin.IRoutes, handler *AdminHandler) {
 	if authorized == nil || handler == nil {
 		panic("payment admin routes: required dependency is nil")
@@ -44,6 +44,7 @@ func RegisterAdminRoutes(authorized gin.IRoutes, handler *AdminHandler) {
 	authorized.GET("/payments", handler.GetAdminPayments)
 	authorized.GET("/payments/export", handler.ExportAdminPayments)
 	authorized.GET("/payments/:id", handler.GetAdminPayment)
+	authorized.POST("/orders/:order_id/manual-confirm-payment", handler.AdminConfirmManualPayment)
 }
 
 // RegisterAdminChannelRoutes 注册后台支付渠道路由。

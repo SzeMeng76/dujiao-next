@@ -120,6 +120,7 @@ func (c *Container) initIntegrationServices() {
 		NotificationService:     c.NotificationService,
 		PaymentProviderRegistry: c.PaymentProviderRegistry,
 		ResellerAccounting:      c.ResellerAccountingLedger,
+		ManualConfirmLogStore:   c.OrderManualConfirmLogStore,
 	})
 	c.ProcurementOrderService = procurementapp.NewService(procurementapp.Options{
 		Repository:         c.ProcurementOrderRepo,

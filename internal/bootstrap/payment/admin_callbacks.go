@@ -2,6 +2,8 @@ package paymentbootstrap
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
 
 	paymentapp "github.com/dujiao-next/internal/modules/payment/application"
@@ -9,6 +11,7 @@ import (
 
 	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
 
+	orderapp "github.com/dujiao-next/internal/modules/order/application"
 	ordercontract "github.com/dujiao-next/internal/modules/order/contract"
 	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
 
@@ -45,6 +48,43 @@ func (a adminQueryAdapter) ListPayments(filter paymenttransport.AdminPaymentList
 func (a adminQueryAdapter) GetPayment(id uint) (*paymentdomain.Payment, error) {
 	payment, err := a.payments.GetPayment(id)
 	return payment, mapTransportError(err)
+}
+
+type adminManualConfirmPaymentAdapter struct {
+	payments *paymentapp.PaymentService
+}
+
+func (a adminManualConfirmPaymentAdapter) ManualConfirmPayment(input paymenttransport.AdminManualConfirmPaymentInput) (*orderdomain.Order, *paymentdomain.Payment, error) {
+	order, payment, err := a.payments.ManualConfirmPayment(paymentapp.ManualConfirmPaymentInput{
+		OrderID:          input.OrderID,
+		OperatorAdminID:  input.OperatorAdminID,
+		OperatorUsername: input.OperatorUsername,
+		ProviderRef:      input.ProviderRef,
+		Remark:           input.Remark,
+	})
+	return order, payment, mapManualConfirmPaymentError(err)
+}
+
+func mapManualConfirmPaymentError(err error) error {
+	if err == nil {
+		return nil
+	}
+	for _, mapping := range []struct {
+		source error
+		target error
+	}{
+		{orderapp.ErrOrderNotFound, paymenttransport.ErrOrderNotFound},
+		{orderapp.ErrOrderFetchFailed, paymenttransport.ErrOrderNotFound},
+		{paymentapp.ErrPaymentNotFound, paymenttransport.ErrPaymentNotFound},
+		{paymentapp.ErrPaymentInvalid, paymenttransport.ErrPaymentInvalid},
+		{paymentapp.ErrOrderManualConfirmNotAllowed, paymenttransport.ErrOrderManualConfirmNotAllowed},
+		{paymentapp.ErrManualConfirmRemarkRequired, paymenttransport.ErrManualConfirmRemarkRequired},
+	} {
+		if errors.Is(err, mapping.source) {
+			return fmt.Errorf("%w: %v", mapping.target, err)
+		}
+	}
+	return err
 }
 
 type adminChannelLookupAdapter struct {

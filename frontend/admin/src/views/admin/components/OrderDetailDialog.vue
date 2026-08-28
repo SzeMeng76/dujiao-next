@@ -8,6 +8,7 @@ import IdCell from '@/components/IdCell.vue'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Card, CardContent } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -61,6 +62,16 @@ const manualRefundForm = reactive({
   reason: '',
   paymentFeeRefunded: true,
 })
+
+const manualConfirmPaymentDialogOpen = ref(false)
+const manualConfirmPaymentSubmitting = ref(false)
+const manualConfirmPaymentError = ref('')
+const manualConfirmPaymentSuccess = ref('')
+const manualConfirmPaymentForm = reactive({
+  remark: '',
+  providerRef: '',
+})
+
 
 
 const userDetailLink = (userId: number) => adminUrl(`/users/${userId}`)
@@ -263,6 +274,12 @@ const canCreateChildFulfillment = (order: AdminOrder | null) => {
   if (!order || !order.items || !order.items.length) return false
   return order.items.every((item: AdminOrderItem) => item.fulfillment_type === 'manual')
 }
+
+const canManuallyConfirmPayment = (order: AdminOrder | null) => {
+  if (!order) return false
+  return order.status === 'pending_payment' || order.status === 'fulfilling'
+}
+
 
 const formatManualValue = (value: unknown) => {
   if (Array.isArray(value)) {
@@ -514,6 +531,48 @@ const resetManualRefundForm = () => {
   manualRefundSuccess.value = ''
 }
 
+const resetManualConfirmPaymentForm = () => {
+  manualConfirmPaymentForm.remark = ''
+  manualConfirmPaymentForm.providerRef = ''
+  manualConfirmPaymentError.value = ''
+  manualConfirmPaymentSuccess.value = ''
+}
+
+const openManualConfirmPaymentDialog = () => {
+  resetManualConfirmPaymentForm()
+  manualConfirmPaymentDialogOpen.value = true
+}
+
+const closeManualConfirmPaymentDialog = () => {
+  manualConfirmPaymentDialogOpen.value = false
+}
+
+const submitManualConfirmPayment = async () => {
+  if (!selectedOrder.value) return
+  manualConfirmPaymentError.value = ''
+  if (!manualConfirmPaymentForm.remark.trim()) {
+    manualConfirmPaymentError.value = t('admin.orders.manualConfirmPaymentRemarkRequired')
+    return
+  }
+
+  manualConfirmPaymentSubmitting.value = true
+  try {
+    await adminAPI.manualConfirmPayment(Number(selectedOrder.value.id), {
+      remark: manualConfirmPaymentForm.remark.trim(),
+      provider_ref: manualConfirmPaymentForm.providerRef.trim() || undefined,
+    })
+    manualConfirmPaymentSuccess.value = t('admin.orders.manualConfirmPaymentSuccess')
+    manualConfirmPaymentDialogOpen.value = false
+    await fetchOrderDetail(Number(selectedOrder.value.id))
+    emit('refresh')
+  } catch (err: any) {
+    manualConfirmPaymentError.value = err?.message || t('admin.orders.manualConfirmPaymentFailed')
+  } finally {
+    manualConfirmPaymentSubmitting.value = false
+  }
+}
+
+
 const formatFeeRate = (channel: AdminPayment | { fee_rate: number | string; fixed_fee?: number | string }) => {
   const feeRate = channel.fee_rate
   const fixedFee = channel.fixed_fee
@@ -648,6 +707,8 @@ const handleClose = () => {
   refundTab.value = 'wallet'
   resetRefundForm()
   resetManualRefundForm()
+  manualConfirmPaymentDialogOpen.value = false
+  resetManualConfirmPaymentForm()
 }
 
 const handleOpenFulfillment = (order: AdminOrder, parentId?: number) => {
@@ -1284,6 +1345,68 @@ watch(
               class="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700"
             >
               {{ manualRefundSuccess }}
+            </div>
+          </div>
+
+          <div v-if="canManuallyConfirmPayment(selectedOrder)" class="rounded-xl border border-border bg-muted/20 p-4">
+            <h3 class="text-sm font-semibold text-foreground mb-3">{{ t('admin.orders.manualConfirmPaymentCardTitle') }}</h3>
+            <Button
+              v-if="!manualConfirmPaymentDialogOpen"
+              variant="outline"
+              size="sm"
+              @click="openManualConfirmPaymentDialog"
+            >
+              {{ t('admin.orders.manualConfirmPaymentButton') }}
+            </Button>
+            <form
+              v-else
+              class="space-y-3"
+              @submit.prevent="submitManualConfirmPayment"
+            >
+              <div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                {{ t('admin.orders.manualConfirmPaymentWarning') }}
+              </div>
+              <Textarea
+                v-model="manualConfirmPaymentForm.remark"
+                rows="3"
+                :placeholder="t('admin.orders.manualConfirmPaymentRemarkPlaceholder')"
+                :disabled="manualConfirmPaymentSubmitting"
+              />
+              <Input
+                v-model="manualConfirmPaymentForm.providerRef"
+                :placeholder="t('admin.orders.manualConfirmPaymentProviderRefPlaceholder')"
+                :disabled="manualConfirmPaymentSubmitting"
+              />
+              <div class="flex items-center gap-2">
+                <Button
+                  type="submit"
+                  size="sm"
+                  :disabled="manualConfirmPaymentSubmitting"
+                >
+                  {{ manualConfirmPaymentSubmitting ? t('admin.orders.manualConfirmPaymentSubmitting') : t('admin.orders.manualConfirmPaymentSubmit') }}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  :disabled="manualConfirmPaymentSubmitting"
+                  @click="closeManualConfirmPaymentDialog"
+                >
+                  {{ t('admin.orders.manualConfirmPaymentCancel') }}
+                </Button>
+              </div>
+              <div
+                v-if="manualConfirmPaymentError"
+                class="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
+              >
+                {{ manualConfirmPaymentError }}
+              </div>
+            </form>
+            <div
+              v-if="!manualConfirmPaymentDialogOpen && manualConfirmPaymentSuccess"
+              class="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700"
+            >
+              {{ manualConfirmPaymentSuccess }}
             </div>
           </div>
         </div>

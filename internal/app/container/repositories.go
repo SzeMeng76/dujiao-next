@@ -47,6 +47,7 @@ func (c *Container) initRepositories() error {
 		return fmt.Errorf("backfill guest order credentials: %w", err)
 	}
 	c.OrderStore = orderStore
+	c.OrderManualConfirmLogStore = ordergormstore.NewManualConfirmLogStore(db)
 	c.PaymentStore = paymentgormstore.New(db, c.Config.App.SecretKey)
 	c.PaymentChannelStore = paymentgormstore.NewChannelStore(db)
 	c.CardSecretRepo = cardsecretgormstore.New(db)

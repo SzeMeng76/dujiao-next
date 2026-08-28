@@ -95,6 +95,7 @@ func AutoMigrate() error {
 		&memberleveldomain.MemberLevel{},
 		&memberleveldomain.MemberLevelPrice{},
 		&contentdomain.Media{},
+		&orderdomain.OrderManualConfirmLog{},
 	); err != nil {
 		return err
 	}

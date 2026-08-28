@@ -23,6 +23,13 @@ import (
 
 const adminPaymentExportBatchSize = 500
 
+var (
+	// ErrOrderManualConfirmNotAllowed 表示订单当前状态不允许人工确认支付。
+	ErrOrderManualConfirmNotAllowed = errors.New("order manual confirm payment not allowed")
+	// ErrManualConfirmRemarkRequired 表示人工确认支付缺少必填备注。
+	ErrManualConfirmRemarkRequired = errors.New("manual confirm remark required")
+)
+
 // AdminPaymentListFilter 后台支付列表过滤条件。
 type AdminPaymentListFilter struct {
 	Page         int
@@ -43,6 +50,21 @@ type AdminPaymentListFilter struct {
 type AdminPaymentQuery interface {
 	ListPayments(filter AdminPaymentListFilter) ([]paymentdomain.Payment, int64, error)
 	GetPayment(id uint) (*paymentdomain.Payment, error)
+}
+
+// AdminManualConfirmPaymentInput 后台人工确认支付输入。
+type AdminManualConfirmPaymentInput struct {
+	OrderID          uint
+	OperatorAdminID  uint
+	OperatorUsername string
+	ProviderRef      string
+	Remark           string
+}
+
+// AdminManualConfirmPayment 后台人工确认支付写端口：作为第三方支付回调失败时的兜底方案，
+// 复用与真实网关回调完全相同的处理流水线。
+type AdminManualConfirmPayment interface {
+	ManualConfirmPayment(input AdminManualConfirmPaymentInput) (*orderdomain.Order, *paymentdomain.Payment, error)
 }
 
 // AdminChannelLookup 后台支付渠道名称查询端口。
@@ -79,17 +101,18 @@ type paymentRechargeMeta struct {
 
 // AdminHandler 处理后台支付只读 HTTP。
 type AdminHandler struct {
-	payments AdminPaymentQuery
-	channels AdminChannelLookup
-	orders   AdminOrderLookup
-	recharge AdminRechargeLookup
+	payments      AdminPaymentQuery
+	channels      AdminChannelLookup
+	orders        AdminOrderLookup
+	recharge      AdminRechargeLookup
+	manualConfirm AdminManualConfirmPayment
 }
 
-func NewAdminHandler(payments AdminPaymentQuery, channels AdminChannelLookup, orders AdminOrderLookup, recharge AdminRechargeLookup) *AdminHandler {
+func NewAdminHandler(payments AdminPaymentQuery, channels AdminChannelLookup, orders AdminOrderLookup, recharge AdminRechargeLookup, manualConfirm AdminManualConfirmPayment) *AdminHandler {
 	if payments == nil {
 		panic("payment admin handler: payments is nil")
 	}
-	return &AdminHandler{payments: payments, channels: channels, orders: orders, recharge: recharge}
+	return &AdminHandler{payments: payments, channels: channels, orders: orders, recharge: recharge, manualConfirm: manualConfirm}
 }
 
 // GetAdminPayments 获取支付记录列表
@@ -266,7 +289,64 @@ func redactAdminPayment(payment paymentdomain.Payment) paymentdomain.Payment {
 	return payment
 }
 
-// paymentDisplayChannelType 提取后台支付记录的展示用渠道类型。
+// AdminManualConfirmPaymentRequest 后台人工确认支付请求体。
+type AdminManualConfirmPaymentRequest struct {
+	ProviderRef string `json:"provider_ref"`
+	Remark      string `json:"remark" binding:"required"`
+}
+
+// AdminConfirmManualPayment 后台人工确认支付：作为第三方支付回调失败时的兜底方案，
+// 复用与真实网关回调完全相同的处理流水线（校验状态→标记已支付→记录支付时间→更新支付记录→
+// 扣库存→触发自动发货），而不是直接修改订单状态字段。
+func (h *AdminHandler) AdminConfirmManualPayment(c *gin.Context) {
+	if h.manualConfirm == nil {
+		ginutil.RespondError(c, response.CodeInternal, "error.order_update_failed", nil)
+		return
+	}
+	orderID, err := ginutil.ParseParamUint(c, "order_id")
+	if err != nil {
+		ginutil.RespondError(c, response.CodeBadRequest, "error.order_item_invalid", nil)
+		return
+	}
+	var req AdminManualConfirmPaymentRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		ginutil.RespondBindError(c, err)
+		return
+	}
+	adminID, ok := ginutil.GetAdminID(c)
+	if !ok {
+		return
+	}
+
+	order, payment, err := h.manualConfirm.ManualConfirmPayment(AdminManualConfirmPaymentInput{
+		OrderID:          orderID,
+		OperatorAdminID:  adminID,
+		OperatorUsername: c.GetString("username"),
+		ProviderRef:      strings.TrimSpace(req.ProviderRef),
+		Remark:           strings.TrimSpace(req.Remark),
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrOrderNotFound):
+			ginutil.RespondError(c, response.CodeNotFound, "error.order_not_found", nil)
+		case errors.Is(err, ErrPaymentNotFound):
+			ginutil.RespondError(c, response.CodeBadRequest, "error.manual_confirm_payment_not_found", nil)
+		case errors.Is(err, ErrOrderManualConfirmNotAllowed):
+			ginutil.RespondError(c, response.CodeBadRequest, "error.order_manual_confirm_not_allowed", nil)
+		case errors.Is(err, ErrManualConfirmRemarkRequired):
+			ginutil.RespondError(c, response.CodeBadRequest, "error.manual_confirm_remark_required", nil)
+		default:
+			ginutil.RespondError(c, response.CodeInternal, "error.order_update_failed", err)
+		}
+		return
+	}
+
+	response.Success(c, gin.H{
+		"order":   order,
+		"payment": payment,
+	})
+}
+
 // CSV 导出的 lightweight 查询会把 provider_payload.display_channel_type 提取到 Payment.DisplayChannelType；
 // 后台列表和详情会在响应前清空 ProviderPayload，因此必须在脱敏前从 payload 兜底读取。
 func paymentDisplayChannelType(payment paymentdomain.Payment) string {

@@ -66,6 +66,12 @@ type PaymentService struct {
 	memberLevelSvc          MemberLevelProgressor
 	paymentProviderRegistry paymentcontract.GatewayRegistry
 	resellerAccounting      resellerAccountingTransactions
+	manualConfirmLogStore   ManualConfirmLogWriter
+}
+
+// ManualConfirmLogWriter 记录后台"人工确认支付"审计日志的最小端口。
+type ManualConfirmLogWriter interface {
+	Create(log *orderdomain.OrderManualConfirmLog) error
 }
 
 type MemberLevelProgressor interface {
@@ -125,6 +131,7 @@ type PaymentServiceOptions struct {
 	NotificationService     notificationcontract.NotificationEnqueuer
 	PaymentProviderRegistry paymentcontract.GatewayRegistry
 	ResellerAccounting      resellerAccountingTransactions
+	ManualConfirmLogStore   ManualConfirmLogWriter
 }
 
 // NewPaymentService 创建支付服务
@@ -147,6 +154,7 @@ func NewPaymentService(opts PaymentServiceOptions) *PaymentService {
 		notificationSvc:         opts.NotificationService,
 		paymentProviderRegistry: opts.PaymentProviderRegistry,
 		resellerAccounting:      opts.ResellerAccounting,
+		manualConfirmLogStore:   opts.ManualConfirmLogStore,
 	}
 }
 
