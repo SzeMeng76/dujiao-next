@@ -303,7 +303,7 @@ func (h *AdminHandler) AdminConfirmManualPayment(c *gin.Context) {
 		ginutil.RespondError(c, response.CodeInternal, "error.order_update_failed", nil)
 		return
 	}
-	orderID, err := ginutil.ParseParamUint(c, "order_id")
+	orderID, err := ginutil.ParseParamUint(c, "id")
 	if err != nil {
 		ginutil.RespondError(c, response.CodeBadRequest, "error.order_item_invalid", nil)
 		return

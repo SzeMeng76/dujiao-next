@@ -14,9 +14,18 @@ import (
 	"strings"
 	"testing"
 
+	coupondomain "github.com/dujiao-next/internal/modules/coupon/domain"
+	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
+	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
+	ordertransport "github.com/dujiao-next/internal/modules/order/transport/http"
+	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
+	paymenttransport "github.com/dujiao-next/internal/modules/payment/transport/http"
+	promotiondomain "github.com/dujiao-next/internal/modules/promotion/domain"
+
 	"github.com/dujiao-next/internal/authz"
 
 	"github.com/casbin/casbin/v3/util"
+	"github.com/gin-gonic/gin"
 )
 
 // TestAllAdminRoutesCoveredByBuiltinRoles 校验 admin 路由文件里的每条路由

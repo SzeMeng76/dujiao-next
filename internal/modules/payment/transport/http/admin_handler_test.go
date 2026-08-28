@@ -650,7 +650,7 @@ func TestAdminConfirmManualPaymentSuccess(t *testing.T) {
 	body := `{"provider_ref":"chain-tx-1","remark":"支付平台已确认到账，人工确认"}`
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Params = gin.Params{{Key: "order_id", Value: "5"}}
+	c.Params = gin.Params{{Key: "id", Value: "5"}}
 	c.Request = httptest.NewRequest(http.MethodPost, "/admin/orders/5/manual-confirm-payment", strings.NewReader(body))
 	c.Request.Header.Set("Content-Type", "application/json")
 	c.Set("admin_id", uint(7))
@@ -685,7 +685,7 @@ func TestAdminConfirmManualPaymentRequiresRemark(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Params = gin.Params{{Key: "order_id", Value: "5"}}
+	c.Params = gin.Params{{Key: "id", Value: "5"}}
 	c.Request = httptest.NewRequest(http.MethodPost, "/admin/orders/5/manual-confirm-payment", strings.NewReader(`{"remark":""}`))
 	c.Request.Header.Set("Content-Type", "application/json")
 	c.Set("admin_id", uint(7))
@@ -716,7 +716,7 @@ func TestAdminConfirmManualPaymentMapsNotAllowedError(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Params = gin.Params{{Key: "order_id", Value: "5"}}
+	c.Params = gin.Params{{Key: "id", Value: "5"}}
 	c.Request = httptest.NewRequest(http.MethodPost, "/admin/orders/5/manual-confirm-payment", strings.NewReader(`{"remark":"test"}`))
 	c.Request.Header.Set("Content-Type", "application/json")
 	c.Set("admin_id", uint(7))
@@ -750,7 +750,7 @@ func TestAdminConfirmManualPaymentRequiresAdminContext(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Params = gin.Params{{Key: "order_id", Value: "5"}}
+	c.Params = gin.Params{{Key: "id", Value: "5"}}
 	c.Request = httptest.NewRequest(http.MethodPost, "/admin/orders/5/manual-confirm-payment", strings.NewReader(`{"remark":"test"}`))
 	c.Request.Header.Set("Content-Type", "application/json")
 	// 未设置 admin_id：模拟未通过鉴权中间件的情况。
