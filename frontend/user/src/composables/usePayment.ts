@@ -391,17 +391,22 @@ export function usePayment() {
   const pollingActive = computed(() => pollTimer.value !== null)
   const orderItems = computed(() => (Array.isArray(order.value?.items) ? order.value.items : []))
   const customerFeeApplied = computed(() => isCustomerSurchargePayment(paymentResult.value) && (amountToCents(paymentResult.value?.fee_amount) || 0) > 0)
-  // payable_amount/amount/online_pay_amount/fee_amount 均为 payment.Amount 或其派生值——
-  // 换汇渠道（Stripe 配置汇率转 GBP、GlobePay alipayhk/tng/dana/gcash 转 GBP 等）下这是
-  // 结算币种数值（如 GBP），不是订单币种（CNY）。展示时必须搭配后端返回的
-  // paymentResult.currency，不能直接套用 order.currency，否则会把 GBP 数值显示成 CNY。
+  // payable_amount/amount/online_pay_amount 均为 payment.Amount 或其派生值——换汇渠道
+  // （Stripe 配置汇率转 GBP、GlobePay alipayhk/tng/dana/gcash 转 GBP 等）下这是结算币种
+  // 数值（如 GBP），不是订单币种（CNY）。展示时必须搭配后端返回的 paymentResult.currency，
+  // 不能直接套用 order.currency，否则会把 GBP 数值显示成 CNY。
+  //
+  // fee_amount 不受影响：calculatePaymentAmounts 按订单币种（CNY）算出手续费后，
+  // applyProviderPayment 只用 AmountSent/CurrencySent 覆盖 payment.Amount/Currency，
+  // 从不改写 payment.FeeAmount，所以 fee_amount 永远是订单币种数值，必须继续用
+  // order.currency 展示，不能套用 payableAmountCurrency，否则会把 CNY 手续费误标成 GBP。
   const payableAmountCurrency = computed(() => {
     const currency = String(paymentResult.value?.currency || '').trim()
     return currency || order.value?.currency
   })
   const customerFeeAmountDisplay = computed(() => {
     if (!customerFeeApplied.value) return ''
-    return formatMoney(String(paymentResult.value?.fee_amount || '0'), payableAmountCurrency.value)
+    return formatMoney(String(paymentResult.value?.fee_amount || '0'), order.value?.currency)
   })
   const payableAmountDisplay = computed(() => {
     if (paymentResult.value?.payable_amount !== undefined && paymentResult.value?.payable_amount !== null && paymentResult.value?.payable_amount !== '') {
