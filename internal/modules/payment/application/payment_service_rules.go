@@ -1,6 +1,7 @@
 package application
 
 import (
+	"fmt"
 	"strings"
 
 	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
@@ -30,17 +31,34 @@ func calculatePaymentAmounts(baseAmount, feeRate, fixedFee decimal.Decimal, cust
 	return baseAmount, feeAmount, constants.PaymentFeePolicyMerchantAbsorbed
 }
 
-// paymentCoveredOrderAmount 推算一笔支付创建时承诺覆盖的订单在线应付额。
+// paymentCoveredOrderAmount 推算一笔支付创建时承诺覆盖的订单在线应付额（订单币种口径）。
 //
 // Amount / FeeAmount / FeePolicy 均为创建时快照：用户承担手续费的策略下 Amount
 // 含加收部分，必须扣除后才是订单侧的抵扣基数；商家承担或无手续费时 Amount 即基数。
 // 升级前未写入策略快照（FeePolicy 为空）且带正数手续费的历史记录，与 CreatePayment
 // 的 legacy 判定保持一致，按用户承担解释。
+//
+// Binance Pay 等按汇率换算结算币种的网关（见各 adapter CreatePayment 里
+// cfg.NeedsCurrencyConversion 分支），创建支付后 payment.Amount/Currency 会被
+// applyProviderPayment 改写为网关结算币种（如 USDT），不再是订单币种下的金额；
+// 网关 webhook 回调回来的金额同样是结算币种（Binance 回调本身就是 USDT 数值，
+// 无法要求网关改成 CNY），若直接拿这个结算币种数值与订单 CNY 总额比较，两个不同
+// 币种的数字硬比必然判定为金额不足。换算发生时，换算前的订单币种金额已经被
+// adapter 写入 payment.ProviderPayload["original_amount"]，此处应优先取用它。
 func paymentCoveredOrderAmount(payment *paymentdomain.Payment) decimal.Decimal {
 	if payment == nil {
 		return decimal.Zero
 	}
 	covered := payment.Amount.Decimal
+	if payment.ProviderPayload != nil {
+		if raw, ok := payment.ProviderPayload["original_amount"]; ok {
+			if s := strings.TrimSpace(fmt.Sprint(raw)); s != "" {
+				if original, err := decimal.NewFromString(s); err == nil {
+					covered = original
+				}
+			}
+		}
+	}
 	fee := payment.FeeAmount.Decimal
 	switch payment.FeePolicy {
 	case constants.PaymentFeePolicyCustomerSurcharge, constants.PaymentFeePolicyLegacyCustomerSurcharge:
