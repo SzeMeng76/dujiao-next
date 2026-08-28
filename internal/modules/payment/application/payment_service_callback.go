@@ -35,6 +35,13 @@ type PaymentCallbackInput struct {
 	// 它允许升级前创建且没有法币快照标记的在途支付采纳网关签名币种；
 	// 普通调用方无法开启该兼容分支。
 	verifiedLegacyDujiaoPayCurrency string
+
+	// allowReopenCanceledOrder 只能由 ManualConfirmPayment 设置。
+	// 真实网关回调永远不会开启此项：orderOpen 判断硬编码只认 pending_payment，
+	// 是为了防止已取消/已终结订单被迟到的网关回调意外重新履约。人工确认支付是
+	// 管理员主动核实过、专门为“订单被超时取消但用户实际已付款”兜底的场景，
+	// 因此在此单一入口内放宽 orderOpen 判断以额外接受 canceled 状态。
+	allowReopenCanceledOrder bool
 }
 
 func (s *PaymentService) HandleCallback(input PaymentCallbackInput) (*paymentdomain.Payment, error) {
@@ -278,7 +285,8 @@ func (s *PaymentService) applyPaymentUpdate(payment *paymentdomain.Payment, orde
 			return err
 		}
 
-		orderOpen := lockedOrder.Status == constants.OrderStatusPendingPayment && lockedOrder.PaidAt == nil
+		orderOpen := lockedOrder.PaidAt == nil && (lockedOrder.Status == constants.OrderStatusPendingPayment ||
+			(input.allowReopenCanceledOrder && lockedOrder.Status == constants.OrderStatusCanceled))
 
 		// 金额守恒：一笔支付只有覆盖订单当前的在线应付额才允许履约。
 		// 混合支付切换渠道会退回余额并抬高在线应付额，而旧链接在网关侧依然可付，

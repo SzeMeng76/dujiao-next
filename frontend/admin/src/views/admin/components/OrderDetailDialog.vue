@@ -277,7 +277,12 @@ const canCreateChildFulfillment = (order: AdminOrder | null) => {
 
 const canManuallyConfirmPayment = (order: AdminOrder | null) => {
   if (!order) return false
-  return order.status === 'pending_payment' || order.status === 'fulfilling'
+  return order.status === 'pending_payment' || order.status === 'canceled'
+}
+
+const isManualConfirmPaymentOnCanceledOrder = (order: AdminOrder | null) => {
+  if (!order) return false
+  return order.status === 'canceled'
 }
 
 

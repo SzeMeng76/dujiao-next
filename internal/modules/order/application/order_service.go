@@ -190,6 +190,12 @@ var allowedTransitions = map[string]map[string]bool{
 		constants.OrderStatusPaid:     true,
 		constants.OrderStatusCanceled: true,
 	},
+	// 已取消订单允许人工确认支付时回退到已支付：常见于支付回调因网络/签名/网关
+	// 异常未能及时送达、订单已被超时取消，但用户实际付款成功的场景。库存/卡密
+	// 在取消时已释放，若已被其他订单占用，扣减库存/卡密时会自然报错，不会超卖。
+	constants.OrderStatusCanceled: {
+		constants.OrderStatusPaid: true,
+	},
 	constants.OrderStatusPaid: {
 		constants.OrderStatusFulfilling:         true,
 		constants.OrderStatusPartiallyDelivered: true,

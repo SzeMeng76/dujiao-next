@@ -216,10 +216,10 @@ func TestManualConfirmPaymentSuccessMarksOrderPaidAndLogsAudit(t *testing.T) {
 func TestManualConfirmPaymentRejectsWhenOrderStatusNotEligible(t *testing.T) {
 	for _, status := range []string{
 		constants.OrderStatusPaid,
+		constants.OrderStatusFulfilling,
 		constants.OrderStatusDelivered,
 		constants.OrderStatusCompleted,
 		constants.OrderStatusRefunded,
-		constants.OrderStatusCanceled,
 	} {
 		fixture := newManualConfirmFixture(t, "notallowed-"+status, status, constants.PaymentStatusPending, constants.FulfillmentTypeManual)
 		_, _, err := fixture.paymentService.ManualConfirmPayment(paymentapp.ManualConfirmPaymentInput{
@@ -230,6 +230,87 @@ func TestManualConfirmPaymentRejectsWhenOrderStatusNotEligible(t *testing.T) {
 		if err == nil {
 			t.Fatalf("expected error for order status %s, got nil", status)
 		}
+	}
+}
+
+func TestManualConfirmPaymentSucceedsWhenOrderWasAutoCanceled(t *testing.T) {
+	// 模拟：订单因超时被系统自动取消，支付记录在取消时被标记为 expired，
+	// 但用户实际已经付款成功——人工确认支付应当允许把订单重新推进为已支付。
+	fixture := newManualConfirmFixture(t, "canceled-recover", constants.OrderStatusCanceled, constants.PaymentStatusExpired, constants.FulfillmentTypeManual)
+
+	order, payment, err := fixture.paymentService.ManualConfirmPayment(paymentapp.ManualConfirmPaymentInput{
+		OrderID:          fixture.order.ID,
+		OperatorAdminID:  1,
+		OperatorUsername: "admin",
+		Remark:           "订单被超时取消，但支付平台已确认到账，人工确认",
+	})
+	if err != nil {
+		t.Fatalf("ManualConfirmPayment on canceled order failed: %v", err)
+	}
+	if order == nil || order.Status != constants.OrderStatusPaid {
+		t.Fatalf("expected order status paid, got %+v", order)
+	}
+	if payment == nil || payment.Status != constants.PaymentStatusSuccess {
+		t.Fatalf("expected payment status success, got %+v", payment)
+	}
+
+	logs, err := fixture.manualLogStore.ListByOrderID(fixture.order.ID)
+	if err != nil {
+		t.Fatalf("list manual confirm logs failed: %v", err)
+	}
+	if len(logs) != 1 || logs[0].FromStatus != constants.OrderStatusCanceled || logs[0].ToStatus != constants.OrderStatusPaid {
+		t.Fatalf("unexpected audit log entries: %+v", logs)
+	}
+}
+
+// TestManualConfirmPaymentOnCanceledOrderFailsWhenStockAlreadyReassigned 验证：
+// 订单取消时释放的库存如果已经被其他订单占用/售出，人工确认支付在扣减库存这一步
+// 会因为库存不足而报错并整体回滚，绝不会静默超卖或把库存扣成负数。
+func TestManualConfirmPaymentOnCanceledOrderFailsWhenStockAlreadyReassigned(t *testing.T) {
+	fixture := newManualConfirmFixture(t, "canceled-stock-gone", constants.OrderStatusCanceled, constants.PaymentStatusExpired, constants.FulfillmentTypeManual)
+
+	now := time.Now().UTC().Truncate(time.Second)
+	product := &productdomain.Product{
+		CategoryID:      1,
+		Slug:            "manual-confirm-canceled-stock-gone",
+		TitleJSON:       jsonmap.JSON{"zh-CN": "test product"},
+		PriceAmount:     money.FromDecimal(decimal.NewFromInt(88)),
+		FulfillmentType: constants.FulfillmentTypeManual,
+		// ManualStockTotal/Locked 均为默认值 0：模拟取消时释放的库存已被其他订单买走售出。
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	if err := fixture.db.Create(product).Error; err != nil {
+		t.Fatalf("create product failed: %v", err)
+	}
+	if err := fixture.db.Model(&orderdomain.OrderItem{}).
+		Where("order_id = ?", fixture.order.ID).
+		Update("product_id", product.ID).Error; err != nil {
+		t.Fatalf("point order item at real product failed: %v", err)
+	}
+
+	_, _, err := fixture.paymentService.ManualConfirmPayment(paymentapp.ManualConfirmPaymentInput{
+		OrderID:         fixture.order.ID,
+		OperatorAdminID: 1,
+		Remark:          "订单被取消后库存已被其他订单占用，测试库存不足是否正确拦截",
+	})
+	if err == nil {
+		t.Fatalf("expected manual confirm to fail when manual stock is insufficient, got nil error")
+	}
+
+	reloadedOrder, err := fixture.orderRepo.GetByID(fixture.order.ID)
+	if err != nil {
+		t.Fatalf("reload order failed: %v", err)
+	}
+	if reloadedOrder.Status != constants.OrderStatusCanceled {
+		t.Fatalf("order status must remain unchanged after failed manual confirm, got %s", reloadedOrder.Status)
+	}
+	var freshProduct productdomain.Product
+	if err := fixture.db.First(&freshProduct, product.ID).Error; err != nil {
+		t.Fatalf("reload product failed: %v", err)
+	}
+	if freshProduct.ManualStockTotal != 0 || freshProduct.ManualStockSold != 0 {
+		t.Fatalf("manual stock must not be mutated by a failed confirm, got %+v", freshProduct)
 	}
 }
 
