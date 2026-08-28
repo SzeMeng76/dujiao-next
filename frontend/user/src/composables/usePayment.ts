@@ -391,19 +391,27 @@ export function usePayment() {
   const pollingActive = computed(() => pollTimer.value !== null)
   const orderItems = computed(() => (Array.isArray(order.value?.items) ? order.value.items : []))
   const customerFeeApplied = computed(() => isCustomerSurchargePayment(paymentResult.value) && (amountToCents(paymentResult.value?.fee_amount) || 0) > 0)
+  // payable_amount/amount/online_pay_amount/fee_amount 均为 payment.Amount 或其派生值——
+  // 换汇渠道（如 Stripe 配置了 target_currency+exchange_rate）下这是结算币种数值
+  // （如 GBP），不是订单币种（CNY）。展示时必须搭配后端返回的 paymentResult.currency，
+  // 不能直接套用 order.currency，否则会把结算币种数值显示成订单币种。
+  const payableAmountCurrency = computed(() => {
+    const currency = String(paymentResult.value?.currency || '').trim()
+    return currency || order.value?.currency
+  })
   const customerFeeAmountDisplay = computed(() => {
     if (!customerFeeApplied.value) return ''
-    return formatMoney(String(paymentResult.value?.fee_amount || '0'), order.value?.currency)
+    return formatMoney(String(paymentResult.value?.fee_amount || '0'), payableAmountCurrency.value)
   })
   const payableAmountDisplay = computed(() => {
     if (paymentResult.value?.payable_amount !== undefined && paymentResult.value?.payable_amount !== null && paymentResult.value?.payable_amount !== '') {
-      return formatMoney(String(paymentResult.value.payable_amount), order.value?.currency)
+      return formatMoney(String(paymentResult.value.payable_amount), payableAmountCurrency.value)
     }
     if (paymentResult.value?.amount !== undefined && paymentResult.value?.amount !== null && paymentResult.value?.amount !== '') {
-      return formatMoney(String(paymentResult.value.amount), order.value?.currency)
+      return formatMoney(String(paymentResult.value.amount), payableAmountCurrency.value)
     }
     if (paymentResult.value?.online_pay_amount !== undefined && paymentResult.value?.online_pay_amount !== null && paymentResult.value?.online_pay_amount !== '') {
-      return formatMoney(String(paymentResult.value.online_pay_amount), order.value?.currency)
+      return formatMoney(String(paymentResult.value.online_pay_amount), payableAmountCurrency.value)
     }
     return formatMoney(String(order.value?.total_amount ?? ''), order.value?.currency)
   })
