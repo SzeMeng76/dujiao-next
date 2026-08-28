@@ -1346,13 +1346,11 @@ func TestBinancePayFullPaymentFulfillsOrder(t *testing.T) {
 	}
 }
 
-// TestBinancePayUnderpaidCreditsWalletInOrderCurrency 验证 Binance Pay 少到账时
-// （订单 1 CNY，应收 0.15 USDT，实际只到账 0.07 USDT）：
-//  1. 不会被 validateCallbackPaymentFacts 的金额精确匹配直接拒绝（那样整条回调
-//     会被吞掉，连异常码都不会留下）；
-//  2. 会被正确识别为 underpaid（0.07/0.15=0.4667 CNY < 1 CNY 应付额）；
-//  3. 转入用户钱包的金额是按渠道汇率折算后的 CNY 值，不是原始的 USDT 数值。
-func TestBinancePayUnderpaidCreditsWalletInOrderCurrency(t *testing.T) {
+// TestBinancePayUnderpaidCallbackRejected 验证 Binance Pay 少到账时（订单 1 CNY，
+// 应收 0.15 USDT，实际只到账 0.07 USDT）被 validateCallbackPaymentFacts 精确匹配
+// 直接拒绝，不会被当作 underpaid 静默转入钱包——链上结算同样不允许少付，与其他渠道
+// 一致。
+func TestBinancePayUnderpaidCallbackRejected(t *testing.T) {
 	svc, db := setupPaymentServiceWalletTest(t)
 	channel := createUnderpaidChannel(t, db, svc, "Binance Pay Underpaid", constants.PaymentChannelTypeBinancepay)
 
@@ -1390,18 +1388,15 @@ func TestBinancePayUnderpaidCreditsWalletInOrderCurrency(t *testing.T) {
 		t.Fatalf("create payment failed: %v", err)
 	}
 
-	// Binance 回调实际到账 0.07 USDT，少于应收的 0.15 USDT。
-	paid, err := svc.HandleCallback(PaymentCallbackInput{
+	// Binance 回调实际到账 0.07 USDT，少于应收的 0.15 USDT，必须被拒绝。
+	_, err := svc.HandleCallback(PaymentCallbackInput{
 		PaymentID: payment.ID, OrderNo: order.OrderNo, ChannelID: channel.ID,
 		Status: constants.PaymentStatusSuccess,
 		Amount: money.FromDecimal(decimal.RequireFromString("0.07")), Currency: "USDT",
 		ProviderRef: "binance-underpaid-ref",
 	})
-	if err != nil {
-		t.Fatalf("handle binance underpaid callback failed: %v", err)
-	}
-	if paid.ExceptionCode != constants.PaymentExceptionUnderpaidSucceeded {
-		t.Fatalf("binance underpaid callback should be marked underpaid, got exception_code=%s", paid.ExceptionCode)
+	if err != ErrPaymentAmountMismatch {
+		t.Fatalf("binance underpaid callback should be rejected with ErrPaymentAmountMismatch, got: %v", err)
 	}
 
 	var reloadedOrder orderdomain.Order
@@ -1409,16 +1404,132 @@ func TestBinancePayUnderpaidCreditsWalletInOrderCurrency(t *testing.T) {
 		t.Fatalf("reload order failed: %v", err)
 	}
 	if reloadedOrder.Status != constants.OrderStatusPendingPayment || reloadedOrder.PaidAt != nil {
-		t.Fatalf("underpaid binance payment must not fulfill order, got status=%s paid_at=%v", reloadedOrder.Status, reloadedOrder.PaidAt)
+		t.Fatalf("rejected binance payment must not fulfill order, got status=%s paid_at=%v", reloadedOrder.Status, reloadedOrder.PaidAt)
 	}
 
 	var account walletdomain.Account
 	if err := db.Where("user_id = ?", user.ID).First(&account).Error; err != nil {
 		t.Fatalf("load wallet account failed: %v", err)
 	}
-	// 0.07 USDT / 0.15 = 0.4667 CNY，四舍五入到分 = 0.47
-	expected := decimal.RequireFromString("0.07").Div(decimal.RequireFromString("0.15")).Round(2)
-	if account.Balance.StringFixed(2) != expected.StringFixed(2) {
-		t.Fatalf("wallet balance want %s (0.07 USDT / 0.15 exchange rate) got %s", expected.StringFixed(2), account.Balance.StringFixed(2))
+	if !account.Balance.Decimal.IsZero() {
+		t.Fatalf("rejected underpaid callback must not credit wallet, got balance=%s", account.Balance.StringFixed(2))
+	}
+}
+
+// TestNonBinanceChannelWithExchangeRateFullPaymentFulfillsOrder 验证换汇判断不再
+// 依赖 ChannelType==binancepay：Stripe 渠道配置了 target_currency=GBP、exchange_rate=0.11
+// （订单 1 CNY 换算成 0.11 GBP 下单），webhook 回调返回 GBP 原值 0.11 时，应按汇率折算
+// 回 1 CNY 判定为足额支付，而不是把 0.11 直接当 CNY 数值比较误判为欠款。
+func TestNonBinanceChannelWithExchangeRateFullPaymentFulfillsOrder(t *testing.T) {
+	svc, db := setupPaymentServiceWalletTest(t)
+	channel := createUnderpaidChannel(t, db, svc, "Stripe GBP", constants.PaymentChannelTypeStripe)
+	order := createUnderpaidOrder(t, db, "STRIPE_GBP_FULL", 1, 1)
+
+	now := time.Now()
+	payment := &paymentdomain.Payment{
+		OrderID: order.ID, ChannelID: channel.ID, ProviderType: channel.ProviderType, ChannelType: channel.ChannelType,
+		InteractionMode: channel.InteractionMode,
+		Amount:          money.FromDecimal(decimal.RequireFromString("0.11")),
+		FeeAmount:       money.FromDecimal(decimal.Zero), FeePolicy: constants.PaymentFeePolicyNone,
+		Currency: "GBP",
+		Status:   constants.PaymentStatusPending,
+		ProviderPayload: jsonmap.JSON{
+			"original_amount":   "1",
+			"original_currency": "CNY",
+			"exchange_rate":     "0.11",
+		},
+		CreatedAt: now, UpdatedAt: now,
+	}
+	if err := db.Create(payment).Error; err != nil {
+		t.Fatalf("create payment failed: %v", err)
+	}
+
+	paid, err := svc.HandleCallback(PaymentCallbackInput{
+		PaymentID: payment.ID, OrderNo: order.OrderNo, ChannelID: channel.ID,
+		Status: constants.PaymentStatusSuccess,
+		Amount: money.FromDecimal(decimal.RequireFromString("0.11")), Currency: "GBP",
+		ProviderRef: "stripe-gbp-full-ref",
+	})
+	if err != nil {
+		t.Fatalf("handle stripe gbp full payment callback failed: %v", err)
+	}
+	if paid.ExceptionCode != "" {
+		t.Fatalf("stripe gbp full payment should not be flagged, got exception_code=%s", paid.ExceptionCode)
+	}
+
+	var reloadedOrder orderdomain.Order
+	if err := db.First(&reloadedOrder, order.ID).Error; err != nil {
+		t.Fatalf("reload order failed: %v", err)
+	}
+	if reloadedOrder.Status != constants.OrderStatusPaid || reloadedOrder.PaidAt == nil {
+		t.Fatalf("stripe gbp full payment must fulfill the order, got status=%s paid_at=%v", reloadedOrder.Status, reloadedOrder.PaidAt)
+	}
+}
+
+// TestGlobepayGBPChannelUnderpaidCallbackRejected 验证 GlobePay alipayhk/tng/dana/gcash
+// 硬编码转 GBP 场景（订单 1 CNY，实际下单 0.11 GBP，回调只到账 0.05 GBP）被精确匹配
+// 直接拒绝，不会被当作 underpaid 静默转入钱包——法币网关同样不允许少付。
+func TestGlobepayGBPChannelUnderpaidCallbackRejected(t *testing.T) {
+	svc, db := setupPaymentServiceWalletTest(t)
+	channel := createUnderpaidChannel(t, db, svc, "Globepay AlipayHK", "alipayhk")
+
+	now := time.Now()
+	user := &userdomain.User{
+		Email: "globepay_underpaid@example.com", PasswordHash: "hash", Status: constants.UserStatusActive,
+		CreatedAt: now, UpdatedAt: now,
+	}
+	if err := db.Create(user).Error; err != nil {
+		t.Fatalf("create user failed: %v", err)
+	}
+	if err := db.Create(&walletdomain.Account{
+		UserID: user.ID, Balance: money.FromDecimal(decimal.Zero), CreatedAt: now, UpdatedAt: now,
+	}).Error; err != nil {
+		t.Fatalf("create wallet account failed: %v", err)
+	}
+
+	order := createUnderpaidOrder(t, db, "GLOBEPAY_GBP_UNDERPAID", user.ID, 1)
+
+	payment := &paymentdomain.Payment{
+		OrderID: order.ID, ChannelID: channel.ID, ProviderType: channel.ProviderType, ChannelType: channel.ChannelType,
+		InteractionMode: channel.InteractionMode,
+		Amount:          money.FromDecimal(decimal.RequireFromString("0.11")),
+		FeeAmount:       money.FromDecimal(decimal.Zero), FeePolicy: constants.PaymentFeePolicyNone,
+		Currency: "GBP",
+		Status:   constants.PaymentStatusPending,
+		ProviderPayload: jsonmap.JSON{
+			"original_amount":   "1",
+			"original_currency": "CNY",
+			"exchange_rate":     "0.11",
+		},
+		CreatedAt: now, UpdatedAt: now,
+	}
+	if err := db.Create(payment).Error; err != nil {
+		t.Fatalf("create payment failed: %v", err)
+	}
+
+	_, err := svc.HandleCallback(PaymentCallbackInput{
+		PaymentID: payment.ID, OrderNo: order.OrderNo, ChannelID: channel.ID,
+		Status: constants.PaymentStatusSuccess,
+		Amount: money.FromDecimal(decimal.RequireFromString("0.05")), Currency: "GBP",
+		ProviderRef: "globepay-gbp-underpaid-ref",
+	})
+	if err != ErrPaymentAmountMismatch {
+		t.Fatalf("globepay gbp underpaid callback should be rejected with ErrPaymentAmountMismatch, got: %v", err)
+	}
+
+	var reloadedOrder orderdomain.Order
+	if err := db.First(&reloadedOrder, order.ID).Error; err != nil {
+		t.Fatalf("reload order failed: %v", err)
+	}
+	if reloadedOrder.Status != constants.OrderStatusPendingPayment || reloadedOrder.PaidAt != nil {
+		t.Fatalf("rejected globepay gbp payment must not fulfill order, got status=%s paid_at=%v", reloadedOrder.Status, reloadedOrder.PaidAt)
+	}
+
+	var account walletdomain.Account
+	if err := db.Where("user_id = ?", user.ID).First(&account).Error; err != nil {
+		t.Fatalf("load wallet account failed: %v", err)
+	}
+	if !account.Balance.Decimal.IsZero() {
+		t.Fatalf("rejected underpaid callback must not credit wallet, got balance=%s", account.Balance.StringFixed(2))
 	}
 }

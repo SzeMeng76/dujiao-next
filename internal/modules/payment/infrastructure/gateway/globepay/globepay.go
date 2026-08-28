@@ -13,6 +13,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/shopspring/decimal"
 )
 
 var (
@@ -49,12 +51,15 @@ type CreateInput struct {
 
 // CreateResult 创建支付结果
 type CreateResult struct {
-	TradeNo        string
-	PayURL         string
-	QRCode         string
-	Raw            map[string]interface{}
-	ActualAmount   string // 实际发送给网关的金额（可能已转换）
-	ActualCurrency string // 实际发送给网关的币种（可能已转换）
+	TradeNo          string
+	PayURL           string
+	QRCode           string
+	Raw              map[string]interface{}
+	ActualAmount     string // 实际发送给网关的金额（可能已转换）
+	ActualCurrency   string // 实际发送给网关的币种（可能已转换）
+	OriginalAmount   string // 换汇前的订单原始金额，未换汇时为空
+	OriginalCurrency string // 换汇前的订单原始币种，未换汇时为空
+	ExchangeRate     string // ActualAmount/OriginalAmount 换汇汇率快照，未换汇时为空
 }
 
 // APIResponse Globepay API 响应
@@ -122,6 +127,8 @@ func CreatePayment(ctx context.Context, cfg *Config, input CreateInput) (*Create
 	// 记录实际发送的金额和币种（默认与输入相同）
 	actualAmount := input.Amount
 	actualCurrency := "CNY"
+	// 换汇场景下的原始金额/币种/汇率快照，供回调阶段把结算币种到账金额折算回订单币种。
+	var originalAmount, originalCurrency, exchangeRate string
 
 	var apiURL string
 	switch channelType {
@@ -147,6 +154,13 @@ func CreatePayment(ctx context.Context, cfg *Config, input CreateInput) (*Create
 		// 更新实际金额和币种
 		actualAmount = gbpAmount
 		actualCurrency = "GBP"
+		originalAmount = input.Amount
+		originalCurrency = "CNY"
+		// 用实际下单的 GBP/CNY 反推汇率快照：exchangeCNYtoGBP 调的是实时汇率 API，
+		// 没有固定配置值，必须记录这一次实际生效的汇率，回调阶段才能按同一比例折算回。
+		if rate, rateErr := computeExchangeRate(gbpAmount, input.Amount); rateErr == nil {
+			exchangeRate = rate
+		}
 	default:
 		return nil, fmt.Errorf("%w: unsupported channel_type: %s", ErrConfigInvalid, channelType)
 	}
@@ -160,10 +174,13 @@ func CreatePayment(ctx context.Context, cfg *Config, input CreateInput) (*Create
 	}
 
 	result := &CreateResult{
-		TradeNo:        resp.OrderID,
-		Raw:            map[string]interface{}{"return_code": resp.ReturnCode, "order_id": resp.OrderID},
-		ActualAmount:   actualAmount,
-		ActualCurrency: actualCurrency,
+		TradeNo:          resp.OrderID,
+		Raw:              map[string]interface{}{"return_code": resp.ReturnCode, "order_id": resp.OrderID},
+		ActualAmount:     actualAmount,
+		ActualCurrency:   actualCurrency,
+		OriginalAmount:   originalAmount,
+		OriginalCurrency: originalCurrency,
+		ExchangeRate:     exchangeRate,
 	}
 	if channelType == "wechat" {
 		result.QRCode = resp.CodeURL
@@ -276,4 +293,19 @@ func exchangeCNYtoGBP(ctx context.Context, amountCNY string) (string, error) {
 		return "", fmt.Errorf("GBP rate not found in response")
 	}
 	return fmt.Sprintf("%.2f", gbp), nil
+}
+
+// computeExchangeRate 用实际下单的换汇后金额除以原始金额，反推本次生效的汇率快照。
+// exchangeCNYtoGBP 调的是实时汇率 API，没有固定配置值，必须记录这一次实际生效的比例，
+// 回调阶段才能把结算币种（GBP）到账金额按同一汇率折算回订单币种（CNY）。
+func computeExchangeRate(convertedAmount, originalAmount string) (string, error) {
+	converted, err := decimal.NewFromString(strings.TrimSpace(convertedAmount))
+	if err != nil {
+		return "", err
+	}
+	original, err := decimal.NewFromString(strings.TrimSpace(originalAmount))
+	if err != nil || !original.IsPositive() {
+		return "", fmt.Errorf("invalid original amount %q", originalAmount)
+	}
+	return converted.Div(original).String(), nil
 }

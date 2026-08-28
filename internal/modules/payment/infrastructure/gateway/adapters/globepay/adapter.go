@@ -89,6 +89,14 @@ func (a *globepayAdapter) CreatePayment(ctx context.Context, raw jsonmap.JSON, i
 	if result.Raw != nil {
 		payload = jsonmap.JSON(result.Raw)
 	}
+	// alipayhk/tng/dana/gcash 硬编码转 GBP 时，写入 exchange_rate/original_amount/
+	// original_currency 快照，供支付回调阶段把 GBP 到账金额折算回订单币种（CNY），
+	// 与 alipay/epay/okpay/paypal/stripe/wechatpay/binancepay 等 adapter 的换汇快照格式保持一致。
+	if result.ExchangeRate != "" {
+		payload["exchange_rate"] = result.ExchangeRate
+		payload["original_amount"] = result.OriginalAmount
+		payload["original_currency"] = result.OriginalCurrency
+	}
 
 	return &paymentcontract.GatewayCreateResult{
 		ProviderRef:  result.TradeNo,
