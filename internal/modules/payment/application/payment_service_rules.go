@@ -31,27 +31,42 @@ func calculatePaymentAmounts(baseAmount, feeRate, fixedFee decimal.Decimal, cust
 	return baseAmount, feeAmount, constants.PaymentFeePolicyMerchantAbsorbed
 }
 
-// paymentCoveredOrderAmount 推算一笔支付创建时承诺覆盖的订单在线应付额（订单币种口径）。
+// paymentCoveredOrderAmount 推算一笔支付回调实际覆盖的订单在线应付额（订单币种口径）。
 //
-// Amount / FeeAmount / FeePolicy 均为创建时快照：用户承担手续费的策略下 Amount
-// 含加收部分，必须扣除后才是订单侧的抵扣基数；商家承担或无手续费时 Amount 即基数。
+// callbackAmount 是本次回调携带的实际到账金额，仅在 Binance Pay 场景下使用（见下）。
+// Amount / FeeAmount / FeePolicy 均为创建时快照：用户承担手续费的策略下 Amount 含
+// 加收部分，必须扣除后才是订单侧的抵扣基数；商家承担或无手续费时 Amount 即基数。
 // 升级前未写入策略快照（FeePolicy 为空）且带正数手续费的历史记录，与 CreatePayment
 // 的 legacy 判定保持一致，按用户承担解释。
 //
-// Binance Pay 等按汇率换算结算币种的网关（见各 adapter CreatePayment 里
-// cfg.NeedsCurrencyConversion 分支），创建支付后 payment.Amount/Currency 会被
-// applyProviderPayment 改写为网关结算币种（如 USDT），不再是订单币种下的金额；
-// 网关 webhook 回调回来的金额同样是结算币种（Binance 回调本身就是 USDT 数值，
-// 无法要求网关改成 CNY），若直接拿这个结算币种数值与订单 CNY 总额比较，两个不同
-// 币种的数字硬比必然判定为金额不足。换算发生时，换算前的订单币种金额已经被
-// adapter 写入 payment.ProviderPayload["original_amount"]，此处应优先取用它。
-func paymentCoveredOrderAmount(payment *paymentdomain.Payment) decimal.Decimal {
+// 只有 Binance Pay 需要特殊处理：它按渠道配置的汇率把订单 CNY 金额换算成 USDT 下单
+// （见 binancepayadapter.CreatePayment 的 cfg.NeedsCurrencyConversion 分支），
+// applyProviderPayment 回写后 payment.Amount/Currency 变为 USDT；webhook 回调本身
+// 直接返回链上/网关侧的 USDT 数值，从不换算回 CNY。若直接用 payment.Amount 或订单
+// 原价与订单 CNY 总额比较，都无法反映"这次到账的 USDT 实际值多少 CNY"。正确做法是
+// 用本次回调的实际到账金额（callbackAmount，USDT）除以创建支付时存下的渠道汇率
+// ProviderPayload["exchange_rate"]（该汇率来自渠道配置，非硬编码，随时可在渠道
+// 设置里调整），换算回订单币种。Alipay/Stripe 等其它渠道即使做了法币换汇，网关
+// webhook 本身也会把回调金额换算回订单币种，因此不受此特殊处理影响。
+func paymentCoveredOrderAmount(payment *paymentdomain.Payment, callbackAmount decimal.Decimal) decimal.Decimal {
 	if payment == nil {
 		return decimal.Zero
 	}
 	covered := payment.Amount.Decimal
-	if payment.ProviderPayload != nil {
-		if raw, ok := payment.ProviderPayload["original_amount"]; ok {
+	if strings.EqualFold(strings.TrimSpace(payment.ChannelType), constants.PaymentChannelTypeBinancepay) && payment.ProviderPayload != nil {
+		if rateRaw, ok := payment.ProviderPayload["exchange_rate"]; ok {
+			if rateStr := strings.TrimSpace(fmt.Sprint(rateRaw)); rateStr != "" {
+				if rate, err := decimal.NewFromString(rateStr); err == nil && rate.IsPositive() {
+					source := callbackAmount
+					if source.IsZero() {
+						source = payment.Amount.Decimal
+					}
+					covered = source.Div(rate)
+				}
+			}
+		} else if raw, ok := payment.ProviderPayload["original_amount"]; ok {
+			// 缺少汇率快照（历史数据遗漏字段）时退回订单原价，保底不误判欠付，
+			// 但无法侦测网关实际少到账的情况。
 			if s := strings.TrimSpace(fmt.Sprint(raw)); s != "" {
 				if original, err := decimal.NewFromString(s); err == nil {
 					covered = original

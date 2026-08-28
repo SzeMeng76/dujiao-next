@@ -1290,7 +1290,7 @@ func TestPaymentCoveredOrderAmount(t *testing.T) {
 				FeeAmount: money.FromDecimal(decimal.RequireFromString(tt.feeAmount)),
 				FeePolicy: tt.feePolicy,
 			}
-			if got := paymentCoveredOrderAmount(payment); got.String() != tt.want {
+			if got := paymentCoveredOrderAmount(payment, decimal.Zero); got.String() != tt.want {
 				t.Fatalf("paymentCoveredOrderAmount() = %s, want %s", got.String(), tt.want)
 			}
 		})
@@ -1364,5 +1364,93 @@ func TestBinancePayUSDTExchangeDoesNotMarkUnderpaid(t *testing.T) {
 	}
 	if reloadedOrder.Status != constants.OrderStatusPaid || reloadedOrder.PaidAt == nil {
 		t.Fatalf("binance USDT exchange payment must fulfill the order, got status=%s paid_at=%v", reloadedOrder.Status, reloadedOrder.PaidAt)
+	}
+}
+
+// TestBinancePayUSDTUnderpaidDetectedCorrectly 确保在用户实际转账少于应收额时（如订单
+// 61 CNY 应收 9.15 USDT，实际只到账 7 USDT），validateCallbackPaymentFacts 不会拒绝
+// 回调（只要 <= 应收额即通过），后续 underpaid 检查能用 callbackAmount/exchange_rate
+// 反算出实际覆盖的订单币种金额（7/0.15=46.67 CNY），判定为欠付，将换算后的订单币种
+// 等值金额转入用户钱包而不履约订单。
+func TestBinancePayUSDTUnderpaidDetectedCorrectly(t *testing.T) {
+	svc, db := setupPaymentServiceWalletTest(t)
+	channel := createUnderpaidChannel(t, db, svc, "Binance Pay Underpaid", constants.PaymentChannelTypeBinancepay)
+
+	now := time.Now()
+	user := &userdomain.User{
+		Email: "binance_underpaid@example.com", PasswordHash: "hash", Status: constants.UserStatusActive,
+		CreatedAt: now, UpdatedAt: now,
+	}
+	if err := db.Create(user).Error; err != nil {
+		t.Fatalf("create user failed: %v", err)
+	}
+	if err := db.Create(&walletdomain.Account{
+		UserID: user.ID, Balance: money.FromDecimal(decimal.Zero), CreatedAt: now, UpdatedAt: now,
+	}).Error; err != nil {
+		t.Fatalf("create wallet account failed: %v", err)
+	}
+
+	order := &orderdomain.Order{
+		OrderNo: "BINANCE_UNDERPAID", UserID: user.ID, Status: constants.OrderStatusPendingPayment, Currency: "CNY",
+		OriginalAmount: money.FromDecimal(decimal.NewFromInt(61)), TotalAmount: money.FromDecimal(decimal.NewFromInt(61)),
+		DiscountAmount: money.FromDecimal(decimal.Zero), PromotionDiscountAmount: money.FromDecimal(decimal.Zero),
+		WalletPaidAmount: money.FromDecimal(decimal.Zero), OnlinePaidAmount: money.FromDecimal(decimal.NewFromInt(61)),
+		RefundedAmount: money.FromDecimal(decimal.Zero), CreatedAt: now, UpdatedAt: now,
+	}
+	if err := db.Create(order).Error; err != nil {
+		t.Fatalf("create order failed: %v", err)
+	}
+
+	payment := &paymentdomain.Payment{
+		OrderID: order.ID, ChannelID: channel.ID, ProviderType: channel.ProviderType, ChannelType: channel.ChannelType,
+		InteractionMode: channel.InteractionMode,
+		Amount:          money.FromDecimal(decimal.NewFromFloat(9.15)),
+		FeeAmount:       money.FromDecimal(decimal.Zero), FeePolicy: constants.PaymentFeePolicyNone,
+		Currency: "USDT",
+		Status:   constants.PaymentStatusPending,
+		ProviderPayload: jsonmap.JSON{
+			"original_amount":   "61",
+			"original_currency": "CNY",
+			"exchange_rate":     "0.15",
+		},
+		CreatedAt: now, UpdatedAt: now,
+	}
+	if err := db.Create(payment).Error; err != nil {
+		t.Fatalf("create payment failed: %v", err)
+	}
+
+	// Binance 回调实际到账 7 USDT（少于应收的 9.15）。
+	paid, err := svc.HandleCallback(PaymentCallbackInput{
+		PaymentID: payment.ID, OrderNo: order.OrderNo, ChannelID: channel.ID,
+		Status: constants.PaymentStatusSuccess,
+		Amount: money.FromDecimal(decimal.NewFromFloat(7)), Currency: "USDT",
+		ProviderRef: "binance-underpaid-ref",
+	})
+	if err != nil {
+		t.Fatalf("handle binance underpaid callback failed: %v", err)
+	}
+
+	// 7 USDT / 0.15 = 46.67 CNY，少于订单要求的 61 CNY，应被标记为 underpaid。
+	if paid.ExceptionCode != constants.PaymentExceptionUnderpaidSucceeded {
+		t.Fatalf("binance underpaid callback should be marked underpaid, got exception_code=%s", paid.ExceptionCode)
+	}
+
+	// 订单不应该被履约（状态仍为 pending_payment）。
+	var reloadedOrder orderdomain.Order
+	if err := db.First(&reloadedOrder, order.ID).Error; err != nil {
+		t.Fatalf("reload order failed: %v", err)
+	}
+	if reloadedOrder.Status != constants.OrderStatusPendingPayment || reloadedOrder.PaidAt != nil {
+		t.Fatalf("underpaid binance payment must not fulfill order, got status=%s paid_at=%v", reloadedOrder.Status, reloadedOrder.PaidAt)
+	}
+
+	// 实际到账的 7 USDT 换算回 CNY（46.67）应已转入用户钱包。
+	var account walletdomain.Account
+	if err := db.Where("user_id = ?", user.ID).First(&account).Error; err != nil {
+		t.Fatalf("load wallet account failed: %v", err)
+	}
+	expected := decimal.NewFromFloat(7).Div(decimal.NewFromFloat(0.15)).Round(2)
+	if account.Balance.StringFixed(2) != expected.StringFixed(2) {
+		t.Fatalf("wallet balance want %s (7 USDT / 0.15) got %s", expected.StringFixed(2), account.Balance.StringFixed(2))
 	}
 }

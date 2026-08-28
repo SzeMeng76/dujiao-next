@@ -171,8 +171,22 @@ func validateCallbackPaymentFacts(payment *paymentdomain.Payment, businessOrderN
 		!canAdoptVerifiedLegacyDujiaoPayCurrency(payment, status, input) {
 		return ErrPaymentCurrencyMismatch
 	}
-	if !input.Amount.Decimal.IsZero() && input.Amount.Decimal.Cmp(payment.Amount.Decimal) != 0 {
-		return ErrPaymentAmountMismatch
+	// 金额校验：默认渠道要求回调金额必须精确等于创建支付时的应收额（payment.Amount），
+	// 防止篡改或重放攻击。Alipay/Stripe 等渠道即使做了法币换汇，网关自身也会把回调金额
+	// 换算回结算币种再返回，因此回调金额本来就应该精确等于 payment.Amount，不受影响。
+	//
+	// 只有 Binance Pay 例外：它的 webhook 回调直接返回链上/网关侧的原始结算币种数值
+	// （USDT），不会换算回订单币种，且用户可能真实转账金额小于应收额。此时回调金额
+	// 精确相等应当成功；金额不足不该被这里直接拒绝（拒绝等于整条回调被吞、连异常码
+	// 都不会留下），而应放行让 underpaid 检查按实际到账金额判定并转入用户钱包。
+	if !input.Amount.Decimal.IsZero() {
+		if strings.EqualFold(strings.TrimSpace(payment.ChannelType), constants.PaymentChannelTypeBinancepay) {
+			if input.Amount.Decimal.GreaterThan(payment.Amount.Decimal) {
+				return ErrPaymentAmountMismatch
+			}
+		} else if input.Amount.Decimal.Cmp(payment.Amount.Decimal) != 0 {
+			return ErrPaymentAmountMismatch
+		}
 	}
 	return nil
 }
@@ -292,7 +306,7 @@ func (s *PaymentService) applyPaymentUpdate(payment *paymentdomain.Payment, orde
 		// 混合支付切换渠道会退回余额并抬高在线应付额，而旧链接在网关侧依然可付，
 		// 缺少这道校验就能用旧链接的小额付款换到整单商品。
 		requiredOnlineAmount := normalizeOrderAmount(lockedOrder.TotalAmount.Decimal.Sub(lockedOrder.WalletPaidAmount.Decimal))
-		coveredOnlineAmount := paymentCoveredOrderAmount(lockedPayment)
+		coveredOnlineAmount := paymentCoveredOrderAmount(lockedPayment, input.Amount.Decimal)
 		underpaid := status == constants.PaymentStatusSuccess && orderOpen &&
 			coveredOnlineAmount.LessThan(requiredOnlineAmount)
 
