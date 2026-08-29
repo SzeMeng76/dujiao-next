@@ -190,4 +190,3 @@ func TestConvertAmountByRate(t *testing.T) {
 		t.Fatalf("unexpected converted amount: %s", converted.StringFixed(8))
 	}
 }
-
