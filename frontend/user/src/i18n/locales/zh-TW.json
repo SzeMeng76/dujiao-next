@@ -1706,7 +1706,8 @@
     "orderNoPlaceholder": "訂單號（可選）",
     "savedHint": "已保存信箱：{email}",
     "clearSaved": "清除已保存資訊",
-    "tip": "請輸入下單時的信箱與訂單密碼",
+    "tip": "請輸入下單時的信箱與訂單密碼，或只填訂單號完成驗證後查詢",
+    "captchaLabel": "請完成人機驗證",
     "search": "查詢訂單",
     "searching": "查詢中...",
     "empty": "暫無訂單紀錄",
@@ -1717,7 +1718,8 @@
     "nextPage": "下一頁",
     "pageInfo": "第 {page} / {total} 頁",
     "errors": {
-      "missing": "請輸入信箱與訂單密碼",
+      "missing": "請輸入信箱與訂單密碼，或填寫訂單號完成驗證後查詢",
+      "captchaRequired": "請先完成人機驗證",
       "notFound": "未找到匹配訂單，請檢查輸入資訊",
       "searchFailed": "查詢失敗，請檢查資訊"
     }
@@ -1732,6 +1734,9 @@
     "authRequired": "請填寫信箱與訂單密碼",
     "authInvalid": "資訊不匹配，請重新輸入",
     "authSubmit": "保存並查詢",
-    "authClear": "清除已保存資訊"
+    "authClear": "清除已保存資訊",
+    "lookupEntryHint": "如果您只有訂單號，可完成驗證後直接查看",
+    "lookupButton": "完成驗證並查看訂單",
+    "lookupFailed": "驗證失敗或訂單不存在，請重試"
   }
 }
