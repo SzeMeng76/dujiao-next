@@ -34,6 +34,7 @@ type Store interface {
 	GetByIDAndGuestScoped(id uint, email, password string, scope TenantScope) (*orderdomain.Order, error)
 	GetByOrderNoAndGuestScoped(orderNo, email, password string, scope TenantScope) (*orderdomain.Order, error)
 	GetAnyByOrderNoAndGuestScoped(orderNo, email, password string, scope TenantScope) (*orderdomain.Order, error)
+	GetByOrderNoScoped(orderNo string, scope TenantScope) (*orderdomain.Order, error)
 	ListChildren(parentID uint) ([]orderdomain.Order, error)
 	ListByUser(filter ListFilter) ([]orderdomain.Order, int64, error)
 	StatsByUser(filter ListFilter) (map[string]int64, error)

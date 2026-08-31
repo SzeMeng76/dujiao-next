@@ -37,6 +37,7 @@ func New(c *container.Container) Handlers {
 			orderGuestQueryAdapter{orders: c.OrderService},
 			orderUserPaymentChannelAdapter{payments: c.PaymentService},
 			orderUserRefundRecordAdapter{records: c.OrderStore},
+			orderGuestLookupCaptchaAdapter{captcha: c.CaptchaService},
 		),
 		Preview: ordertransport.NewPreviewHandler(
 			orderPreviewAdapter{orders: c.OrderService},

@@ -18,6 +18,7 @@ interface CaptchaData {
     reset_send_code: boolean
     guest_create_order: boolean
     gift_card_redeem: boolean
+    guest_lookup_order: boolean
   }
   image: {
     length: number
@@ -55,6 +56,7 @@ const form = reactive({
     reset_send_code: false,
     guest_create_order: false,
     gift_card_redeem: false,
+    guest_lookup_order: false,
   },
   image: {
     length: 5,
@@ -108,6 +110,7 @@ const save = async () => {
         reset_send_code: form.scenes.reset_send_code,
         guest_create_order: form.scenes.guest_create_order,
         gift_card_redeem: form.scenes.gift_card_redeem,
+        guest_lookup_order: form.scenes.guest_lookup_order,
       },
       image: {
         length: Number(form.image.length),
@@ -194,6 +197,10 @@ defineExpose({ save, submitting })
             <div class="flex items-center gap-2 text-sm">
               <Switch v-model="form.scenes.gift_card_redeem" />
               <Label class="text-sm">{{ t('admin.settings.captcha.scenes.giftCardRedeem') }}</Label>
+            </div>
+            <div class="flex items-center gap-2 text-sm">
+              <Switch v-model="form.scenes.guest_lookup_order" />
+              <Label class="text-sm">{{ t('admin.settings.captcha.scenes.guestLookupOrder') }}</Label>
             </div>
           </div>
         </div>

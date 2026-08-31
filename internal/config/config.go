@@ -182,6 +182,7 @@ type CaptchaSceneConfig struct {
 	ResetSendCode    bool `mapstructure:"reset_send_code"`
 	GuestCreateOrder bool `mapstructure:"guest_create_order"`
 	GiftCardRedeem   bool `mapstructure:"gift_card_redeem"`
+	GuestLookupOrder bool `mapstructure:"guest_lookup_order"`
 }
 
 // CaptchaImageConfig 图片验证码配置

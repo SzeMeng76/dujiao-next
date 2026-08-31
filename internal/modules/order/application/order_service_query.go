@@ -402,6 +402,26 @@ func (s *OrderService) GetOrderByGuestOrderNoForTenant(tenant resellercontract.T
 	return order, nil
 }
 
+// GetOrderByOrderNoOnlyForTenant 仅凭订单号获取当前租户上下文中的订单详情（无邮箱/密码校验）。
+// 调用方必须已完成人机验证与更严格的限流，此方法本身不做任何防枚举控制。
+func (s *OrderService) GetOrderByOrderNoOnlyForTenant(tenant resellercontract.TenantContext, orderNo string) (*orderdomain.Order, error) {
+	order, err := s.orderStore.GetByOrderNoScoped(orderNo, orderScopeFromTenant(tenant))
+	if err != nil {
+		return nil, ErrOrderFetchFailed
+	}
+	if order == nil {
+		return nil, ErrGuestOrderNotFound
+	}
+	if err := s.ensureOrderCanceledIfExpired(order); err != nil {
+		return nil, ErrOrderUpdateFailed
+	}
+	if err := s.ensureOrderRefundStatusSynced(order); err != nil {
+		return nil, ErrOrderUpdateFailed
+	}
+	FillOrderItemsFromChildren(order)
+	return order, nil
+}
+
 // GetAnyOrderByGuestOrderNoForTenant 支持父订单或子订单号获取当前租户上下文中的游客订单。
 func (s *OrderService) GetAnyOrderByGuestOrderNoForTenant(tenant resellercontract.TenantContext, orderNo, email, password string) (*orderdomain.Order, error) {
 	email = strings.ToLower(strings.TrimSpace(email))

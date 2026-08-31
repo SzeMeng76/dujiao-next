@@ -32,6 +32,21 @@
         </div>
       </div>
 
+      <div v-else-if="viewState === 'lookup'"
+        class="rounded-2xl border bg-card p-6 shadow-sm mb-6">
+        <h2 class="text-lg font-bold mb-2">{{ t('guestOrderDetail.authTitle') }}</h2>
+        <p class="text-xs text-muted-foreground mb-4">{{ t('guestOrderDetail.lookupEntryHint') }}</p>
+        <TurnstileCaptcha v-model="guestTurnstileToken" :site-key="lookupTurnstileSiteKey" ref="guestTurnstileRef" />
+        <Alert v-if="authError" variant="destructive" class="mt-4">
+          <AlertDescription>{{ authError }}</AlertDescription>
+        </Alert>
+        <div class="mt-4 flex items-center gap-3">
+          <Button class="font-bold" @click="handleLookupSubmit">
+            {{ t('guestOrderDetail.lookupButton') }}
+          </Button>
+        </div>
+      </div>
+
       <div v-else-if="viewState === 'loading'"
         class="h-40 bg-muted border rounded-2xl animate-pulse">
       </div>
@@ -424,6 +439,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import TurnstileCaptcha from '../components/captcha/TurnstileCaptcha.vue'
 import { useGuestOrderDetail } from '../composables/useGuestOrderDetail'
 
 const { t } = useI18n()
@@ -438,5 +454,9 @@ const {
   hasItemDiscount, formatItemDiscountTotal, formatItemPaidAmount, resolvedChildStatus,
   fulfillmentDeliveryLines, instructionBlocks, isFulfillmentTruncated,
   fulfillmentCopied, handleCopyFulfillment,
+  lookupTurnstileSiteKey, guestTurnstileToken, guestTurnstileRef, handleLookupSubmit,
 } = useGuestOrderDetail()
+
+// 仅通过模板字符串 ref 绑定，vue-tsc 不将其计为使用，显式标记避免 noUnusedLocals 误报。
+void guestTurnstileRef
 </script>

@@ -43,7 +43,7 @@ func TestOrderAdminHTTPLivesInTransport(t *testing.T) {
 		"RegisterAdminRoutes", "RegisterAdminRefundRoutes", "RegisterAdminRefundWriteRoutes",
 		"RegisterUserReadRoutes", "RegisterUserCancelRoute", "RegisterUserPreviewRoute", "RegisterUserCreateRoute",
 		"RegisterUserCreateAndPayRoute", "RegisterUserPaymentChannelsRoute",
-		"RegisterGuestReadRoutes", "RegisterGuestPreviewRoute", "RegisterGuestCreateRoute",
+		"RegisterGuestReadRoutes", "RegisterGuestLookupRoute", "RegisterGuestPreviewRoute", "RegisterGuestCreateRoute",
 		"RegisterGuestCreateAndPayRoute",
 	})
 	assertFileDeclaresTypes(t, filepath.Join(transportRoot, "admin_handler.go"), []string{
@@ -71,10 +71,10 @@ func TestOrderAdminHTTPLivesInTransport(t *testing.T) {
 		"GetOrderPaymentChannels", "CancelOrder",
 	})
 	assertFileDeclaresTypes(t, filepath.Join(transportRoot, "guest_handler.go"), []string{
-		"GuestHandler", "GuestOrderQuery",
+		"GuestHandler", "GuestOrderQuery", "GuestLookupCaptcha",
 	})
 	assertFileDeclaresFunctions(t, filepath.Join(transportRoot, "guest_handler.go"), []string{
-		"NewGuestHandler", "ListGuestOrders", "GetGuestOrderByOrderNo", "DownloadGuestFulfillment",
+		"NewGuestHandler", "ListGuestOrders", "GetGuestOrderByOrderNo", "GetGuestOrderByOrderNoOnly", "DownloadGuestFulfillment",
 	})
 	assertFileDeclaresTypes(t, filepath.Join(transportRoot, "preview_handler.go"), []string{
 		"PreviewHandler", "OrderPreviewService", "OrderPreview", "CreateOrderInput", "CreateGuestOrderInput",

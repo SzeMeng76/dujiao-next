@@ -23,6 +23,17 @@
       </div>
     </div>
 
+    <!-- 仅凭订单号 + 验证码查看 -->
+    <div v-if="viewState === 'lookup'" class="mb-[18px] rounded-xl border bg-card p-[22px]">
+      <h2 class="mb-1.5 text-lg font-bold">{{ t('guestOrderDetail.authTitle') }}</h2>
+      <p class="mb-3.5 text-[13px] text-muted-foreground">{{ t('guestOrderDetail.lookupEntryHint') }}</p>
+      <TurnstileCaptcha v-model="guestTurnstileToken" :site-key="lookupTurnstileSiteKey" ref="guestTurnstileRef" />
+      <div v-if="authError" class="mt-3.5 rounded-sm bg-destructive/10 px-3 py-2.5 text-[13px] font-semibold text-destructive">{{ authError }}</div>
+      <div class="mt-3.5 flex flex-wrap gap-3">
+        <Button type="button" size="sm" class="rounded-full" @click="handleLookupSubmit">{{ t('guestOrderDetail.lookupButton') }}</Button>
+      </div>
+    </div>
+
     <!-- Loading -->
     <div v-if="viewState === 'loading'" class="rounded-xl border bg-card p-[22px]">
       <div class="mb-4 h-5 w-[35%] rounded bg-secondary"></div>
@@ -71,6 +82,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import VaultOrderBody from './components/VaultOrderBody.vue'
+import TurnstileCaptcha from '../../components/captcha/TurnstileCaptcha.vue'
 import { useGuestOrderDetail } from '../../composables/useGuestOrderDetail'
 
 const { t } = useI18n()
@@ -79,5 +91,9 @@ const {
   order, authError, auth, viewState, handleAuthSubmit, clearAuth,
   fulfillmentDownloading, handleDownloadFulfillment,
   statusLabel, statusVariant, formatDate, formatMoney,
+  lookupTurnstileSiteKey, guestTurnstileToken, guestTurnstileRef, handleLookupSubmit,
 } = useGuestOrderDetail()
+
+// 仅通过模板字符串 ref 绑定，vue-tsc 不将其计为使用，显式标记避免 noUnusedLocals 误报。
+void guestTurnstileRef
 </script>

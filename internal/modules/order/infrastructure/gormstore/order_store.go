@@ -414,6 +414,21 @@ func (r *Store) GetAnyByOrderNoAndGuestScoped(orderNo, email, password string, s
 	return &order, nil
 }
 
+// GetByOrderNoScoped 仅按订单号获取订单详情（无邮箱/密码校验），并强制限定当前前台租户范围。
+// 仅供"纯订单号查单"场景使用，调用方必须在此之前完成人机验证与限流。
+func (r *Store) GetByOrderNoScoped(orderNo string, scope ordercontract.TenantScope) (*orderdomain.Order, error) {
+	var order orderdomain.Order
+	query := r.withChildren(r.db)
+	query = applyTenantScope(query.Where("order_no = ? AND user_id = 0 AND parent_id IS NULL", orderNo), scope)
+	if err := query.First(&order).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &order, nil
+}
+
 // ListChildren 获取子订单列表
 func (r *Store) ListChildren(parentID uint) ([]orderdomain.Order, error) {
 	var orders []orderdomain.Order

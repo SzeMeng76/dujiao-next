@@ -68,6 +68,14 @@ func RegisterGuestReadRoutes(guest gin.IRoutes, handler *GuestHandler) {
 	guest.GET("/orders/:order_no/fulfillment/download", handler.DownloadGuestFulfillment)
 }
 
+// RegisterGuestLookupRoute 注册前台"仅凭订单号"查单路由（需配合独立限流与验证码）。
+func RegisterGuestLookupRoute(guest gin.IRoutes, handler *GuestHandler) {
+	if guest == nil || handler == nil {
+		panic("order guest lookup route: required dependency is nil")
+	}
+	guest.GET("/orders/lookup/:order_no", handler.GetGuestOrderByOrderNoOnly)
+}
+
 // RegisterUserPreviewRoute 注册前台用户订单预览路由。
 func RegisterUserPreviewRoute(user gin.IRoutes, handler *PreviewHandler) {
 	if user == nil || handler == nil {

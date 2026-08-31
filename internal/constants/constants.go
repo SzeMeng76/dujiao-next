@@ -375,6 +375,7 @@ const (
 	CaptchaSceneResetSendCode    = "reset_send_code"
 	CaptchaSceneGuestCreateOrder = "guest_create_order"
 	CaptchaSceneGiftCardRedeem   = "gift_card_redeem"
+	CaptchaSceneGuestLookupOrder = "guest_lookup_order"
 )
 
 // 通知中心事件常量

@@ -1656,10 +1656,11 @@
     "subtitle": "输入邮箱与订单密码查看历史订单",
     "emailPlaceholder": "邮箱",
     "passwordPlaceholder": "订单密码",
-    "orderNoPlaceholder": "订单号（可选）",
+    "orderNoPlaceholder": "订单号（可选，仅填订单号可免密码查单）",
     "savedHint": "已保存邮箱：{email}",
     "clearSaved": "清除已保存信息",
-    "tip": "请输入下单时的邮箱与订单密码",
+    "tip": "请输入下单时的邮箱与订单密码，或只填订单号完成验证后查询",
+    "captchaLabel": "请完成人机验证",
     "search": "查询订单",
     "searching": "查询中...",
     "empty": "暂无订单记录",
@@ -1670,7 +1671,8 @@
     "nextPage": "下一页",
     "pageInfo": "第 {page} / {total} 页",
     "errors": {
-      "missing": "请输入邮箱与订单密码",
+      "missing": "请输入邮箱与订单密码，或填写订单号完成验证后查询",
+      "captchaRequired": "请先完成人机验证",
       "notFound": "未找到匹配订单，请检查输入信息",
       "searchFailed": "查询失败，请检查信息"
     }
@@ -1685,7 +1687,10 @@
     "authRequired": "请填写邮箱与订单密码",
     "authInvalid": "信息不匹配，请重新输入",
     "authSubmit": "保存并查询",
-    "authClear": "清除已保存信息"
+    "authClear": "清除已保存信息",
+    "lookupEntryHint": "如果您只有订单号，可完成验证后直接查看",
+    "lookupButton": "完成验证并查看订单",
+    "lookupFailed": "验证失败或订单不存在，请重试"
   },
   "productDetail": {
     "description": "商品描述",

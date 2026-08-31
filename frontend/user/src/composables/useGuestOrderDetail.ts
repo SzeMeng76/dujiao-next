@@ -5,6 +5,8 @@ import { guestOrderAPI } from '../api'
 import { debounceAsync } from '../utils/debounce'
 import { clearGuestOrderAuth, loadGuestOrderAuth, saveGuestOrderAuth } from '../utils/guestOrderAuth'
 import { resolveGuestOrderDetailViewState } from '../utils/guestOrderDetailState'
+import { useAppStore } from '../stores/app'
+import TurnstileCaptcha from '../components/captcha/TurnstileCaptcha.vue'
 import { useOrderDisplayHelpers } from './useOrderDisplayHelpers'
 
 /**
@@ -14,6 +16,7 @@ export function useGuestOrderDetail() {
   const route = useRoute()
   const router = useRouter()
   const { t } = useI18n()
+  const appStore = useAppStore()
 
   const loading = ref(true)
   const order = ref<any>(null)
@@ -25,6 +28,13 @@ export function useGuestOrderDetail() {
   const fulfillmentDownloading = ref(false)
 
   const helpers = useOrderDisplayHelpers(order)
+
+  const guestTurnstileToken = ref('')
+  const guestTurnstileRef = ref<InstanceType<typeof TurnstileCaptcha> | null>(null)
+  const captchaConfig = computed(() => appStore.config?.captcha || null)
+  const captchaProvider = computed(() => String(captchaConfig.value?.provider || 'none'))
+  const lookupCaptchaEnabled = computed(() => !!captchaConfig.value?.scenes?.guest_lookup_order && captchaProvider.value !== 'none')
+  const lookupTurnstileSiteKey = computed(() => String(captchaConfig.value?.turnstile?.site_key || ''))
 
   const handleDownloadFulfillment = async (orderNo: string) => {
     if (fulfillmentDownloading.value) return
@@ -56,6 +66,7 @@ export function useGuestOrderDetail() {
     loading: loading.value,
     order: order.value,
     showAuthForm: showAuthForm.value,
+    lookupCaptchaEnabled: lookupCaptchaEnabled.value,
   }))
 
   const loadOrder = async () => {
@@ -82,6 +93,24 @@ export function useGuestOrderDetail() {
 
   const debouncedLoadOrder = debounceAsync(loadOrder, 300)
 
+  const loadOrderByNoOnly = async () => {
+    loading.value = true
+    try {
+      const response = await guestOrderAPI.lookupByOrderNo(String(route.params.order_no || '').trim(), {
+        turnstile_token: guestTurnstileToken.value || undefined,
+      })
+      order.value = response.data.data
+      authError.value = ''
+    } catch (error) {
+      order.value = null
+      authError.value = t('guestOrderDetail.lookupFailed')
+      guestTurnstileRef.value?.reset()
+      guestTurnstileToken.value = ''
+    } finally {
+      loading.value = false
+    }
+  }
+
   const persistAuth = () => {
     saveGuestOrderAuth({
       email: auth.value.email,
@@ -98,6 +127,16 @@ export function useGuestOrderDetail() {
     persistAuth()
     loading.value = true
     await debouncedLoadOrder()
+  }
+
+  const handleLookupSubmit = async () => {
+    authError.value = ''
+    if (lookupCaptchaEnabled.value && !guestTurnstileToken.value) {
+      authError.value = t('guestOrders.errors.captchaRequired')
+      return
+    }
+    loading.value = true
+    await loadOrderByNoOnly()
   }
 
   const clearAuth = () => {
@@ -131,6 +170,11 @@ export function useGuestOrderDetail() {
     clearAuth,
     fulfillmentDownloading,
     handleDownloadFulfillment,
+    lookupCaptchaEnabled,
+    lookupTurnstileSiteKey,
+    guestTurnstileToken,
+    guestTurnstileRef,
+    handleLookupSubmit,
     ...helpers,
   }
 }

@@ -27,6 +27,10 @@
           </Button>
         </div>
         <p class="text-xs text-muted-foreground mt-3">{{ t('guestOrders.tip') }}</p>
+        <div v-if="isOrderNoOnlyMode && lookupCaptchaEnabled" class="mt-4">
+          <p class="text-xs text-muted-foreground mb-2">{{ t('guestOrders.captchaLabel') }}</p>
+          <TurnstileCaptcha v-model="guestTurnstileToken" :site-key="lookupTurnstileSiteKey" ref="guestTurnstileRef" />
+        </div>
         <Alert v-if="error" variant="destructive" class="mt-4">
           <AlertDescription>{{ error }}</AlertDescription>
         </Alert>
@@ -94,6 +98,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import TurnstileCaptcha from '../components/captcha/TurnstileCaptcha.vue'
 import EmptyState from '../components/EmptyState.vue'
 import PaginationNav from '../components/PaginationNav.vue'
 import { useGuestOrders } from '../composables/useGuestOrders'
@@ -104,5 +109,9 @@ const {
   savedAuth, email, orderPassword, orderNo, loading, error, orders, pagination,
   hasSavedAuth, clearSaved, handleSearch, emptyMessage, changePage,
   statusLabel, statusVariant, formatMoney, formatDiscountMoney, hasDiscountAmount, hasDiscount, formatDate,
+  isOrderNoOnlyMode, lookupCaptchaEnabled, lookupTurnstileSiteKey, guestTurnstileToken, guestTurnstileRef,
 } = useGuestOrders()
+
+// 仅通过模板字符串 ref 绑定，vue-tsc 不将其计为使用，显式标记避免 noUnusedLocals 误报。
+void guestTurnstileRef
 </script>

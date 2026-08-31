@@ -204,6 +204,11 @@ func (a orderGuestQueryAdapter) GetAnyOrderByGuestOrderNoForTenant(tenant resell
 	return order, mapOrderTransportError(err)
 }
 
+func (a orderGuestQueryAdapter) GetOrderByOrderNoOnlyForTenant(tenant reseller.TenantContext, orderNo string) (*orderdomain.Order, error) {
+	order, err := a.orders.GetOrderByOrderNoOnlyForTenant(tenant, orderNo)
+	return order, mapOrderTransportError(err)
+}
+
 type orderAdminRefundAdapter struct {
 	refunds *orderrefund.Service
 }
@@ -362,6 +367,17 @@ func (a orderGuestCreateCaptchaAdapter) VerifyGuestCreateOrder(payload captchaht
 		return nil
 	}
 	return mapOrderTransportError(a.captcha.Verify(constants.CaptchaSceneGuestCreateOrder, payload.ToCaptchaPayload(), clientIP))
+}
+
+type orderGuestLookupCaptchaAdapter struct {
+	captcha *captchaapp.Service
+}
+
+func (a orderGuestLookupCaptchaAdapter) VerifyGuestLookupOrder(payload captchahttp.CaptchaPayloadRequest, clientIP string) error {
+	if a.captcha == nil {
+		return nil
+	}
+	return mapOrderTransportError(a.captcha.Verify(constants.CaptchaSceneGuestLookupOrder, payload.ToCaptchaPayload(), clientIP))
 }
 
 type orderPaymentCreatorAdapter struct {

@@ -3190,6 +3190,7 @@ const messages = {
             resetSendCode: '找回密码发送邮件验证码',
             guestCreateOrder: '游客下单创建订单',
             giftCardRedeem: '礼品卡兑换',
+            guestLookupOrder: '游客仅凭订单号查单',
           },
           image: {
             title: '图片验证码参数',
@@ -7714,6 +7715,7 @@ const messages = {
             resetSendCode: '找回密碼發送郵件驗證碼',
             guestCreateOrder: '遊客下單建立訂單',
             giftCardRedeem: '禮品卡兌換',
+            guestLookupOrder: '遊客僅憑訂單號查單',
           },
           image: {
             title: '圖片驗證碼參數',
@@ -12238,6 +12240,7 @@ const messages = {
             resetSendCode: 'Reset password email code sending',
             guestCreateOrder: 'Guest checkout create order',
             giftCardRedeem: 'Gift card redeem',
+            guestLookupOrder: 'Guest order-no-only lookup',
           },
           image: {
             title: 'Image captcha parameters',

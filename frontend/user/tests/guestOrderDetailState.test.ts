@@ -50,3 +50,32 @@ test('guest order detail renders fields only when an order is present and authen
     'empty',
   )
 })
+
+test('guest order detail shows the order-no-only lookup entry only when its captcha scene is enabled', () => {
+  assert.equal(
+    resolveGuestOrderDetailViewState({
+      loading: false,
+      order: null,
+      showAuthForm: true,
+      lookupCaptchaEnabled: true,
+    }),
+    'lookup',
+  )
+  assert.equal(
+    resolveGuestOrderDetailViewState({
+      loading: false,
+      order: null,
+      showAuthForm: true,
+      lookupCaptchaEnabled: false,
+    }),
+    'auth',
+  )
+  assert.equal(
+    resolveGuestOrderDetailViewState({
+      loading: false,
+      order: null,
+      showAuthForm: true,
+    }),
+    'auth',
+  )
+})

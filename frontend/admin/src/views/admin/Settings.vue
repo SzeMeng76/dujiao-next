@@ -257,6 +257,7 @@ const captchaData = reactive({
     reset_send_code: false,
     guest_create_order: false,
     gift_card_redeem: false,
+    guest_lookup_order: false,
   },
   image: {
     length: 5,
@@ -517,6 +518,7 @@ const fetchSettings = async () => {
       captchaData.scenes.reset_send_code = !!captchaScenes?.reset_send_code
       captchaData.scenes.guest_create_order = !!captchaScenes?.guest_create_order
       captchaData.scenes.gift_card_redeem = !!captchaScenes?.gift_card_redeem
+      captchaData.scenes.guest_lookup_order = !!captchaScenes?.guest_lookup_order
 
       const captchaImage = captcha.image as Record<string, unknown> | undefined
       captchaData.image.length = normalizeNumber(captchaImage?.length, 5)

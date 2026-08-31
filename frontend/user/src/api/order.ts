@@ -65,6 +65,9 @@ export const guestOrderAPI = {
         const request = withGuestAuth(params, options)
         return userApi.get(`/guest/orders/${encodeURIComponent(orderNo)}`, { ...request.options, params: request.payload })
     },
+    lookupByOrderNo: (orderNo: string, params: { turnstile_token?: string; captcha_id?: string; captcha_code?: string }) => {
+        return userApi.get(`/guest/orders/lookup/${encodeURIComponent(orderNo)}`, { params })
+    },
     downloadFulfillment: (orderNo: string, params: GuestAuthInput) => {
         const request = withGuestAuth(params, { blob: true })
         return userApi.get(`/guest/orders/${encodeURIComponent(orderNo)}/fulfillment/download`, { ...request.options, params: request.payload })

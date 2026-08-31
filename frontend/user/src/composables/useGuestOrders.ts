@@ -5,12 +5,15 @@ import { orderStatusVariant, orderStatusLabel } from '../utils/status'
 import { debounceAsync } from '../utils/debounce'
 import { amountToCents } from '../utils/money'
 import { clearGuestOrderAuth, loadGuestOrderAuth, saveGuestOrderAuth } from '../utils/guestOrderAuth'
+import { useAppStore } from '../stores/app'
+import TurnstileCaptcha from '../components/captcha/TurnstileCaptcha.vue'
 
 /**
  * 游客订单查询/列表逻辑（classic + vault 共用）。
  */
 export function useGuestOrders() {
   const { t } = useI18n()
+  const appStore = useAppStore()
 
   const savedAuth = ref<{ email: string; order_password: string }>({ email: '', order_password: '' })
   const email = ref('')
@@ -25,6 +28,14 @@ export function useGuestOrders() {
     total: 0,
     total_page: 1,
   })
+
+  const guestTurnstileToken = ref('')
+  const guestTurnstileRef = ref<InstanceType<typeof TurnstileCaptcha> | null>(null)
+  const captchaConfig = computed(() => appStore.config?.captcha || null)
+  const captchaProvider = computed(() => String(captchaConfig.value?.provider || 'none'))
+  const lookupCaptchaEnabled = computed(() => !!captchaConfig.value?.scenes?.guest_lookup_order && captchaProvider.value !== 'none')
+  const lookupTurnstileSiteKey = computed(() => String(captchaConfig.value?.turnstile?.site_key || ''))
+  const isOrderNoOnlyMode = computed(() => Boolean(orderNo.value) && !email.value && !orderPassword.value)
 
   const loadSavedAuth = () => {
     savedAuth.value = loadGuestOrderAuth()
@@ -59,14 +70,32 @@ export function useGuestOrders() {
     error.value = ''
   }
 
+  const resetGuestTurnstile = () => {
+    guestTurnstileRef.value?.reset()
+    guestTurnstileToken.value = ''
+  }
+
   const handleSearch = async () => {
     error.value = ''
-    if (!email.value || !orderPassword.value) {
+    const hasOrderNo = Boolean(orderNo.value)
+    const hasCredentials = Boolean(email.value && orderPassword.value)
+
+    if (!hasOrderNo && !hasCredentials) {
       error.value = t('guestOrders.errors.missing')
       return
     }
-    persistAuth()
-    await debouncedLoadOrders(1)
+
+    if (hasCredentials) {
+      persistAuth()
+      await debouncedLoadOrders(1)
+      return
+    }
+
+    if (lookupCaptchaEnabled.value && !guestTurnstileToken.value) {
+      error.value = t('guestOrders.errors.captchaRequired')
+      return
+    }
+    await debouncedLoadOrderByNoOnly()
   }
 
   const loadOrders = async (page: number) => {
@@ -92,7 +121,28 @@ export function useGuestOrders() {
     }
   }
 
+  const loadOrderByNoOnly = async () => {
+    loading.value = true
+    try {
+      const response = await guestOrderAPI.lookupByOrderNo(orderNo.value, {
+        turnstile_token: guestTurnstileToken.value || undefined,
+      })
+      orders.value = response.data.data ? [response.data.data] : []
+      pagination.value = { page: 1, page_size: 1, total: orders.value.length, total_page: 1 }
+      if (orders.value.length === 0) {
+        error.value = t('guestOrders.errors.notFound')
+      }
+    } catch (err: any) {
+      orders.value = []
+      error.value = err.message || t('guestOrders.errors.notFound')
+      resetGuestTurnstile()
+    } finally {
+      loading.value = false
+    }
+  }
+
   const debouncedLoadOrders = debounceAsync(loadOrders, 300)
+  const debouncedLoadOrderByNoOnly = debounceAsync(loadOrderByNoOnly, 300)
 
   const emptyMessage = computed(() => {
     if (orderNo.value) {
@@ -161,6 +211,7 @@ export function useGuestOrders() {
 
   onUnmounted(() => {
     debouncedLoadOrders.cancel()
+    debouncedLoadOrderByNoOnly.cancel()
   })
 
   return {
@@ -185,5 +236,10 @@ export function useGuestOrders() {
     hasDiscountAmount,
     hasDiscount,
     formatDate,
+    isOrderNoOnlyMode,
+    lookupCaptchaEnabled,
+    lookupTurnstileSiteKey,
+    guestTurnstileToken,
+    guestTurnstileRef,
   }
 }

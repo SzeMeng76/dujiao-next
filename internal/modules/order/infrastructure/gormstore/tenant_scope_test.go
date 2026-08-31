@@ -198,6 +198,69 @@ func TestOrderRepositoryTenantScopePointQueriesAndLists(t *testing.T) {
 	}
 }
 
+func TestGetByOrderNoScopedIgnoresGuestCredentialsButRespectsTenantScope(t *testing.T) {
+	db := openOrderTenantScopeTestDB(t)
+	repo := New(db, "test-guest-credential-secret-with-32-bytes")
+	user := userdomain.User{Email: "lookup-user@example.com", PasswordHash: "hash"}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatalf("create user failed: %v", err)
+	}
+	resellerOne := uint(101)
+	resellerTwo := uint(202)
+	mainScope := ordercontract.TenantScope{}
+	resellerOneScope := ordercontract.TenantScope{ResellerID: &resellerOne}
+	resellerTwoScope := ordercontract.TenantScope{ResellerID: &resellerTwo}
+
+	guestMain := seedScopedOrder(t, db, "LOOKUP-GUEST-MAIN", 0, "guest@example.com", "code", constants.OrderStatusPendingPayment, nil, nil)
+	_ = seedScopedOrder(t, db, "LOOKUP-GUEST-R1", 0, "guest@example.com", "code", constants.OrderStatusPaid, &resellerOne, nil)
+	memberOrder := seedScopedOrder(t, db, "LOOKUP-MEMBER", user.ID, "", "", constants.OrderStatusPaid, nil, nil)
+	_ = seedScopedOrder(t, db, "LOOKUP-GUEST-CHILD", 0, "guest@example.com", "code", constants.OrderStatusPaid, nil, &guestMain.ID)
+	if _, err := repo.BackfillGuestCredentialHashes(); err != nil {
+		t.Fatalf("hash seeded guest credentials failed: %v", err)
+	}
+
+	// 不需要任何密码即可查到订单。
+	got, err := repo.GetByOrderNoScoped("LOOKUP-GUEST-MAIN", mainScope)
+	if err != nil {
+		t.Fatalf("GetByOrderNoScoped main failed: %v", err)
+	}
+	assertOrderFound(t, got, "LOOKUP-GUEST-MAIN")
+
+	// 跨租户查询必须查不到（多租户隔离红线）。
+	got, err = repo.GetByOrderNoScoped("LOOKUP-GUEST-MAIN", resellerOneScope)
+	if err != nil {
+		t.Fatalf("GetByOrderNoScoped main from reseller failed: %v", err)
+	}
+	assertOrderMissing(t, got)
+
+	got, err = repo.GetByOrderNoScoped("LOOKUP-GUEST-R1", resellerOneScope)
+	if err != nil {
+		t.Fatalf("GetByOrderNoScoped reseller failed: %v", err)
+	}
+	assertOrderFound(t, got, "LOOKUP-GUEST-R1")
+
+	got, err = repo.GetByOrderNoScoped("LOOKUP-GUEST-R1", resellerTwoScope)
+	if err != nil {
+		t.Fatalf("GetByOrderNoScoped reseller from other reseller failed: %v", err)
+	}
+	assertOrderMissing(t, got)
+
+	// 子订单不可通过此方法查到。
+	got, err = repo.GetByOrderNoScoped("LOOKUP-GUEST-CHILD", mainScope)
+	if err != nil {
+		t.Fatalf("GetByOrderNoScoped child failed: %v", err)
+	}
+	assertOrderMissing(t, got)
+
+	// 会员（非游客）订单不可通过此方法查到。
+	got, err = repo.GetByOrderNoScoped("LOOKUP-MEMBER", mainScope)
+	if err != nil {
+		t.Fatalf("GetByOrderNoScoped member order failed: %v", err)
+	}
+	assertOrderMissing(t, got)
+	_ = memberOrder
+}
+
 func TestOrderStoreExcludesSoftDeletedAggregatesAndAssociations(t *testing.T) {
 	db := openOrderTenantScopeTestDB(t)
 	store := New(db, "test-guest-credential-secret-with-32-bytes")

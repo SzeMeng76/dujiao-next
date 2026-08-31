@@ -6,6 +6,8 @@ import (
 
 	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
 
+	captcha "github.com/dujiao-next/internal/modules/captcha/contract"
+	captchahttp "github.com/dujiao-next/internal/modules/captcha/transport/http"
 	orderpresenter "github.com/dujiao-next/internal/modules/order/transport/presenter"
 	reseller "github.com/dujiao-next/internal/modules/reseller/contract"
 	"github.com/dujiao-next/internal/platform/http/ginutil"
@@ -19,6 +21,12 @@ type GuestOrderQuery interface {
 	ListOrdersByGuestForTenant(tenant reseller.TenantContext, email, password string, page, pageSize int) ([]orderdomain.Order, int64, error)
 	GetOrderByGuestOrderNoForTenant(tenant reseller.TenantContext, orderNo, email, password string) (*orderdomain.Order, error)
 	GetAnyOrderByGuestOrderNoForTenant(tenant reseller.TenantContext, orderNo, email, password string) (*orderdomain.Order, error)
+	GetOrderByOrderNoOnlyForTenant(tenant reseller.TenantContext, orderNo string) (*orderdomain.Order, error)
+}
+
+// GuestLookupCaptcha 纯订单号查单验证码端口。
+type GuestLookupCaptcha interface {
+	VerifyGuestLookupOrder(payload captchahttp.CaptchaPayloadRequest, clientIP string) error
 }
 
 // GuestHandler 处理前台游客订单只读 HTTP。
@@ -26,13 +34,14 @@ type GuestHandler struct {
 	orders   GuestOrderQuery
 	payments PaymentChannelPolicy
 	refunds  RefundRecordDirectory
+	captcha  GuestLookupCaptcha
 }
 
-func NewGuestHandler(orders GuestOrderQuery, payments PaymentChannelPolicy, refunds RefundRecordDirectory) *GuestHandler {
+func NewGuestHandler(orders GuestOrderQuery, payments PaymentChannelPolicy, refunds RefundRecordDirectory, captcha GuestLookupCaptcha) *GuestHandler {
 	if orders == nil {
 		panic("order guest handler: orders is nil")
 	}
-	return &GuestHandler{orders: orders, payments: payments, refunds: refunds}
+	return &GuestHandler{orders: orders, payments: payments, refunds: refunds, captcha: captcha}
 }
 
 // ListGuestOrders 获取游客订单列表
@@ -143,4 +152,54 @@ func (h *GuestHandler) DownloadGuestFulfillment(c *gin.Context) {
 		return
 	}
 	respondFulfillmentDownload(c, order)
+}
+
+// GetGuestOrderByOrderNoOnly 仅凭订单号获取游客订单详情（配合验证码防枚举，不校验邮箱/密码）。
+func (h *GuestHandler) GetGuestOrderByOrderNoOnly(c *gin.Context) {
+	orderNo := strings.TrimSpace(c.Param("order_no"))
+	if orderNo == "" {
+		ginutil.RespondError(c, response.CodeBadRequest, "error.order_item_invalid", nil)
+		return
+	}
+	payload := captchahttp.CaptchaPayloadRequest{
+		CaptchaID:      c.Query("captcha_id"),
+		CaptchaCode:    c.Query("captcha_code"),
+		TurnstileToken: c.Query("turnstile_token"),
+	}
+	if !h.verifyGuestLookupCaptcha(c, payload) {
+		return
+	}
+	order, err := h.orders.GetOrderByOrderNoOnlyForTenant(tenantFromRequest(c), orderNo)
+	if err != nil {
+		if errors.Is(err, ErrGuestOrderNotFound) {
+			ginutil.RespondError(c, response.CodeNotFound, "error.guest_order_not_found", nil)
+			return
+		}
+		ginutil.RespondError(c, response.CodeInternal, "error.order_fetch_failed", err)
+		return
+	}
+	orderDetail := orderpresenter.NewOrderDetailTruncated(order)
+	enrichOrderWithAllowedChannels(h.payments, order, &orderDetail)
+	enrichOrderWithRefundRecords(h.refunds, order, &orderDetail)
+	response.Success(c, orderDetail)
+}
+
+func (h *GuestHandler) verifyGuestLookupCaptcha(c *gin.Context, payload captchahttp.CaptchaPayloadRequest) bool {
+	if h.captcha == nil {
+		return true
+	}
+	if captchaErr := h.captcha.VerifyGuestLookupOrder(payload, c.ClientIP()); captchaErr != nil {
+		switch {
+		case errors.Is(captchaErr, captcha.ErrRequired):
+			ginutil.RespondError(c, response.CodeBadRequest, "error.captcha_required", nil)
+		case errors.Is(captchaErr, captcha.ErrInvalid):
+			ginutil.RespondError(c, response.CodeBadRequest, "error.captcha_invalid", nil)
+		case errors.Is(captchaErr, captcha.ErrConfigInvalid):
+			ginutil.RespondError(c, response.CodeInternal, "error.captcha_config_invalid", captchaErr)
+		default:
+			ginutil.RespondError(c, response.CodeInternal, "error.captcha_verify_failed", captchaErr)
+		}
+		return false
+	}
+	return true
 }
