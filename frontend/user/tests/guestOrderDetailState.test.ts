@@ -79,3 +79,17 @@ test('guest order detail shows the order-no-only lookup entry only when its capt
     'auth',
   )
 })
+
+test('guest order detail switches to detail once the order-no-only lookup resolves an order, even with the lookup scene enabled', () => {
+  // 调用方约定：lookup 成功拿到订单后必须把 showAuthForm 置为 false，
+  // 否则会一直卡在 'lookup' 分支重复要求验证，永远看不到订单详情。
+  assert.equal(
+    resolveGuestOrderDetailViewState({
+      loading: false,
+      order: { order_no: 'DJ-1001' },
+      showAuthForm: false,
+      lookupCaptchaEnabled: true,
+    }),
+    'detail',
+  )
+})

@@ -26,6 +26,7 @@ export function useGuestOrderDetail() {
     order_password: '',
   })
   const fulfillmentDownloading = ref(false)
+  const lookupResolved = ref(false)
 
   const helpers = useOrderDisplayHelpers(order)
 
@@ -61,12 +62,12 @@ export function useGuestOrderDetail() {
   }
 
   const hasAuth = computed(() => Boolean(auth.value.email && auth.value.order_password))
-  const showAuthForm = computed(() => !hasAuth.value || authError.value !== '')
+  const showAuthForm = computed(() => !lookupResolved.value && (!hasAuth.value || authError.value !== ''))
   const viewState = computed(() => resolveGuestOrderDetailViewState({
     loading: loading.value,
     order: order.value,
     showAuthForm: showAuthForm.value,
-    lookupCaptchaEnabled: lookupCaptchaEnabled.value,
+    lookupCaptchaEnabled: lookupCaptchaEnabled.value && !hasAuth.value,
   }))
 
   const loadOrder = async () => {
@@ -74,7 +75,9 @@ export function useGuestOrderDetail() {
     try {
       if (!hasAuth.value) {
         order.value = null
-        authError.value = t('guestOrderDetail.authRequired')
+        if (!lookupCaptchaEnabled.value) {
+          authError.value = t('guestOrderDetail.authRequired')
+        }
         return
       }
       const response = await guestOrderAPI.detail(String(route.params.order_no || '').trim(), {
@@ -101,6 +104,7 @@ export function useGuestOrderDetail() {
       })
       order.value = response.data.data
       authError.value = ''
+      lookupResolved.value = true
     } catch (error) {
       order.value = null
       authError.value = t('guestOrderDetail.lookupFailed')
