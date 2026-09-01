@@ -98,6 +98,7 @@ type CreateInput struct {
 	Amount      string
 	Currency    string
 	Description string
+	Email       string
 	SuccessURL  string
 	CancelURL   string
 }
@@ -222,6 +223,9 @@ func CreatePayment(ctx context.Context, cfg *Config, input CreateInput) (*Create
 	form.Set("line_items[0][price_data][product_data][name]", subject)
 	form.Set("metadata[order_no]", orderNo)
 	form.Set("payment_intent_data[metadata][order_no]", orderNo)
+	if email := strings.TrimSpace(input.Email); email != "" {
+		form.Set("customer_email", email)
+	}
 	for _, pmType := range cfg.PaymentMethodTypes {
 		form.Add("payment_method_types[]", pmType)
 		// Stripe 要求 Web Checkout 场景下 WeChat Pay 必须显式声明 client，否则返回 400。
