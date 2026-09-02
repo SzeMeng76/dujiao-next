@@ -121,6 +121,23 @@ func (h *Handler) HandleCallback(c *gin.Context) {
 		return
 	}
 
+	// 归属校验：采购单必须属于本次认证的连接，且上游订单号需与登记值一致，
+	// 防止任意已认证连接凭本地订单号提交他人订单的状态。
+	// upstream_order_id 为 0 时说明下单响应尚未落库（回调抢跑），此时只校验连接归属。
+	if procOrder.ConnectionID != conn.ID ||
+		(procOrder.UpstreamOrderID != 0 && payload.OrderID != procOrder.UpstreamOrderID) {
+		logger.Warnw("upstream_callback_ownership_mismatch",
+			"api_key", apiKey,
+			"connection_id", conn.ID,
+			"procurement_connection_id", procOrder.ConnectionID,
+			"downstream_order_no", payload.DownstreamOrderNo,
+			"payload_order_id", payload.OrderID,
+			"procurement_upstream_order_id", procOrder.UpstreamOrderID,
+		)
+		c.JSON(http.StatusOK, gin.H{"ok": false, "message": "procurement order not found"})
+		return
+	}
+
 	// 转换状态并处理回调
 	var uf *procurementcontract.Fulfillment
 	if payload.Fulfillment != nil {
