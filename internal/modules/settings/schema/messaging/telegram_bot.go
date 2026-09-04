@@ -79,16 +79,17 @@ type TelegramBotMenuAction struct {
 
 // TelegramBotRuntimeStatusSetting Telegram Bot 运行时状态
 type TelegramBotRuntimeStatusSetting struct {
-	Connected        bool     `json:"connected"`
-	LastSeenAt       string   `json:"last_seen_at"`
-	BotVersion       string   `json:"bot_version"`
-	WebhookStatus    string   `json:"webhook_status"`
-	MachineCode      string   `json:"machine_code"`
-	LicenseStatus    string   `json:"license_status"`
-	LicenseExpiresAt string   `json:"license_expires_at"`
-	Warnings         []string `json:"warnings"`
-	ConfigVersion    int      `json:"config_version"`
-	LastConfigSyncAt string   `json:"last_config_sync_at"`
+	Connected         bool     `json:"connected"`
+	LastSeenAt        string   `json:"last_seen_at"`
+	BotVersion        string   `json:"bot_version"`
+	WebhookStatus     string   `json:"webhook_status"`
+	MachineCode       string   `json:"machine_code"`
+	LicenseStatus     string   `json:"license_status"`
+	LicenseExpiresAt  string   `json:"license_expires_at"`
+	InstanceExpiresAt string   `json:"instance_expires_at"` // 实例最早到期时间，空字符串表示永久
+	Warnings          []string `json:"warnings"`
+	ConfigVersion     int      `json:"config_version"`
+	LastConfigSyncAt  string   `json:"last_config_sync_at"`
 }
 
 // TelegramBotConfigDefault 默认 Bot 配置
@@ -287,16 +288,17 @@ func SerializeTelegramBotConfigForChannel(setting TelegramBotConfigSetting, botT
 // TelegramBotRuntimeStatusToMap 转换运行时状态为存储结构
 func EncodeTelegramBotRuntimeStatus(status TelegramBotRuntimeStatusSetting) map[string]interface{} {
 	return map[string]interface{}{
-		"connected":           status.Connected,
-		"last_seen_at":        status.LastSeenAt,
-		"bot_version":         status.BotVersion,
-		"webhook_status":      status.WebhookStatus,
-		"machine_code":        status.MachineCode,
-		"license_status":      status.LicenseStatus,
-		"license_expires_at":  status.LicenseExpiresAt,
-		"warnings":            append([]string(nil), status.Warnings...),
-		"config_version":      status.ConfigVersion,
-		"last_config_sync_at": status.LastConfigSyncAt,
+		"connected":            status.Connected,
+		"last_seen_at":         status.LastSeenAt,
+		"bot_version":          status.BotVersion,
+		"webhook_status":       status.WebhookStatus,
+		"machine_code":         status.MachineCode,
+		"license_status":       status.LicenseStatus,
+		"license_expires_at":   status.LicenseExpiresAt,
+		"instance_expires_at":  status.InstanceExpiresAt,
+		"warnings":             append([]string(nil), status.Warnings...),
+		"config_version":       status.ConfigVersion,
+		"last_config_sync_at":  status.LastConfigSyncAt,
 	}
 }
 
@@ -380,6 +382,7 @@ func DecodeTelegramBotRuntimeStatus(raw jsonmap.JSON, fallback TelegramBotRuntim
 	next.MachineCode = settingsvalue.ReadString(raw, "machine_code", next.MachineCode)
 	next.LicenseStatus = settingsvalue.ReadString(raw, "license_status", next.LicenseStatus)
 	next.LicenseExpiresAt = settingsvalue.ReadString(raw, "license_expires_at", next.LicenseExpiresAt)
+	next.InstanceExpiresAt = settingsvalue.ReadString(raw, "instance_expires_at", next.InstanceExpiresAt)next.LicenseExpiresAt)
 	next.Warnings = settingsvalue.ReadStringList(raw, "warnings", next.Warnings)
 	next.ConfigVersion = settingsvalue.ReadInt(raw, "config_version", next.ConfigVersion)
 	next.LastConfigSyncAt = settingsvalue.ReadString(raw, "last_config_sync_at", next.LastConfigSyncAt)

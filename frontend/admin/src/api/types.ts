@@ -364,6 +364,7 @@ export interface AdminTelegramBotRuntimeStatus {
   machine_code?: string
   license_status?: string
   license_expires_at?: string
+  instance_expires_at?: string
   warnings?: string[]
   config_version: number
   last_config_sync_at?: string

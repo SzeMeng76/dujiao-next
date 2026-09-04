@@ -153,6 +153,10 @@ onMounted(() => {
               <p class="text-sm text-muted-foreground mb-1">{{ t('telegramBot.status.licenseExpiresAt') }}</p>
               <p class="text-lg font-semibold">{{ formatRuntimeDate(runtimeStatus.license_expires_at) }}</p>
             </div>
+            <div class="rounded-lg border p-4">
+              <p class="text-sm text-muted-foreground mb-1">实例到期时间</p>
+              <p class="text-lg font-semibold">{{ runtimeStatus.instance_expires_at ? formatRuntimeDate(runtimeStatus.instance_expires_at) : '永久' }}</p>
+            </div>
             <div class="rounded-lg border p-4 md:col-span-2">
               <p class="text-sm text-muted-foreground mb-2">{{ t('telegramBot.status.licenseWarnings') }}</p>
               <div v-if="runtimeStatus.warnings?.length" class="flex flex-wrap gap-2">
