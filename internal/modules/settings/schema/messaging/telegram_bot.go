@@ -382,7 +382,7 @@ func DecodeTelegramBotRuntimeStatus(raw jsonmap.JSON, fallback TelegramBotRuntim
 	next.MachineCode = settingsvalue.ReadString(raw, "machine_code", next.MachineCode)
 	next.LicenseStatus = settingsvalue.ReadString(raw, "license_status", next.LicenseStatus)
 	next.LicenseExpiresAt = settingsvalue.ReadString(raw, "license_expires_at", next.LicenseExpiresAt)
-	next.InstanceExpiresAt = settingsvalue.ReadString(raw, "instance_expires_at", next.InstanceExpiresAt)next.LicenseExpiresAt)
+	next.InstanceExpiresAt = settingsvalue.ReadString(raw, "instance_expires_at", next.InstanceExpiresAt)
 	next.Warnings = settingsvalue.ReadStringList(raw, "warnings", next.Warnings)
 	next.ConfigVersion = settingsvalue.ReadInt(raw, "config_version", next.ConfigVersion)
 	next.LastConfigSyncAt = settingsvalue.ReadString(raw, "last_config_sync_at", next.LastConfigSyncAt)
