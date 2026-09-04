@@ -288,17 +288,17 @@ func SerializeTelegramBotConfigForChannel(setting TelegramBotConfigSetting, botT
 // TelegramBotRuntimeStatusToMap 转换运行时状态为存储结构
 func EncodeTelegramBotRuntimeStatus(status TelegramBotRuntimeStatusSetting) map[string]interface{} {
 	return map[string]interface{}{
-		"connected":            status.Connected,
-		"last_seen_at":         status.LastSeenAt,
-		"bot_version":          status.BotVersion,
-		"webhook_status":       status.WebhookStatus,
-		"machine_code":         status.MachineCode,
-		"license_status":       status.LicenseStatus,
-		"license_expires_at":   status.LicenseExpiresAt,
-		"instance_expires_at":  status.InstanceExpiresAt,
-		"warnings":             append([]string(nil), status.Warnings...),
-		"config_version":       status.ConfigVersion,
-		"last_config_sync_at":  status.LastConfigSyncAt,
+		"connected":           status.Connected,
+		"last_seen_at":        status.LastSeenAt,
+		"bot_version":         status.BotVersion,
+		"webhook_status":      status.WebhookStatus,
+		"machine_code":        status.MachineCode,
+		"license_status":      status.LicenseStatus,
+		"license_expires_at":  status.LicenseExpiresAt,
+		"instance_expires_at": status.InstanceExpiresAt,
+		"warnings":            append([]string(nil), status.Warnings...),
+		"config_version":      status.ConfigVersion,
+		"last_config_sync_at": status.LastConfigSyncAt,
 	}
 }
 
