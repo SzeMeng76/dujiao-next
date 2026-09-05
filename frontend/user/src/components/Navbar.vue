@@ -5,7 +5,7 @@
     :style="{ transitionDuration: 'var(--ui-duration-normal)' }">
     <div class="container mx-auto px-4 flex items-center justify-between gap-4">
       <!-- Logo -->
-      <router-link to="/" class="theme-wordmark group relative gap-3" :title="brandSiteName">
+      <router-link v-if="appStore.config" to="/" class="theme-wordmark group relative gap-3" :title="brandSiteName">
         <img
           v-if="brandLogo"
           :src="brandLogo"
@@ -14,6 +14,8 @@
         />
         <span class="theme-wordmark-text">{{ brandSiteName }}</span>
       </router-link>
+      <!-- Placeholder while config is loading -->
+      <div v-else class="h-8 w-32 bg-muted/30 animate-pulse rounded"></div>
 
       <!-- Desktop Menu -->
       <div class="hidden lg:flex items-center space-x-1 min-w-0 overflow-x-auto scrollbar-hide">
