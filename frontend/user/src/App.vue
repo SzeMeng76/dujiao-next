@@ -28,7 +28,8 @@
       <MobileBottomNav v-if="!isResellerConsole" />
     </template>
 
-    <Loading :loading="appStore.loading" />
+    <VaultLoading v-if="isVault" :loading="appStore.loading" />
+    <Loading v-else :loading="appStore.loading" />
     <Toast />
     <ConfirmDialog />
   </div>
@@ -50,6 +51,7 @@ import MobileBottomNav from './components/MobileBottomNav.vue'
 
 // vault 外壳按需加载，classic 用户不会拉取其 chunk/样式
 const VaultLayout = defineAsyncComponent(() => import('./templates/vault/layout/VaultLayout.vue'))
+const VaultLoading = defineAsyncComponent(() => import('./templates/vault/components/VaultLoading.vue'))
 
 // config 由 router.beforeEach 统一加载，无需在此重复调用
 const appStore = useAppStore()
