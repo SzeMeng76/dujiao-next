@@ -87,6 +87,16 @@ export const useAppStore = defineStore('app', () => {
                 const estimatedServerNow = config.value.server_time + roundTripTime / 2
                 serverTimeOffset.value = estimatedServerNow - responseTime
             }
+            // 缓存模板选择到 localStorage，用于页面刷新时立即显示正确的 Loading 样式
+            // 注意：只在没有 URL 覆盖参数时才缓存，避免覆盖预览模式
+            const urlParam = new URLSearchParams(window.location.search).get('template')
+            if (!urlParam && config.value?.storefront_template) {
+                try {
+                    localStorage.setItem('dj-storefront-template', config.value.storefront_template)
+                } catch {
+                    // localStorage 不可用时忽略
+                }
+            }
             applySEO()
             applyCustomScripts(config.value?.scripts)
             // Print version to console
