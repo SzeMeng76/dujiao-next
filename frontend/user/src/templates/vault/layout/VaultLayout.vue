@@ -3,10 +3,12 @@
     <!-- 顶栏 -->
     <header class="sticky top-0 z-50 border-b bg-[color:var(--bg)]">
       <div class="mx-auto flex h-[70px] w-full max-w-[1180px] items-center gap-3 px-4 sm:gap-5 sm:px-6">
-        <RouterLink class="inline-flex shrink-0 items-center gap-2.5 text-[19px] font-extrabold tracking-[-0.02em] text-foreground" to="/" :title="brandName">
+        <RouterLink v-if="appStore.config" class="inline-flex shrink-0 items-center gap-2.5 text-[19px] font-extrabold tracking-[-0.02em] text-foreground" to="/" :title="brandName">
           <img v-if="brandLogo" :src="brandLogo" :alt="brandName" class="h-8 max-w-[120px] object-contain sm:max-w-[160px]" />
           <span v-else class="max-w-[240px] truncate">{{ brandName }}</span>
         </RouterLink>
+        <!-- Placeholder while config is loading -->
+        <div v-else class="h-8 w-32 flex-none animate-pulse rounded bg-muted/30"></div>
 
         <nav ref="navContainer" class="flex min-w-0 gap-0.5 max-[900px]:hidden">
           <template v-for="item in visibleMenuItems" :key="item.key">
@@ -107,10 +109,11 @@
     <footer class="mt-[var(--gap-block)] border-t bg-[color:var(--bg-warm)]">
       <div class="mx-auto grid w-full max-w-[1180px] grid-cols-1 gap-[30px] px-6 pb-9 pt-[52px] sm:grid-cols-2 lg:grid-cols-[1.7fr_repeat(3,1fr)]">
         <div>
-          <RouterLink class="inline-flex items-center gap-2.5 text-[19px] font-extrabold tracking-[-0.02em] text-foreground" to="/">
+          <RouterLink v-if="appStore.config" class="inline-flex items-center gap-2.5 text-[19px] font-extrabold tracking-[-0.02em] text-foreground" to="/">
             <img v-if="brandLogo" :src="brandLogo" :alt="brandName" class="h-8 max-w-[160px] object-contain" />
             <span v-else>{{ brandName }}</span>
           </RouterLink>
+          <div v-else class="h-8 w-32 animate-pulse rounded bg-muted/30"></div>
           <p class="mt-3 max-w-[36ch] text-[14.5px] text-muted-foreground">{{ brandDescription || t('vault.footer.tagline') }}</p>
         </div>
         <div>
@@ -136,7 +139,7 @@
       </div>
       <div class="mx-auto flex w-full max-w-[1180px] flex-wrap items-center justify-between gap-3.5 border-t px-6 pb-[30px] pt-[18px] text-[13.5px] text-muted-foreground">
         <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <span>© {{ year }} {{ brandName }}</span>
+          <span v-if="appStore.config">© {{ year }} {{ brandName }}</span>
           <a href="https://github.com/dujiao-next" target="_blank" rel="noopener noreferrer" aria-label="Dujiao-Next on GitHub" class="inline-flex items-center gap-1.5 hover:text-primary">
             <Github class="h-[15px] w-[15px]" />
             <span>Dujiao-Next</span>
