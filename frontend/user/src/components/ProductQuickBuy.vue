@@ -284,7 +284,7 @@
           </div>
 
           <!-- Actions (sticky bottom) -->
-          <div class="shrink-0 px-4 md:px-5 pt-3 pb-3 md:pb-5 border-t theme-safe-bottom">
+          <div class="shrink-0 px-4 md:px-5 pt-3 pb-20 md:pb-5 border-t theme-safe-bottom">
             <Button
               v-if="requiresLogin"
               class="w-full py-3 h-auto min-h-[44px] rounded-xl text-sm font-semibold"
