@@ -11,7 +11,7 @@
       v-if="visible"
       class="theme-safe-bottom fixed bottom-0 left-0 right-0 z-40 border-t bg-card/95 shadow-[var(--shadow)] backdrop-blur-xl lg:hidden"
     >
-      <div class="flex items-center gap-3 px-4 py-3">
+      <div class="flex items-center gap-3 pl-4 pr-20 py-3">
         <!-- 价格 -->
         <div class="min-w-0 flex-1">
           <span v-if="showMemberPrice" class="block truncate text-xl font-extrabold tabular-nums text-[color:var(--gold-strong)]">{{ memberPriceDisplay }}</span>

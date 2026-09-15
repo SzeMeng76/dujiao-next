@@ -8,7 +8,7 @@
     leave-to-class="translate-y-full opacity-0">
     <div v-if="visible"
       class="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-card/95 backdrop-blur-xl border-t shadow-2xl theme-safe-bottom">
-      <div class="flex items-center gap-3 px-4 py-3">
+      <div class="flex items-center gap-3 pl-4 pr-20 py-3">
         <!-- Price -->
         <div class="flex-1 min-w-0">
           <span v-if="showMemberPrice" class="theme-price-sm text-amber-600 dark:text-amber-300 truncate block">
