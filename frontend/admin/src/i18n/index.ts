@@ -823,6 +823,7 @@ const messages = {
           title: '库存异常明细',
           outOfStock: '售罄',
           lowStock: '低库存',
+          loadMore: '加载更多 ({count} 条)',
         },
         quickActions: {
           title: '快捷入口',
@@ -5353,6 +5354,7 @@ const messages = {
           title: '庫存異常明細',
           outOfStock: '售罄',
           lowStock: '低庫存',
+          loadMore: '載入更多 ({count} 條)',
         },
         quickActions: {
           title: '快捷入口',
@@ -9884,6 +9886,7 @@ const messages = {
           title: 'Inventory Alerts',
           outOfStock: 'Out of stock',
           lowStock: 'Low stock',
+          loadMore: 'Load more ({count} items)',
         },
         quickActions: {
           title: 'Quick Actions',
