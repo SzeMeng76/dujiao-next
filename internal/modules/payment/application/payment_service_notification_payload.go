@@ -4,15 +4,13 @@ import (
 	"fmt"
 	"strings"
 
+	productdomain "github.com/dujiao-next/internal/modules/catalog/product/domain"
 	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
 
 	orderapp "github.com/dujiao-next/internal/modules/order/application"
 	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
 
 	walletdomain "github.com/dujiao-next/internal/modules/wallet/domain"
-
-	productcontract "github.com/dujiao-next/internal/modules/catalog/product/contract"
-	productdomain "github.com/dujiao-next/internal/modules/catalog/product/domain"
 
 	"github.com/dujiao-next/internal/constants"
 	notificationformat "github.com/dujiao-next/internal/modules/notification/application/format"
@@ -28,16 +26,10 @@ func (s *PaymentService) buildOrderNotificationPayload(order *orderdomain.Order,
 	// 父订单拆单时商品项可能只存在于子订单，通知变量需先补齐聚合商品明细。
 	orderapp.FillOrderItemsFromChildren(order)
 
-	// 创建库存查询提供者
-	stockProvider := &paymentServiceStockProvider{
-		productRepo:    s.productRepo,
-		productSKURepo: s.productSKURepo,
-	}
-
-	itemsSummary, fulfillmentItemsSummary, counts := notificationformat.BuildOrderItemSummariesWithStock(order.Items, locale, stockProvider)
+	itemsSummary, fulfillmentItemsSummary, counts := notificationformat.BuildOrderItemSummariesWithStock(order.Items, locale, s)
 
 	// 构建库存摘要（低库存阈值设为 5）
-	stockSummary := notificationformat.BuildStockSummary(order.Items, locale, stockProvider, 5)
+	stockSummary := notificationformat.BuildStockSummary(order.Items, locale, s, 5)
 
 	providerType, channelType, paymentChannel := notificationPaymentChannel(order, payment)
 
@@ -72,20 +64,6 @@ func (s *PaymentService) buildOrderNotificationPayload(order *orderdomain.Order,
 		payload["channel_type"] = channelType
 	}
 	return payload
-}
-
-// paymentServiceStockProvider 实现库存信息查询接口
-type paymentServiceStockProvider struct {
-	productRepo    productcontract.Repository
-	productSKURepo productcontract.SKURepository
-}
-
-func (p *paymentServiceStockProvider) GetProductByID(id string) (*productdomain.Product, error) {
-	return p.productRepo.GetByID(id)
-}
-
-func (p *paymentServiceStockProvider) GetSKUByID(id uint) (*productdomain.ProductSKU, error) {
-	return p.productSKURepo.GetByID(id)
 }
 
 func (s *PaymentService) buildWalletRechargeNotificationPayload(recharge *walletdomain.RechargeOrder, payment *paymentdomain.Payment) jsonmap.JSON {
@@ -218,4 +196,14 @@ func notificationPayloadString(payload map[string]interface{}, key string) strin
 		return ""
 	}
 	return strings.TrimSpace(fmt.Sprint(value))
+}
+
+// GetProductByID 实现 notificationformat.StockInfoProvider 接口，供通知构建时查询商品库存
+func (s *PaymentService) GetProductByID(id string) (*productdomain.Product, error) {
+	return s.productRepo.GetByID(id)
+}
+
+// GetSKUByID 实现 notificationformat.StockInfoProvider 接口，供通知构建时查询 SKU 库存
+func (s *PaymentService) GetSKUByID(id uint) (*productdomain.ProductSKU, error) {
+	return s.productSKURepo.GetByID(id)
 }
