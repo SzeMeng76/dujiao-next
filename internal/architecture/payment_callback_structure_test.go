@@ -34,6 +34,7 @@ func TestPaymentCallbackImplementationIsSplitByResponsibility(t *testing.T) {
 			"resolveNotificationCustomer", "resolveUserNotificationIdentity",
 			"notificationPaymentChannel", "notificationPayloadString",
 			"GetProductByID", "GetSKUByID",
+			"applyAutoStockToProduct", "applyAutoStockToSKU",
 		},
 	}
 

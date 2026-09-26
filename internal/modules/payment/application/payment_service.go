@@ -5,6 +5,7 @@ import (
 
 	"github.com/dujiao-next/internal/config"
 	"github.com/dujiao-next/internal/logger"
+	cardsecretcontract "github.com/dujiao-next/internal/modules/cardsecret/contract"
 	productcontract "github.com/dujiao-next/internal/modules/catalog/product/contract"
 	externalidentitycontract "github.com/dujiao-next/internal/modules/identity/externalidentity/contract"
 	usercontract "github.com/dujiao-next/internal/modules/identity/user/contract"
@@ -44,6 +45,11 @@ var (
 	ErrQueueUnavailable                    = errors.New("queue unavailable")
 )
 
+// AutoStockCounter 是通知构建时查询自动发货卡密库存所需的最小端口。
+type AutoStockCounter interface {
+	CountStockByProductIDs(productIDs []uint) ([]cardsecretcontract.SKUStockCount, error)
+}
+
 // PaymentService 支付服务
 type PaymentService struct {
 	orderRepo               ordercontract.Store
@@ -66,6 +72,7 @@ type PaymentService struct {
 	memberLevelSvc          MemberLevelProgressor
 	paymentProviderRegistry paymentcontract.GatewayRegistry
 	resellerAccounting      resellerAccountingTransactions
+	autoStockCounter        AutoStockCounter
 }
 
 type MemberLevelProgressor interface {
@@ -125,6 +132,7 @@ type PaymentServiceOptions struct {
 	NotificationService     notificationcontract.NotificationEnqueuer
 	PaymentProviderRegistry paymentcontract.GatewayRegistry
 	ResellerAccounting      resellerAccountingTransactions
+	AutoStockCounter        AutoStockCounter
 }
 
 // NewPaymentService 创建支付服务
@@ -147,6 +155,7 @@ func NewPaymentService(opts PaymentServiceOptions) *PaymentService {
 		notificationSvc:         opts.NotificationService,
 		paymentProviderRegistry: opts.PaymentProviderRegistry,
 		resellerAccounting:      opts.ResellerAccounting,
+		autoStockCounter:        opts.AutoStockCounter,
 	}
 }
 

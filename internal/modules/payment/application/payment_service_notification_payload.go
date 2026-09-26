@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	cardsecretdomain "github.com/dujiao-next/internal/modules/cardsecret/domain"
 	productdomain "github.com/dujiao-next/internal/modules/catalog/product/domain"
 	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
 
@@ -198,12 +199,63 @@ func notificationPayloadString(payload map[string]interface{}, key string) strin
 	return strings.TrimSpace(fmt.Sprint(value))
 }
 
-// GetProductByID 实现 notificationformat.StockInfoProvider 接口，供通知构建时查询商品库存
+// GetProductByID 实现 notificationformat.StockInfoProvider 接口，供通知构建时查询商品库存。
+// Product.AutoStockAvailable 是 gorm:"-" 的聚合字段，裸 GetByID 查询永远为 0，
+// 自动交付商品需要额外聚合卡密库存才能得到真实可用数量。
 func (s *PaymentService) GetProductByID(id string) (*productdomain.Product, error) {
-	return s.productRepo.GetByID(id)
+	product, err := s.productRepo.GetByID(id)
+	if err != nil || product == nil {
+		return product, err
+	}
+	if product.FulfillmentType == constants.FulfillmentTypeAuto {
+		s.applyAutoStockToProduct(product)
+	}
+	return product, nil
 }
 
-// GetSKUByID 实现 notificationformat.StockInfoProvider 接口，供通知构建时查询 SKU 库存
+// GetSKUByID 实现 notificationformat.StockInfoProvider 接口，供通知构建时查询 SKU 库存。
+// ProductSKU.AutoStockAvailable 同样是 gorm:"-" 聚合字段，需要单独查卡密库存填充。
 func (s *PaymentService) GetSKUByID(id uint) (*productdomain.ProductSKU, error) {
-	return s.productSKURepo.GetByID(id)
+	sku, err := s.productSKURepo.GetByID(id)
+	if err != nil || sku == nil {
+		return sku, err
+	}
+	s.applyAutoStockToSKU(sku)
+	return sku, nil
+}
+
+// applyAutoStockToProduct 按商品ID聚合卡密可用数量并填充到 AutoStockAvailable。
+func (s *PaymentService) applyAutoStockToProduct(product *productdomain.Product) {
+	if s.autoStockCounter == nil || product == nil {
+		return
+	}
+	counts, err := s.autoStockCounter.CountStockByProductIDs([]uint{product.ID})
+	if err != nil {
+		return
+	}
+	var available int64
+	for _, count := range counts {
+		if count.Status == cardsecretdomain.StatusAvailable {
+			available += count.Total
+		}
+	}
+	product.AutoStockAvailable = available
+}
+
+// applyAutoStockToSKU 按 SKU 所属商品聚合卡密可用数量并填充到 AutoStockAvailable。
+func (s *PaymentService) applyAutoStockToSKU(sku *productdomain.ProductSKU) {
+	if s.autoStockCounter == nil || sku == nil {
+		return
+	}
+	counts, err := s.autoStockCounter.CountStockByProductIDs([]uint{sku.ProductID})
+	if err != nil {
+		return
+	}
+	var available int64
+	for _, count := range counts {
+		if count.SKUID == sku.ID && count.Status == cardsecretdomain.StatusAvailable {
+			available += count.Total
+		}
+	}
+	sku.AutoStockAvailable = available
 }
