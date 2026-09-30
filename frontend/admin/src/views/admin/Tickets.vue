@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
 import type { AdminTicket } from '@/api/types'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -13,10 +14,13 @@ import { Dialog, DialogScrollContent, DialogHeader, DialogTitle } from '@/compon
 import TableSkeleton from '@/components/TableSkeleton.vue'
 import ListPagination from '@/components/ListPagination.vue'
 import { useListRefresh } from '@/composables/useListRefresh'
+import { useAdminAuthStore } from '@/stores/auth'
 import { formatDate } from '@/utils/format'
 import { notifyError, notifySuccess } from '@/utils/notify'
+import { confirmAction } from '@/utils/confirm'
 
 const { t } = useI18n()
+const authStore = useAdminAuthStore()
 const loading = ref(true)
 const { refreshing, refreshList } = useListRefresh()
 
@@ -57,6 +61,53 @@ const changePageSize = (size: number) => {
   if (size === pagination.value.page_size) return
   pagination.value.page_size = size
   fetchTickets(1)
+}
+
+// ========== 批量删除（仅超管） ==========
+const batchMode = ref(false)
+const batchOperating = ref(false)
+const selectedIds = ref<Set<number>>(new Set())
+
+const allSelected = computed(() => tickets.value.length > 0 && tickets.value.every((t) => selectedIds.value.has(t.id)))
+
+const toggleBatchMode = () => {
+  batchMode.value = !batchMode.value
+  if (!batchMode.value) selectedIds.value = new Set()
+}
+const toggleSelect = (id: number) => {
+  const next = new Set(selectedIds.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  selectedIds.value = next
+}
+const toggleSelectAll = () => {
+  if (allSelected.value) {
+    selectedIds.value = new Set()
+  } else {
+    selectedIds.value = new Set(tickets.value.map((t) => t.id))
+  }
+}
+const clearSelection = () => {
+  selectedIds.value = new Set()
+}
+
+const handleBatchDelete = async () => {
+  const ids = Array.from(selectedIds.value)
+  if (ids.length === 0) return
+  const confirmed = await confirmAction(t('admin.tickets.batch.deleteConfirm', { count: ids.length }))
+  if (!confirmed) return
+  batchOperating.value = true
+  try {
+    const res = await adminAPI.batchDeleteTickets(ids)
+    const deletedCount = res.data?.data?.deleted_count ?? ids.length
+    notifySuccess(t('admin.tickets.batch.deleteResult', { success: deletedCount, total: ids.length }))
+    clearSelection()
+    fetchTickets(pagination.value.page)
+  } catch (err: any) {
+    notifyError(t('admin.tickets.errors.deleteFailed', { message: err?.response?.data?.msg || '' }))
+  } finally {
+    batchOperating.value = false
+  }
 }
 
 const statusLabel = (status: string) => {
@@ -150,6 +201,22 @@ const closeTicket = async () => {
   }
 }
 
+const reopening = ref(false)
+const reopenTicket = async () => {
+  if (!detail.value) return
+  reopening.value = true
+  try {
+    await adminAPI.reopenTicket(detail.value.id)
+    notifySuccess(t('admin.tickets.reopenSuccess'))
+    await openDetail(detail.value)
+    fetchTickets(pagination.value.page)
+  } catch (err: any) {
+    notifyError(err?.response?.data?.msg || t('admin.tickets.reopenFailed'))
+  } finally {
+    reopening.value = false
+  }
+}
+
 onMounted(() => {
   fetchTickets()
 })
@@ -159,9 +226,33 @@ onMounted(() => {
   <div class="space-y-6">
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <h1 class="text-2xl font-semibold">{{ t('admin.tickets.title') }}</h1>
-      <Button variant="outline" size="sm" :disabled="refreshing" @click="refresh">
-        {{ t('admin.common.refresh') }}
+      <div class="flex items-center gap-2">
+        <Button
+          v-if="authStore.isSuper"
+          size="sm"
+          :variant="batchMode ? 'secondary' : 'outline'"
+          :disabled="loading"
+          @click="toggleBatchMode"
+        >
+          {{ batchMode ? t('admin.tickets.batch.exit') : t('admin.tickets.batch.mode') }}
+        </Button>
+        <Button variant="outline" size="sm" :disabled="refreshing" @click="refresh">
+          {{ t('admin.common.refresh') }}
+        </Button>
+      </div>
+    </div>
+
+    <div v-if="batchMode" class="flex flex-wrap items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+      <span class="text-sm font-medium">{{ t('admin.tickets.batch.selected', { count: selectedIds.size }) }}</span>
+      <Button size="sm" variant="outline" :disabled="tickets.length === 0 || batchOperating" @click="toggleSelectAll">
+        {{ allSelected ? t('admin.tickets.batch.deselectPage') : t('admin.tickets.batch.selectPage') }}
       </Button>
+      <Button size="sm" variant="destructive" :disabled="selectedIds.size === 0 || batchOperating" @click="handleBatchDelete">
+        {{ t('admin.tickets.batch.delete') }}
+      </Button>
+      <button class="ml-auto text-xs text-muted-foreground hover:text-foreground" :disabled="batchOperating" @click="clearSelection">
+        {{ t('admin.tickets.batch.clearSelection') }}
+      </button>
     </div>
 
     <div class="rounded-xl border border-border bg-card p-4 shadow-sm">
@@ -199,6 +290,7 @@ onMounted(() => {
       <Table v-else>
         <TableHeader>
           <TableRow>
+            <TableHead v-if="batchMode" class="w-10"></TableHead>
             <TableHead>{{ t('admin.tickets.columns.ticketNo') }}</TableHead>
             <TableHead>{{ t('admin.tickets.columns.title') }}</TableHead>
             <TableHead>{{ t('admin.tickets.columns.user') }}</TableHead>
@@ -210,11 +302,14 @@ onMounted(() => {
         </TableHeader>
         <TableBody>
           <TableRow v-if="tickets.length === 0">
-            <TableCell colspan="7" class="text-center text-sm text-muted-foreground py-8">
+            <TableCell :colspan="batchMode ? 8 : 7" class="text-center text-sm text-muted-foreground py-8">
               {{ t('admin.tickets.empty') }}
             </TableCell>
           </TableRow>
           <TableRow v-for="ticket in tickets" :key="ticket.id">
+            <TableCell v-if="batchMode">
+              <Checkbox :model-value="selectedIds.has(ticket.id)" @update:model-value="() => toggleSelect(ticket.id)" />
+            </TableCell>
             <TableCell class="font-mono text-xs">{{ ticket.ticket_no }}</TableCell>
             <TableCell class="max-w-xs truncate">{{ ticket.title }}</TableCell>
             <TableCell class="text-sm">{{ ticket.user_display_name || ticket.user_email || `#${ticket.user_id}` }}</TableCell>
@@ -286,8 +381,9 @@ onMounted(() => {
               <Button variant="ghost" :disabled="closing" @click="closeTicket">{{ t('admin.tickets.closeOnly') }}</Button>
             </div>
           </div>
-          <div v-else class="rounded-lg border border-dashed border-border p-3 text-center text-sm text-muted-foreground">
-            {{ t('admin.tickets.closedHint') }}
+          <div v-else class="space-y-3 rounded-lg border border-dashed border-border p-3 text-center text-sm text-muted-foreground">
+            <p>{{ t('admin.tickets.closedHint') }}</p>
+            <Button variant="outline" size="sm" :disabled="reopening" @click="reopenTicket">{{ t('admin.tickets.reopen') }}</Button>
           </div>
         </div>
       </DialogScrollContent>

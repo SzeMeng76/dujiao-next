@@ -24,6 +24,10 @@ func (s *memoryStore) Save(input contract.StoreInput) (string, error) {
 	return "/uploads/" + input.Scene + "/" + input.Year + "/" + input.Month + "/" + input.Filename, nil
 }
 
+func (s *memoryStore) Delete(string) error {
+	return nil
+}
+
 func TestUploadServiceSaveFileAllowsArchiveForTelegramScene(t *testing.T) {
 	policy := Policy{
 		MaxSize:           10 * 1024 * 1024,

@@ -185,6 +185,34 @@ func (s *Store) CountOpenAdmin() (int64, error) {
 	return count, err
 }
 
+// DeleteMany 删除给定 ID 的工单及其全部消息，返回删除前的完整数据（含消息，用于清理附件）。
+func (s *Store) DeleteMany(ids []uint) ([]ticketdomain.Ticket, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	var tickets []ticketdomain.Ticket
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Preload("Messages").Where("id IN ?", ids).Find(&tickets).Error; err != nil {
+			return err
+		}
+		if len(tickets) == 0 {
+			return nil
+		}
+		foundIDs := make([]uint, 0, len(tickets))
+		for _, t := range tickets {
+			foundIDs = append(foundIDs, t.ID)
+		}
+		if err := tx.Where("ticket_id IN ?", foundIDs).Delete(&ticketdomain.TicketMessage{}).Error; err != nil {
+			return err
+		}
+		return tx.Where("id IN ?", foundIDs).Delete(&ticketdomain.Ticket{}).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+	return tickets, nil
+}
+
 // WithinTransaction 在事务中执行工单相关写操作。
 func (s *Store) WithinTransaction(fn func(ticketcontract.Transaction) error) error {
 	if fn == nil {

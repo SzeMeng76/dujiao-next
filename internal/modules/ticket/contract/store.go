@@ -34,6 +34,9 @@ type Store interface {
 	UpdateStatus(id uint, status string) error
 	CountOpenByUser(userID uint) (int64, error)
 	CountOpenAdmin() (int64, error)
+	// DeleteMany 删除给定 ID 的工单及其全部消息，返回删除前的完整数据（含消息，用于清理附件）。
+	// 不存在的 ID 会被静默忽略。
+	DeleteMany(ids []uint) ([]ticketdomain.Ticket, error)
 
 	WithinTransaction(fn func(Transaction) error) error
 }

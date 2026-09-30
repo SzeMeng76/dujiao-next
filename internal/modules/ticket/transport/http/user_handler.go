@@ -206,6 +206,8 @@ func respondTicketError(c *gin.Context, err error, fallbackKey string) {
 		ginutil.RespondError(c, response.CodeBadRequest, "error.ticket_content_required", err)
 	case errors.Is(err, ticketapp.ErrTicketClosed):
 		ginutil.RespondError(c, response.CodeBadRequest, "error.ticket_closed", err)
+	case errors.Is(err, ticketapp.ErrTicketNotClosed):
+		ginutil.RespondError(c, response.CodeBadRequest, "error.ticket_not_closed", err)
 	case errors.Is(err, ticketapp.ErrTicketPriorityBad):
 		ginutil.RespondError(c, response.CodeBadRequest, "error.ticket_priority_invalid", err)
 	case errors.Is(err, ticketapp.ErrTicketOrderInvalid):

@@ -109,6 +109,7 @@ func BuiltinRoleSeeds() []RoleSeed {
 				{Object: "/admin/tickets/:id", Action: "GET"},
 				{Object: "/admin/tickets/:id/reply", Action: "POST"},
 				{Object: "/admin/tickets/:id/close", Action: "POST"},
+				{Object: "/admin/tickets/:id/reopen", Action: "POST"},
 				{Object: "/admin/users", Action: "GET"},
 				{Object: "/admin/users/:id", Action: "GET"},
 				{Object: "/admin/users/:id", Action: "PUT"},
@@ -281,6 +282,8 @@ func BuiltinRoleSeeds() []RoleSeed {
 				{Object: "/admin/telegram-bot/users", Action: "GET"},
 				// 合规声明
 				{Object: "/admin/compliance/acknowledge", Action: "POST"},
+				// 工单批量删除（仅超管，见 handler 内部 IsSuperAdmin 二次校验）
+				{Object: "/admin/tickets/batch-delete", Action: "POST"},
 				{Object: "/admin/resellers/profiles/:id/disable", Action: "POST"},
 				{Object: "/admin/resellers/profiles/:id/restore", Action: "POST"},
 				{Object: "/admin/resellers/domains/:id/disable", Action: "POST"},

@@ -45,6 +45,7 @@ import (
 	ticketapp "github.com/dujiao-next/internal/modules/ticket/application"
 	ticketnotifier "github.com/dujiao-next/internal/modules/ticket/infrastructure/notifier"
 	ticketorderadapter "github.com/dujiao-next/internal/modules/ticket/infrastructure/orderadapter"
+	uploadlocal "github.com/dujiao-next/internal/modules/upload/infrastructure/localstore"
 	"github.com/dujiao-next/internal/platform/database/gormdb"
 )
 
@@ -129,6 +130,7 @@ func (c *Container) initIntegrationServices() {
 		c.TicketStore,
 		ticketorderadapter.New(c.OrderStore),
 		ticketnotifier.New(c.NotificationService, c.QueueClient, c.UserStore, c.SettingService),
+		uploadlocal.New("uploads"),
 	)
 	c.ProcurementOrderService = procurementapp.NewService(procurementapp.Options{
 		Repository:         c.ProcurementOrderRepo,

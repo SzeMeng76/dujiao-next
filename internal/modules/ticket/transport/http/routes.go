@@ -22,7 +22,9 @@ func RegisterAdminRoutes(authorized gin.IRoutes, handler *AdminHandler) {
 	}
 	authorized.GET("/tickets", handler.ListTickets)
 	authorized.GET("/tickets/badge", handler.Badge)
+	authorized.POST("/tickets/batch-delete", handler.DeleteTickets)
 	authorized.GET("/tickets/:id", handler.GetTicket)
 	authorized.POST("/tickets/:id/reply", handler.ReplyTicket)
 	authorized.POST("/tickets/:id/close", handler.CloseTicket)
+	authorized.POST("/tickets/:id/reopen", handler.ReopenTicket)
 }

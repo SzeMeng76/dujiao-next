@@ -167,6 +167,22 @@ func (h *AdminHandler) CloseTicket(c *gin.Context) {
 	response.Success(c, gin.H{"status": "closed"})
 }
 
+// ReopenTicket 管理员重新打开一个已关闭的工单。
+func (h *AdminHandler) ReopenTicket(c *gin.Context) {
+	id, err := ginutil.ParseParamUint(c, "id")
+	if err != nil {
+		ginutil.RespondError(c, response.CodeBadRequest, "error.ticket_not_found", nil)
+		return
+	}
+
+	if err := h.service.Reopen(id); err != nil {
+		respondTicketError(c, err, "error.ticket_reply_failed")
+		return
+	}
+
+	response.Success(c, gin.H{"status": "open"})
+}
+
 // Badge 管理端待处理工单数徽标。
 func (h *AdminHandler) Badge(c *gin.Context) {
 	count, err := h.service.AdminBadge()
@@ -175,4 +191,31 @@ func (h *AdminHandler) Badge(c *gin.Context) {
 		return
 	}
 	response.Success(c, gin.H{"count": count})
+}
+
+// DeleteTicketsRequest 批量删除工单请求体。
+type DeleteTicketsRequest struct {
+	IDs []uint `json:"ids" binding:"required"`
+}
+
+// DeleteTickets 批量删除工单（含消息与图片凭证文件），仅限超级管理员。
+func (h *AdminHandler) DeleteTickets(c *gin.Context) {
+	if !ginutil.IsSuperAdmin(c) {
+		ginutil.RespondError(c, response.CodeForbidden, "error.super_admin_required", nil)
+		return
+	}
+
+	var req DeleteTicketsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		ginutil.RespondBindError(c, err)
+		return
+	}
+
+	deletedCount, err := h.service.Delete(req.IDs)
+	if err != nil {
+		ginutil.RespondError(c, response.CodeInternal, "error.ticket_delete_failed", err)
+		return
+	}
+
+	response.Success(c, gin.H{"deleted_count": deletedCount})
 }

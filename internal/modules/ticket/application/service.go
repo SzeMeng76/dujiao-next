@@ -3,6 +3,7 @@ package application
 import (
 	"strings"
 
+	"github.com/dujiao-next/internal/logger"
 	ticketcontract "github.com/dujiao-next/internal/modules/ticket/contract"
 	ticketdomain "github.com/dujiao-next/internal/modules/ticket/domain"
 	"github.com/dujiao-next/internal/shared/serial"
@@ -20,6 +21,11 @@ type TicketNotifier interface {
 	NotifyUserReplied(ticket *ticketdomain.Ticket, message *ticketdomain.TicketMessage)
 }
 
+// AttachmentDeleter 删除工单图片凭证所需的最小端口（复用 upload 模块的本地文件存储）。
+type AttachmentDeleter interface {
+	Delete(publicURL string) error
+}
+
 var validPriorities = map[string]struct{}{
 	ticketdomain.PriorityLow:    {},
 	ticketdomain.PriorityNormal: {},
@@ -28,17 +34,18 @@ var validPriorities = map[string]struct{}{
 
 // Service 工单业务逻辑服务。
 type Service struct {
-	store    ticketcontract.Store
-	orders   OrderOwnershipChecker
-	notifier TicketNotifier
+	store       ticketcontract.Store
+	orders      OrderOwnershipChecker
+	notifier    TicketNotifier
+	attachments AttachmentDeleter
 }
 
-// NewService 创建工单服务。orders/notifier 可为 nil（表示不校验订单关联 / 不发送通知）。
-func NewService(store ticketcontract.Store, orders OrderOwnershipChecker, notifier TicketNotifier) *Service {
+// NewService 创建工单服务。orders/notifier/attachments 可为 nil（表示不校验订单关联 / 不发送通知 / 不清理附件文件）。
+func NewService(store ticketcontract.Store, orders OrderOwnershipChecker, notifier TicketNotifier, attachments AttachmentDeleter) *Service {
 	if store == nil {
 		panic("ticket service: store is nil")
 	}
-	return &Service{store: store, orders: orders, notifier: notifier}
+	return &Service{store: store, orders: orders, notifier: notifier, attachments: attachments}
 }
 
 // CreateInput 创建工单入参。
@@ -206,6 +213,22 @@ func (s *Service) Close(ticketID uint) error {
 	return s.store.UpdateStatus(ticketID, ticketdomain.StatusClosed)
 }
 
+// Reopen 管理员重新打开一个已关闭的工单，恢复为待处理状态。
+// 只允许对已关闭工单操作；对未关闭工单调用会返回 ErrTicketNotClosed。
+func (s *Service) Reopen(ticketID uint) error {
+	ticket, err := s.store.GetByID(ticketID)
+	if err != nil {
+		return err
+	}
+	if ticket == nil {
+		return ErrTicketNotFound
+	}
+	if !ticket.IsClosed() {
+		return ErrTicketNotClosed
+	}
+	return s.store.UpdateStatus(ticketID, ticketdomain.StatusOpen)
+}
+
 // ListByUser 用户端工单列表。
 func (s *Service) ListByUser(filter ticketcontract.UserListFilter) ([]ticketdomain.Ticket, int64, error) {
 	return s.store.ListByUser(filter)
@@ -248,4 +271,27 @@ func (s *Service) UserBadge(userID uint) (int64, error) {
 // AdminBadge 管理端未读徽标（待处理工单数）。
 func (s *Service) AdminBadge() (int64, error) {
 	return s.store.CountOpenAdmin()
+}
+
+// Delete 删除给定 ID 的工单（含全部消息），并清理消息中的图片凭证文件。
+// 不存在的 ID 静默忽略；单个附件文件删除失败只记录日志，不影响数据库记录已删除的结果。
+func (s *Service) Delete(ids []uint) (int, error) {
+	deleted, err := s.store.DeleteMany(ids)
+	if err != nil {
+		return 0, err
+	}
+	if s.attachments != nil {
+		for _, ticket := range deleted {
+			for _, message := range ticket.Messages {
+				imageURL := strings.TrimSpace(message.ImageURL)
+				if imageURL == "" {
+					continue
+				}
+				if err := s.attachments.Delete(imageURL); err != nil {
+					logger.Warnw("ticket_delete_attachment_failed", "ticket_id", ticket.ID, "image_url", imageURL, "error", err)
+				}
+			}
+		}
+	}
+	return len(deleted), nil
 }
