@@ -25,6 +25,9 @@ import (
 	notificationasyncqueue "github.com/dujiao-next/internal/modules/notification/infrastructure/asyncqueue"
 	notificationfeishu "github.com/dujiao-next/internal/modules/notification/infrastructure/feishu"
 	paymentapp "github.com/dujiao-next/internal/modules/payment/application"
+	ticketapp "github.com/dujiao-next/internal/modules/ticket/application"
+	ticketnotifier "github.com/dujiao-next/internal/modules/ticket/infrastructure/notifier"
+	ticketorderadapter "github.com/dujiao-next/internal/modules/ticket/infrastructure/orderadapter"
 	paymentqueue "github.com/dujiao-next/internal/modules/payment/infrastructure/queueadapter"
 	procurementapp "github.com/dujiao-next/internal/modules/procurement/application"
 	procurementmapping "github.com/dujiao-next/internal/modules/procurement/infrastructure/mappingreader"
@@ -122,6 +125,11 @@ func (c *Container) initIntegrationServices() {
 		ResellerAccounting:      c.ResellerAccountingLedger,
 		AutoStockCounter:        c.CardSecretRepo,
 	})
+	c.TicketService = ticketapp.NewService(
+		c.TicketStore,
+		ticketorderadapter.New(c.OrderStore),
+		ticketnotifier.New(c.NotificationService, c.QueueClient),
+	)
 	c.ProcurementOrderService = procurementapp.NewService(procurementapp.Options{
 		Repository:         c.ProcurementOrderRepo,
 		Orders:             procurementorder.New(c.OrderStore),

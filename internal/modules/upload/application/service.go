@@ -31,6 +31,7 @@ var allowedUploadScenes = map[string]struct{}{
 	"category": {},
 	"telegram": {},
 	"reseller": {},
+	"ticket":   {},
 }
 
 // Service 文件上传服务。

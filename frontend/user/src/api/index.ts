@@ -57,6 +57,7 @@ export { productAPI, postAPI, bannerAPI, categoryAPI, memberLevelAPI } from './p
 export { userAuthAPI, captchaAPI, configAPI } from './auth'
 export { userProfileAPI } from './user'
 export { userOrderAPI, guestOrderAPI, paymentAPI } from './order'
+export { userTicketAPI } from './ticket'
 export { walletAPI, giftCardAPI } from './wallet'
 export { affiliateAPI } from './affiliate'
 export { resellerAPI } from './reseller'

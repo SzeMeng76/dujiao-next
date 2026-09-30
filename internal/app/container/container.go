@@ -76,6 +76,8 @@ import (
 	sitemapapp "github.com/dujiao-next/internal/modules/sitemap/application"
 	broadcastapp "github.com/dujiao-next/internal/modules/telegram/broadcast/application"
 	broadcastcontract "github.com/dujiao-next/internal/modules/telegram/broadcast/contract"
+	ticketapp "github.com/dujiao-next/internal/modules/ticket/application"
+	ticketcontract "github.com/dujiao-next/internal/modules/ticket/contract"
 	uploadapp "github.com/dujiao-next/internal/modules/upload/application"
 	walletapp "github.com/dujiao-next/internal/modules/wallet/application"
 	walletgormstore "github.com/dujiao-next/internal/modules/wallet/infrastructure/gormstore"
@@ -94,6 +96,7 @@ type Container struct {
 	ExternalIdentityStore  externalidentitycontract.Store
 	EmailVerificationStore emailverificationcontract.Store
 	OrderStore             ordercontract.Store
+	TicketStore            ticketcontract.Store
 	PaymentStore           paymentcontract.Store
 	PaymentChannelStore    paymentcontract.ChannelStore
 	CardSecretRepo         *cardsecretgormstore.Store
@@ -143,6 +146,7 @@ type Container struct {
 	EmailBrandResolver            mailbrand.Resolver
 	CaptchaService                *captchaapp.Service
 	UploadService                 *uploadapp.Service
+	TicketService                 *ticketapp.Service
 	ProductReadService            *productapplication.Service
 	ProductAdminService           *productadmin.AdminService
 	ProductWriteService           *productwrite.WriteService

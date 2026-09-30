@@ -1,14 +1,14 @@
 import { computed, onMounted, ref, type Component } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { Banknote, Home, ShoppingBag, Wallet, Gift, ShieldCheck, UserCircle, Megaphone, Key } from 'lucide-vue-next'
+import { Banknote, Home, ShoppingBag, Wallet, Gift, ShieldCheck, UserCircle, Megaphone, Key, MessageSquare } from 'lucide-vue-next'
 import { orderStatusLabel, orderStatusVariant } from '../utils/status'
 import type { PageAlert } from '../utils/alerts'
 import { useAppStore } from '../stores/app'
 import { useUserProfileStore } from '../stores/userProfile'
 import type { PublicMemberLevel } from '../api'
 
-export type PersonalSection = 'overview' | 'profile' | 'security' | 'orders' | 'wallet' | 'giftCard' | 'affiliate' | 'reseller' | 'api'
+export type PersonalSection = 'overview' | 'profile' | 'security' | 'orders' | 'ticket' | 'wallet' | 'giftCard' | 'affiliate' | 'reseller' | 'api'
 
 export interface PersonalSectionItem {
   key: PersonalSection
@@ -28,6 +28,7 @@ export function usePersonalCenter(sectionGetter: () => PersonalSection) {
   const sectionItems: PersonalSectionItem[] = [
     { key: 'overview', label: 'personalCenter.tabs.overview', icon: Home },
     { key: 'orders', label: 'personalCenter.tabs.orders', icon: ShoppingBag },
+    { key: 'ticket', label: 'personalCenter.tabs.ticket', icon: MessageSquare },
     { key: 'wallet', label: 'personalCenter.tabs.wallet', icon: Wallet },
     { key: 'affiliate', label: 'personalCenter.tabs.affiliate', icon: Megaphone },
     { key: 'reseller', label: 'personalCenter.tabs.reseller', icon: Banknote },
@@ -42,6 +43,7 @@ export function usePersonalCenter(sectionGetter: () => PersonalSection) {
     profile: '/me/profile',
     security: '/me/security',
     orders: '/me/orders',
+    ticket: '/me/tickets',
     wallet: '/me/wallet',
     affiliate: '/me/affiliate',
     reseller: '/me/reseller',

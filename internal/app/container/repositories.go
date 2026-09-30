@@ -24,6 +24,7 @@ import (
 	memberlevelgormstore "github.com/dujiao-next/internal/modules/memberlevel/infrastructure/gormstore"
 	notificationgormstore "github.com/dujiao-next/internal/modules/notification/infrastructure/gormstore"
 	ordergormstore "github.com/dujiao-next/internal/modules/order/infrastructure/gormstore"
+	ticketgormstore "github.com/dujiao-next/internal/modules/ticket/infrastructure/gormstore"
 	paymentgormstore "github.com/dujiao-next/internal/modules/payment/infrastructure/gormstore"
 	procurementgormstore "github.com/dujiao-next/internal/modules/procurement/infrastructure/gormstore"
 	promotiongormstore "github.com/dujiao-next/internal/modules/promotion/infrastructure/gormstore"
@@ -47,6 +48,7 @@ func (c *Container) initRepositories() error {
 		return fmt.Errorf("backfill guest order credentials: %w", err)
 	}
 	c.OrderStore = orderStore
+	c.TicketStore = ticketgormstore.New(db)
 	c.PaymentStore = paymentgormstore.New(db, c.Config.App.SecretKey)
 	c.PaymentChannelStore = paymentgormstore.NewChannelStore(db)
 	c.CardSecretRepo = cardsecretgormstore.New(db)

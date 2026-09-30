@@ -70,6 +70,24 @@ func (c *Client) EnqueueOrderStatusEmail(payload OrderStatusEmailPayload, opts .
 	return err
 }
 
+// EnqueueTicketMessageEmail 推送工单新消息邮件通知任务
+func (c *Client) EnqueueTicketMessageEmail(payload TicketMessageEmailPayload, opts ...asynq.Option) error {
+	if !c.Enabled() {
+		return nil
+	}
+	task, err := NewTicketMessageEmailTask(payload)
+	if err != nil {
+		return err
+	}
+	options := append([]asynq.Option{
+		asynq.Queue(c.defaultQueue),
+		asynq.MaxRetry(3),
+		asynq.Retention(24 * time.Hour),
+	}, opts...)
+	_, err = c.client.Enqueue(task, options...)
+	return err
+}
+
 // EnqueueOrderAutoFulfill 推送自动交付任务
 func (c *Client) EnqueueOrderAutoFulfill(payload OrderAutoFulfillPayload, opts ...asynq.Option) error {
 	if !c.Enabled() {

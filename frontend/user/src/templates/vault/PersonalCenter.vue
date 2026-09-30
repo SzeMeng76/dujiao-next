@@ -171,6 +171,7 @@
           <ProfilePanel v-if="currentSection === 'profile'" />
           <SecurityPanel v-else-if="currentSection === 'security'" />
           <OrdersPanel v-else-if="currentSection === 'orders'" />
+          <TicketsPanel v-else-if="currentSection === 'ticket'" />
           <WalletPanel v-else-if="currentSection === 'wallet'" />
           <AffiliatePanel v-else-if="currentSection === 'affiliate'" />
           <div v-else-if="currentSection === 'reseller' && canAccessResellerConsole" class="rounded-xl border bg-card p-[22px]">
@@ -196,6 +197,7 @@ import { getImageUrl } from '../../utils/image'
 import ProfilePanel from '../../views/personal/ProfilePanel.vue'
 import SecurityPanel from '../../views/personal/SecurityPanel.vue'
 import OrdersPanel from '../../views/personal/OrdersPanel.vue'
+import TicketsPanel from '../../views/personal/TicketsPanel.vue'
 import WalletPanel from '../../views/personal/WalletPanel.vue'
 import GiftCardPanel from '../../views/personal/GiftCardPanel.vue'
 import AffiliatePanel from '../../views/personal/AffiliatePanel.vue'

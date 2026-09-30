@@ -17,6 +17,7 @@ import (
 	userauthtransport "github.com/dujiao-next/internal/modules/identity/userauth/transport/http"
 	memberleveltransport "github.com/dujiao-next/internal/modules/memberlevel/transport/http"
 	ordertransport "github.com/dujiao-next/internal/modules/order/transport/http"
+	tickettransport "github.com/dujiao-next/internal/modules/ticket/transport/http"
 	paymenttransport "github.com/dujiao-next/internal/modules/payment/transport/http"
 	paymentcallbacktransport "github.com/dujiao-next/internal/modules/payment/transport/http/callback"
 	resellertransport "github.com/dujiao-next/internal/modules/reseller/transport/http/user"
@@ -142,6 +143,7 @@ func registerStorefrontRoutes(
 		ordertransport.RegisterUserPreviewRoute(user, orderPreviewHandler)
 		ordertransport.RegisterUserPaymentChannelsRoute(user, userOrderHandler)
 		ordertransport.RegisterUserReadRoutes(user, userOrderHandler)
+		tickettransport.RegisterUserRoutes(user, tickettransport.NewUserHandler(c.TicketService, c.UploadService))
 		ordertransport.RegisterUserCancelRoute(user, userOrderHandler)
 		paymenttransport.RegisterUserWriteRoutes(user, paymentWriteHandler)
 		paymenttransport.RegisterUserLatestRoute(user, paymentLatestHandler)

@@ -265,6 +265,7 @@
           <ProfilePanel v-else-if="currentSection === 'profile'" />
           <SecurityPanel v-else-if="currentSection === 'security'" />
           <OrdersPanel v-else-if="currentSection === 'orders'" />
+          <TicketsPanel v-else-if="currentSection === 'ticket'" />
           <WalletPanel v-else-if="currentSection === 'wallet'" />
           <AffiliatePanel v-else-if="currentSection === 'affiliate'" />
           <div v-else-if="currentSection === 'reseller' && canAccessResellerConsole" class="rounded-2xl border bg-card p-6 shadow-sm">
@@ -295,6 +296,7 @@ import { Button } from '@/components/ui/button'
 import ProfilePanel from './personal/ProfilePanel.vue'
 import SecurityPanel from './personal/SecurityPanel.vue'
 import OrdersPanel from './personal/OrdersPanel.vue'
+import TicketsPanel from './personal/TicketsPanel.vue'
 import WalletPanel from './personal/WalletPanel.vue'
 import GiftCardPanel from './personal/GiftCardPanel.vue'
 import AffiliatePanel from './personal/AffiliatePanel.vue'

@@ -295,6 +295,7 @@
       "profile": "Profile",
       "security": "Security",
       "orders": "My Orders",
+      "ticket": "My Tickets",
       "wallet": "My Wallet",
       "affiliate": "Affiliate",
       "reseller": "Reseller Center",
@@ -1617,6 +1618,54 @@
       "currentPage": "Orders on current page",
       "pendingPayment": "Pending payment",
       "finished": "Delivered / completed"
+    }
+  },
+  "tickets": {
+    "title": "My Tickets",
+    "subtitle": "Submit issues and track support progress",
+    "create": "New Ticket",
+    "backToList": "Back to List",
+    "empty": "No tickets yet",
+    "ticketNo": "Ticket No",
+    "relatedOrder": "Related Order",
+    "senderAdmin": "Support",
+    "senderUser": "Me",
+    "reply": "Send Reply",
+    "replyPlaceholder": "Type your reply...",
+    "replyRequired": "Please enter reply content",
+    "replySuccess": "Replied successfully",
+    "replyFailed": "Failed to reply, please try again later",
+    "closedHint": "This ticket is closed and cannot be replied to",
+    "uploadFailed": "Failed to upload image",
+    "filterStatus": "Filter by Status",
+    "filterStatusAll": "All Statuses",
+    "status": {
+      "open": "Open",
+      "replied": "Replied",
+      "closed": "Closed"
+    },
+    "priority": {
+      "low": "Low",
+      "normal": "Normal",
+      "high": "High"
+    },
+    "form": {
+      "title": "Title",
+      "titlePlaceholder": "Briefly describe your issue",
+      "content": "Description",
+      "contentPlaceholder": "Please describe your issue in detail...",
+      "priority": "Priority",
+      "orderNo": "Related Order No (optional)",
+      "orderNoPlaceholder": "If related to an order, enter its order number",
+      "image": "Upload Image (optional)",
+      "uploadImage": "Upload Image",
+      "replaceImage": "Replace Image",
+      "removeImage": "Remove",
+      "submit": "Submit Ticket",
+      "cancel": "Cancel",
+      "required": "Please fill in the title and description",
+      "createSuccess": "Ticket submitted successfully",
+      "createFailed": "Failed to submit, please try again later"
     }
   },
   "rechargeOrder": {

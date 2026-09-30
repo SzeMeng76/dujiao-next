@@ -27,6 +27,7 @@ import (
 	memberleveltransport "github.com/dujiao-next/internal/modules/memberlevel/transport/http"
 	notificationtransport "github.com/dujiao-next/internal/modules/notification/transport/http"
 	ordertransport "github.com/dujiao-next/internal/modules/order/transport/http"
+	tickettransport "github.com/dujiao-next/internal/modules/ticket/transport/http"
 	paymenttransport "github.com/dujiao-next/internal/modules/payment/transport/http"
 	procurementtransport "github.com/dujiao-next/internal/modules/procurement/transport/http"
 	promotiontransport "github.com/dujiao-next/internal/modules/promotion/transport/http"
@@ -157,6 +158,9 @@ func registerAdminRoutes(
 	fulfillmenttransport.RegisterAdminRoutes(authorized, adminFulfillmentHandler)
 	cardsecrettransport.RegisterAdminRoutes(authorized, adminCardSecretHandler)
 	giftcardtransport.RegisterAdminRoutes(authorized, adminGiftCardHandler)
+
+	// 工单
+	tickettransport.RegisterAdminRoutes(authorized, tickettransport.NewAdminHandler(c.TicketService, c.UserStore))
 
 	// 优惠券与活动价
 	coupontransport.RegisterAdminRoutes(authorized, adminCouponHandler)

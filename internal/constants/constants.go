@@ -386,6 +386,7 @@ const (
 	NotificationEventRestockSuccess           = "restock_success"
 	NotificationEventExceptionAlert           = "exception_alert"
 	NotificationEventExceptionAlertCheck      = "exception_alert_check"
+	NotificationEventTicketMessage            = "ticket_message"
 )
 
 // 通知中心渠道常量
@@ -422,6 +423,7 @@ const (
 	TaskDownstreamCallback          = "downstream:callback"
 	TaskBotNotify                   = "bot:notify"
 	TaskTelegramBroadcast           = "telegram:broadcast"
+	TaskTicketMessageEmail          = "ticket:message_email"
 )
 
 // Telegram Bot 群发常量
@@ -576,6 +578,7 @@ var SupportedLocales = []string{LocaleZhCN, LocaleZhTW, LocaleEnUS}
 // 通知业务类型常量
 const (
 	NotificationBizTypeOrder           = "order"
+	NotificationBizTypeTicket          = "ticket"
 	NotificationBizTypeWalletRecharge  = "wallet_recharge"
 	NotificationBizTypeDashboardAlert  = "dashboard_alert"
 	NotificationBizTypePaymentCallback = "payment_callback"

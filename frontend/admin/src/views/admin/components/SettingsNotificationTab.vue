@@ -54,6 +54,7 @@ interface NotificationData {
     manual_fulfillment_pending: boolean
     restock_success: boolean
     exception_alert: boolean
+    ticket_message: boolean
   }
   templates: {
     wallet_recharge_success: NotificationSceneTemplate
@@ -61,6 +62,7 @@ interface NotificationData {
     manual_fulfillment_pending: NotificationSceneTemplate
     restock_success: NotificationSceneTemplate
     exception_alert: NotificationSceneTemplate
+    ticket_message: NotificationSceneTemplate
   }
   restock_broadcast: {
     chat_id: string
@@ -130,6 +132,7 @@ const form = reactive({
     manual_fulfillment_pending: true,
     restock_success: true,
     exception_alert: true,
+    ticket_message: true,
   },
   templates: {
     wallet_recharge_success: createNotificationSceneTemplate(),
@@ -137,6 +140,7 @@ const form = reactive({
     manual_fulfillment_pending: createNotificationSceneTemplate(),
     restock_success: createNotificationSceneTemplate(),
     exception_alert: createNotificationSceneTemplate(),
+    ticket_message: createNotificationSceneTemplate(),
   },
   restock_broadcast: {
     chat_id: '',
@@ -166,6 +170,7 @@ const syncFromProps = () => {
   form.templates.manual_fulfillment_pending = deepCloneTemplate(props.data.templates.manual_fulfillment_pending)
   form.templates.restock_success = deepCloneTemplate(props.data.templates.restock_success)
   form.templates.exception_alert = deepCloneTemplate(props.data.templates.exception_alert)
+  form.templates.ticket_message = deepCloneTemplate(props.data.templates.ticket_message)
   form.restock_broadcast.chat_id = props.data.restock_broadcast?.chat_id || ''
 }
 
@@ -271,7 +276,7 @@ const removeIgnoredProduct = (productID: number) => {
 
 void syncIgnoredProductsFromText()
 
-const templateScenes = ['wallet_recharge_success', 'order_paid_success', 'manual_fulfillment_pending', 'restock_success', 'exception_alert'] as const
+const templateScenes = ['wallet_recharge_success', 'order_paid_success', 'manual_fulfillment_pending', 'restock_success', 'exception_alert', 'ticket_message'] as const
 
 const handleAutoTranslate = async () => {
   const fields: Record<string, Record<string, string>> = {}
@@ -336,6 +341,7 @@ const save = async () => {
         manual_fulfillment_pending: form.scenes.manual_fulfillment_pending,
         restock_success: form.scenes.restock_success,
         exception_alert: form.scenes.exception_alert,
+        ticket_message: form.scenes.ticket_message,
       },
       templates: form.templates,
       restock_broadcast: {
@@ -585,6 +591,10 @@ defineExpose({ save, submitting })
               <Switch v-model="form.scenes.exception_alert" />
               <Label class="text-sm">{{ t('admin.settings.notification.scenes.exceptionAlert') }}</Label>
             </div>
+            <div class="flex items-center gap-2 text-sm">
+              <Switch v-model="form.scenes.ticket_message" />
+              <Label class="text-sm">{{ t('admin.settings.notification.scenes.ticketMessage') }}</Label>
+            </div>
           </div>
           <p class="mt-3 text-xs text-muted-foreground">{{ t('admin.settings.notification.scenes.exceptionThresholdHint') }}</p>
         </div>
@@ -649,6 +659,14 @@ defineExpose({ save, submitting })
                 <Textarea v-model="form.templates.exception_alert[currentLang].body" rows="4" :placeholder="t('admin.settings.notification.templates.bodyPlaceholder')" />
               </div>
               <p class="mt-2 text-xs text-muted-foreground">{{ t('admin.settings.notification.templates.variableHint') }}</p>
+            </div>
+
+            <div class="rounded-lg border border-border bg-muted/10 p-4">
+              <h4 class="text-sm font-medium">{{ t('admin.settings.notification.scenes.ticketMessage') }}</h4>
+              <div class="mt-3 space-y-2">
+                <Input v-model="form.templates.ticket_message[currentLang].title" :placeholder="t('admin.settings.notification.templates.titlePlaceholder')" />
+                <Textarea v-model="form.templates.ticket_message[currentLang].body" rows="4" :placeholder="t('admin.settings.notification.templates.bodyPlaceholder')" />
+              </div>
             </div>
           </div>
         </div>

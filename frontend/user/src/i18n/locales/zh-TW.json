@@ -295,6 +295,7 @@
       "profile": "資料設定",
       "security": "安全中心",
       "orders": "我的訂單",
+      "ticket": "我的工單",
       "wallet": "我的錢包",
       "affiliate": "推廣返利",
       "reseller": "分銷中心",
@@ -1617,6 +1618,54 @@
       "currentPage": "當前頁訂單數",
       "pendingPayment": "待支付",
       "finished": "已完成/已交付"
+    }
+  },
+  "tickets": {
+    "title": "我的工單",
+    "subtitle": "提交問題反饋，跟蹤客服處理進度",
+    "create": "新建工單",
+    "backToList": "返回列表",
+    "empty": "暫無工單",
+    "ticketNo": "工單號",
+    "relatedOrder": "關聯訂單",
+    "senderAdmin": "客服",
+    "senderUser": "我",
+    "reply": "發送回覆",
+    "replyPlaceholder": "輸入回覆內容...",
+    "replyRequired": "請輸入回覆內容",
+    "replySuccess": "回覆成功",
+    "replyFailed": "回覆失敗，請稍後重試",
+    "closedHint": "工單已關閉，無法繼續回覆",
+    "uploadFailed": "圖片上傳失敗",
+    "filterStatus": "狀態篩選",
+    "filterStatusAll": "全部狀態",
+    "status": {
+      "open": "待處理",
+      "replied": "已回覆",
+      "closed": "已關閉"
+    },
+    "priority": {
+      "low": "低",
+      "normal": "中",
+      "high": "高"
+    },
+    "form": {
+      "title": "標題",
+      "titlePlaceholder": "簡要描述您的問題",
+      "content": "詳細描述",
+      "contentPlaceholder": "請詳細描述您遇到的問題...",
+      "priority": "優先級",
+      "orderNo": "關聯訂單號（可選）",
+      "orderNoPlaceholder": "如與某個訂單相關，請填寫訂單號",
+      "image": "上傳圖片（可選）",
+      "uploadImage": "上傳圖片",
+      "replaceImage": "更換圖片",
+      "removeImage": "移除",
+      "submit": "提交工單",
+      "cancel": "取消",
+      "required": "請填寫標題和詳細描述",
+      "createSuccess": "工單提交成功",
+      "createFailed": "提交失敗，請稍後重試"
     }
   },
   "rechargeOrder": {
