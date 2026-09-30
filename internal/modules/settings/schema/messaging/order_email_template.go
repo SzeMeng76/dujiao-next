@@ -46,6 +46,7 @@ type OrderEmailTemplatesSetting struct {
 	DeliveredWithContent OrderEmailSceneTemplate `json:"delivered_with_content"`
 	Refunded             OrderEmailSceneTemplate `json:"refunded"`
 	PartiallyRefunded    OrderEmailSceneTemplate `json:"partially_refunded"`
+	TicketReply          OrderEmailSceneTemplate `json:"ticket_reply"`
 }
 
 // OrderEmailTemplateSetting 订单邮件模板配置
@@ -92,6 +93,7 @@ type OrderEmailTemplatesPatch struct {
 	DeliveredWithContent *OrderEmailSceneTemplatePatch `json:"delivered_with_content"`
 	Refunded             *OrderEmailSceneTemplatePatch `json:"refunded"`
 	PartiallyRefunded    *OrderEmailSceneTemplatePatch `json:"partially_refunded"`
+	TicketReply          *OrderEmailSceneTemplatePatch `json:"ticket_reply"`
 }
 
 // OrderEmailTemplateSettingPatch 订单邮件模板配置补丁
@@ -191,6 +193,20 @@ func DefaultOrderEmailTemplateSetting() OrderEmailTemplateSetting {
 					Body:    "Order No: {{order_no}}\nStatus: {{status}}\nRefund Amount: {{refund_amount}} {{currency}}\nReason for refund: {{refund_reason}}\n\nThe order has been partially refunded. Please contact admin if needed.\n\n{{site_name}}'s Site URL: {{site_url}}",
 				},
 			},
+			TicketReply: OrderEmailSceneTemplate{
+				ZHCN: OrderEmailLocalizedTemplate{
+					Subject: "您的工单 {{ticket_no}} 有新回复",
+					Body:    "您好，\n\n您的工单「{{ticket_title}}」（工单号：{{ticket_no}}）收到了客服的新回复：\n\n{{reply_content}}\n\n请登录 {{site_name}} 查看详情并回复：{{site_url}}",
+				},
+				ZHTW: OrderEmailLocalizedTemplate{
+					Subject: "您的工單 {{ticket_no}} 有新回覆",
+					Body:    "您好，\n\n您的工單「{{ticket_title}}」（工單號：{{ticket_no}}）收到了客服的新回覆：\n\n{{reply_content}}\n\n請登入 {{site_name}} 查看詳情並回覆：{{site_url}}",
+				},
+				ENUS: OrderEmailLocalizedTemplate{
+					Subject: "Your ticket {{ticket_no}} has a new reply",
+					Body:    "Hello,\n\nYour ticket \"{{ticket_title}}\" (No. {{ticket_no}}) has received a new reply from support:\n\n{{reply_content}}\n\nPlease log in to {{site_name}} to view details and reply: {{site_url}}",
+				},
+			},
 		},
 		GuestTip: OrderEmailGuestTip{
 			ZHCN: "游客订单可使用下单邮箱与订单密码在网站查询订单详情。",
@@ -215,6 +231,7 @@ func NormalizeOrderEmailTemplateSetting(setting OrderEmailTemplateSetting) Order
 	setting.Templates.DeliveredWithContent = normalizeOrderEmailSceneTemplate(setting.Templates.DeliveredWithContent)
 	setting.Templates.Refunded = normalizeOrderEmailSceneTemplate(setting.Templates.Refunded)
 	setting.Templates.PartiallyRefunded = normalizeOrderEmailSceneTemplate(setting.Templates.PartiallyRefunded)
+	setting.Templates.TicketReply = normalizeOrderEmailSceneTemplate(setting.Templates.TicketReply)
 	setting.GuestTip.ZHCN = strings.TrimSpace(setting.GuestTip.ZHCN)
 	setting.GuestTip.ZHTW = strings.TrimSpace(setting.GuestTip.ZHTW)
 	setting.GuestTip.ENUS = strings.TrimSpace(setting.GuestTip.ENUS)
@@ -243,6 +260,7 @@ func ValidateOrderEmailTemplateSetting(setting OrderEmailTemplateSetting) error 
 		setting.Templates.DeliveredWithContent,
 		setting.Templates.Refunded,
 		setting.Templates.PartiallyRefunded,
+		setting.Templates.TicketReply,
 	}
 	for _, scene := range scenes {
 		locales := []OrderEmailLocalizedTemplate{scene.ZHCN, scene.ZHTW, scene.ENUS}
@@ -268,6 +286,7 @@ func EncodeOrderEmailTemplateSetting(setting OrderEmailTemplateSetting) jsonmap.
 			"delivered_with_content": orderEmailSceneTemplateToMap(normalized.Templates.DeliveredWithContent),
 			"refunded":               orderEmailSceneTemplateToMap(normalized.Templates.Refunded),
 			"partially_refunded":     orderEmailSceneTemplateToMap(normalized.Templates.PartiallyRefunded),
+			"ticket_reply":           orderEmailSceneTemplateToMap(normalized.Templates.TicketReply),
 		},
 		"guest_tip": map[string]interface{}{
 			constants.LocaleZhCN: normalized.GuestTip.ZHCN,
@@ -325,6 +344,9 @@ func ApplyOrderEmailTemplateSettingPatch(current OrderEmailTemplateSetting, patc
 		}
 		if patch.Templates.PartiallyRefunded != nil {
 			applyOrderEmailSceneTemplatePatch(&next.Templates.PartiallyRefunded, patch.Templates.PartiallyRefunded)
+		}
+		if patch.Templates.TicketReply != nil {
+			applyOrderEmailSceneTemplatePatch(&next.Templates.TicketReply, patch.Templates.TicketReply)
 		}
 	}
 	if patch.GuestTip != nil {
@@ -420,6 +442,9 @@ func DecodeOrderEmailTemplateSetting(raw jsonmap.JSON, fallback OrderEmailTempla
 		}
 		if sceneMap := settingsvalue.ToStringAnyMap(templatesMap["partially_refunded"]); sceneMap != nil {
 			next.Templates.PartiallyRefunded = orderEmailSceneTemplateFromMap(sceneMap, next.Templates.PartiallyRefunded)
+		}
+		if sceneMap := settingsvalue.ToStringAnyMap(templatesMap["ticket_reply"]); sceneMap != nil {
+			next.Templates.TicketReply = orderEmailSceneTemplateFromMap(sceneMap, next.Templates.TicketReply)
 		}
 	}
 

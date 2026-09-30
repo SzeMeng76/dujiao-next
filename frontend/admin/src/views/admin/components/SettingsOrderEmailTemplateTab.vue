@@ -28,6 +28,7 @@ interface OrderEmailTemplateData {
     delivered_with_content: OrderEmailSceneTemplate
     refunded: OrderEmailSceneTemplate
     partially_refunded: OrderEmailSceneTemplate
+    ticket_reply: OrderEmailSceneTemplate
   }
   guest_tip: Record<SupportedLanguage, string>
 }
@@ -72,6 +73,7 @@ const form = reactive({
     delivered_with_content: createSceneTemplate(),
     refunded: createSceneTemplate(),
     partially_refunded: createSceneTemplate(),
+    ticket_reply: createSceneTemplate(),
   },
   guest_tip: { 'zh-CN': '', 'zh-TW': '', 'en-US': '' } as Record<SupportedLanguage, string>,
 })
@@ -116,6 +118,9 @@ const templateVariables = [
   { key: 'fulfillment_info', label: () => t('admin.settings.orderEmailTemplate.variableList.fulfillment_info') },
   { key: 'site_name', label: () => t('admin.settings.orderEmailTemplate.variableList.site_name') },
   { key: 'site_url', label: () => t('admin.settings.orderEmailTemplate.variableList.site_url') },
+  { key: 'ticket_no', label: () => t('admin.settings.orderEmailTemplate.variableList.ticket_no') },
+  { key: 'ticket_title', label: () => t('admin.settings.orderEmailTemplate.variableList.ticket_title') },
+  { key: 'reply_content', label: () => t('admin.settings.orderEmailTemplate.variableList.reply_content') },
 ]
 
 const notifyErrorIfNeeded = (err: unknown, fallback: string) => {

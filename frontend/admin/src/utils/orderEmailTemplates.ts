@@ -5,4 +5,5 @@ export const orderEmailSceneKeys = [
   'delivered_with_content',
   'refunded',
   'partially_refunded',
+  'ticket_reply',
 ] as const
