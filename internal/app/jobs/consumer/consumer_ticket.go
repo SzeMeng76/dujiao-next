@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/dujiao-next/internal/constants"
 	"github.com/dujiao-next/internal/logger"
+	settingsmessaging "github.com/dujiao-next/internal/modules/settings/schema/messaging"
 	"github.com/dujiao-next/internal/queue"
 	"github.com/dujiao-next/internal/telegramidentity"
 
@@ -76,15 +78,26 @@ func (c *Consumer) handleTicketMessageEmail(ctx context.Context, task *asynq.Tas
 		}
 	}
 
-	subject := fmt.Sprintf("您的工单 %s 有新回复", ticket.TicketNo)
-	body := fmt.Sprintf(
-		"您好，\n\n您的工单「%s」（工单号：%s）收到了客服的新回复：\n\n%s\n\n请登录网站查看详情并回复。",
-		ticket.Title, ticket.TicketNo, strings.TrimSpace(replyContent),
-	)
+	subject, body := ticketReplyEmailContent(settingsmessaging.NormalizeNotificationLocale(user.Locale), ticket.Title, ticket.TicketNo, strings.TrimSpace(replyContent))
 
 	if err := c.EmailSender.SendCustomEmail(receiverEmail, subject, body); err != nil {
 		logger.Warnw("worker_ticket_message_email_send_failed", "ticket_id", payload.TicketID, "receiver", receiverEmail, "error", err)
 		return err
 	}
 	return nil
+}
+
+// ticketReplyEmailContent 按用户语言偏好构造工单回复通知邮件的标题与正文。
+func ticketReplyEmailContent(locale, title, ticketNo, replyContent string) (subject, body string) {
+	switch locale {
+	case constants.LocaleZhTW:
+		return fmt.Sprintf("您的工單 %s 有新回覆", ticketNo),
+			fmt.Sprintf("您好，\n\n您的工單「%s」（工單號：%s）收到了客服的新回覆：\n\n%s\n\n請登入網站查看詳情並回覆。", title, ticketNo, replyContent)
+	case constants.LocaleEnUS:
+		return fmt.Sprintf("Your ticket %s has a new reply", ticketNo),
+			fmt.Sprintf("Hello,\n\nYour ticket \"%s\" (No. %s) has received a new reply from support:\n\n%s\n\nPlease log in to view details and reply.", title, ticketNo, replyContent)
+	default:
+		return fmt.Sprintf("您的工单 %s 有新回复", ticketNo),
+			fmt.Sprintf("您好，\n\n您的工单「%s」（工单号：%s）收到了客服的新回复：\n\n%s\n\n请登录网站查看详情并回复。", title, ticketNo, replyContent)
+	}
 }
