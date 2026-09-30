@@ -191,7 +191,7 @@
                   </div>
                   <div v-else-if="fulfillmentDeliveryLines(child.fulfillment).length"
                     class="mt-3 border rounded-xl p-4 text-sm text-muted-foreground space-y-1 break-all overflow-hidden">
-                    <div v-for="(line, index) in fulfillmentDeliveryLines(child.fulfillment)" :key="`child-fulfillment-${child.id}-${index}`">{{ line }}</div>
+                    <div v-for="(line, index) in fulfillmentDeliveryLines(child.fulfillment)" :key="`child-fulfillment-${child.id}-${index}`" class="whitespace-pre-wrap">{{ line }}</div>
                   </div>
                   <div v-else-if="child.fulfillment.payload"
                     class="mt-3 border rounded-xl p-4 text-sm text-muted-foreground whitespace-pre-wrap break-all overflow-hidden">
@@ -250,7 +250,7 @@
           </div>
           <div v-else-if="fulfillmentDeliveryLines(order.fulfillment).length"
             class="mt-4 border rounded-xl p-4 text-sm text-muted-foreground space-y-1 break-all overflow-hidden">
-            <div v-for="(line, index) in fulfillmentDeliveryLines(order.fulfillment)" :key="`fulfillment-${order.order_no || 'order'}-${index}`">{{ line }}</div>
+            <div v-for="(line, index) in fulfillmentDeliveryLines(order.fulfillment)" :key="`fulfillment-${order.order_no || 'order'}-${index}`" class="whitespace-pre-wrap">{{ line }}</div>
           </div>
           <div v-else
             class="mt-4 border rounded-xl p-4 text-sm text-muted-foreground whitespace-pre-wrap break-all overflow-hidden">

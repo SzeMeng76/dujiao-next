@@ -371,7 +371,10 @@ const fulfillmentDeliveryLines = (fulfillment: AdminFulfillment & Record<string,
   if (logistics && typeof logistics === 'object') {
     const note = String(logistics.note || '').trim()
     if (note) {
-      lines.push(note)
+      note.split(/\r?\n/).forEach((noteLine) => {
+        const trimmed = noteLine.trim()
+        if (trimmed) lines.push(trimmed)
+      })
     }
     const entries = Array.isArray(logistics.entries) ? logistics.entries : []
     entries.forEach((item: Record<string, unknown>) => {
@@ -1032,7 +1035,7 @@ watch(
                       <div class="rounded-lg border border-border bg-muted/30 p-3 text-xs text-foreground whitespace-pre-wrap break-all max-h-48 overflow-y-auto">{{ child.fulfillment.payload }}</div>
                     </div>
                     <div v-else-if="fulfillmentDeliveryLines(child.fulfillment).length" class="mt-3 rounded-lg border border-border bg-muted/30 p-3 text-xs text-foreground space-y-1">
-                      <div v-for="(line, lineIndex) in fulfillmentDeliveryLines(child.fulfillment)" :key="`child-fulfillment-${child.id}-${lineIndex}`" class="break-all">{{ line }}</div>
+                      <div v-for="(line, lineIndex) in fulfillmentDeliveryLines(child.fulfillment)" :key="`child-fulfillment-${child.id}-${lineIndex}`" class="break-all whitespace-pre-wrap">{{ line }}</div>
                     </div>
                     <div v-else-if="child.fulfillment.payload" class="mt-3 rounded-lg border border-border bg-muted/30 p-3 text-xs text-foreground whitespace-pre-wrap break-all">
                       {{ child.fulfillment.payload }}
@@ -1061,7 +1064,7 @@ watch(
               <div class="rounded-lg border border-border bg-background p-3 text-xs text-muted-foreground whitespace-pre-wrap break-all max-h-64 overflow-y-auto">{{ selectedOrder.fulfillment.payload }}</div>
             </div>
             <div v-else-if="fulfillmentDeliveryLines(selectedOrder.fulfillment).length" class="mt-3 rounded-lg border border-border bg-background p-3 text-xs text-muted-foreground space-y-1">
-              <div v-for="(line, lineIndex) in fulfillmentDeliveryLines(selectedOrder.fulfillment)" :key="`fulfillment-${selectedOrder.id}-${lineIndex}`" class="break-all">{{ line }}</div>
+              <div v-for="(line, lineIndex) in fulfillmentDeliveryLines(selectedOrder.fulfillment)" :key="`fulfillment-${selectedOrder.id}-${lineIndex}`" class="break-all whitespace-pre-wrap">{{ line }}</div>
             </div>
             <div v-else class="mt-3 rounded-lg border border-border bg-background p-3 text-xs text-muted-foreground whitespace-pre-wrap break-all">
               {{ selectedOrder.fulfillment.payload }}

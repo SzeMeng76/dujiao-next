@@ -262,7 +262,10 @@ export function useOrderDisplayHelpers(order: Ref<any>) {
     if (deliveryData && typeof deliveryData === 'object') {
       const note = String(deliveryData.note || '').trim()
       if (note) {
-        lines.push(note)
+        note.split(/\r?\n/).forEach((noteLine) => {
+          const trimmed = noteLine.trim()
+          if (trimmed) lines.push(trimmed)
+        })
       }
       const entries = Array.isArray(deliveryData.entries) ? deliveryData.entries : []
       entries.forEach((entry: any) => {
