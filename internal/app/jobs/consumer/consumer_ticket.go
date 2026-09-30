@@ -3,11 +3,10 @@ package consumer
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"strings"
 
-	"github.com/dujiao-next/internal/constants"
 	"github.com/dujiao-next/internal/logger"
+	"github.com/dujiao-next/internal/modules/notification/application/format"
 	settingsmessaging "github.com/dujiao-next/internal/modules/settings/schema/messaging"
 	"github.com/dujiao-next/internal/queue"
 	"github.com/dujiao-next/internal/telegramidentity"
@@ -78,7 +77,8 @@ func (c *Consumer) handleTicketMessageEmail(ctx context.Context, task *asynq.Tas
 		}
 	}
 
-	subject, body := ticketReplyEmailContent(settingsmessaging.NormalizeNotificationLocale(user.Locale), ticket.Title, ticket.TicketNo, strings.TrimSpace(replyContent))
+	locale := settingsmessaging.NormalizeNotificationLocale(user.Locale)
+	subject, body := c.renderTicketReplyEmail(locale, ticket.Title, ticket.TicketNo, strings.TrimSpace(replyContent))
 
 	if err := c.EmailSender.SendCustomEmail(receiverEmail, subject, body); err != nil {
 		logger.Warnw("worker_ticket_message_email_send_failed", "ticket_id", payload.TicketID, "receiver", receiverEmail, "error", err)
@@ -87,17 +87,34 @@ func (c *Consumer) handleTicketMessageEmail(ctx context.Context, task *asynq.Tas
 	return nil
 }
 
-// ticketReplyEmailContent 按用户语言偏好构造工单回复通知邮件的标题与正文。
-func ticketReplyEmailContent(locale, title, ticketNo, replyContent string) (subject, body string) {
-	switch locale {
-	case constants.LocaleZhTW:
-		return fmt.Sprintf("您的工單 %s 有新回覆", ticketNo),
-			fmt.Sprintf("您好，\n\n您的工單「%s」（工單號：%s）收到了客服的新回覆：\n\n%s\n\n請登入網站查看詳情並回覆。", title, ticketNo, replyContent)
-	case constants.LocaleEnUS:
-		return fmt.Sprintf("Your ticket %s has a new reply", ticketNo),
-			fmt.Sprintf("Hello,\n\nYour ticket \"%s\" (No. %s) has received a new reply from support:\n\n%s\n\nPlease log in to view details and reply.", title, ticketNo, replyContent)
-	default:
-		return fmt.Sprintf("您的工单 %s 有新回复", ticketNo),
-			fmt.Sprintf("您好，\n\n您的工单「%s」（工单号：%s）收到了客服的新回复：\n\n%s\n\n请登录网站查看详情并回复。", title, ticketNo, replyContent)
+// renderTicketReplyEmail 按站长在"订单邮件模板"设置里配置的 ticket_reply 场景渲染标题与正文。
+func (c *Consumer) renderTicketReplyEmail(locale, title, ticketNo, replyContent string) (subject, body string) {
+	tmplSetting := settingsmessaging.DefaultOrderEmailTemplateSetting()
+	if c.SettingService != nil {
+		if setting, err := c.SettingService.GetOrderEmailTemplateSetting(); err == nil {
+			tmplSetting = setting
+		} else {
+			logger.Warnw("worker_ticket_message_email_load_template_failed", "error", err)
+		}
 	}
+
+	var siteName, siteURL string
+	if c.SettingService != nil {
+		if brand, err := c.SettingService.GetSiteBrand(); err == nil {
+			siteName = strings.TrimSpace(brand.SiteName)
+			siteURL = strings.TrimRight(strings.TrimSpace(brand.SiteURL), "/")
+		}
+	}
+
+	tmpl := settingsmessaging.ResolveOrderEmailLocaleTemplate(tmplSetting.Templates.TicketReply, locale)
+	variables := map[string]interface{}{
+		"ticket_no":     ticketNo,
+		"ticket_title":  title,
+		"reply_content": replyContent,
+		"site_name":     siteName,
+		"site_url":      siteURL,
+	}
+	subject = format.RenderTemplate(tmpl.Subject, variables)
+	body = format.RenderTemplate(tmpl.Body, variables)
+	return subject, body
 }

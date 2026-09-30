@@ -318,6 +318,7 @@ const orderEmailTemplateData = reactive({
     delivered_with_content: createOrderEmailSceneTemplate(),
     refunded: createOrderEmailSceneTemplate(),
     partially_refunded: createOrderEmailSceneTemplate(),
+    ticket_reply: createOrderEmailSceneTemplate(),
   },
   guest_tip: { 'zh-CN': '', 'zh-TW': '', 'en-US': '' } as Record<typeof supportedLanguages[number], string>,
 })
