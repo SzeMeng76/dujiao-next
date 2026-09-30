@@ -25,9 +25,6 @@ import (
 	notificationasyncqueue "github.com/dujiao-next/internal/modules/notification/infrastructure/asyncqueue"
 	notificationfeishu "github.com/dujiao-next/internal/modules/notification/infrastructure/feishu"
 	paymentapp "github.com/dujiao-next/internal/modules/payment/application"
-	ticketapp "github.com/dujiao-next/internal/modules/ticket/application"
-	ticketnotifier "github.com/dujiao-next/internal/modules/ticket/infrastructure/notifier"
-	ticketorderadapter "github.com/dujiao-next/internal/modules/ticket/infrastructure/orderadapter"
 	paymentqueue "github.com/dujiao-next/internal/modules/payment/infrastructure/queueadapter"
 	procurementapp "github.com/dujiao-next/internal/modules/procurement/application"
 	procurementmapping "github.com/dujiao-next/internal/modules/procurement/infrastructure/mappingreader"
@@ -45,6 +42,9 @@ import (
 	notifyapp "github.com/dujiao-next/internal/modules/telegram/notify/application"
 	notifycontract "github.com/dujiao-next/internal/modules/telegram/notify/contract"
 	notifybotapi "github.com/dujiao-next/internal/modules/telegram/notify/infrastructure/botapi"
+	ticketapp "github.com/dujiao-next/internal/modules/ticket/application"
+	ticketnotifier "github.com/dujiao-next/internal/modules/ticket/infrastructure/notifier"
+	ticketorderadapter "github.com/dujiao-next/internal/modules/ticket/infrastructure/orderadapter"
 	"github.com/dujiao-next/internal/platform/database/gormdb"
 )
 
@@ -128,7 +128,7 @@ func (c *Container) initIntegrationServices() {
 	c.TicketService = ticketapp.NewService(
 		c.TicketStore,
 		ticketorderadapter.New(c.OrderStore),
-		ticketnotifier.New(c.NotificationService, c.QueueClient),
+		ticketnotifier.New(c.NotificationService, c.QueueClient, c.UserStore, c.SettingService),
 	)
 	c.ProcurementOrderService = procurementapp.NewService(procurementapp.Options{
 		Repository:         c.ProcurementOrderRepo,

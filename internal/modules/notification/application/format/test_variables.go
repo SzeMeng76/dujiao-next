@@ -60,6 +60,14 @@ func BuildTestVariables(scene, locale string) map[string]interface{} {
 			"fulfillment_items_summary": buildNotificationTestFulfillmentItems(locale),
 			"delivery_summary":          BuildDeliverySummary(locale, OrderItemCounts{Total: 2, Auto: 1, Manual: 1}),
 		}
+	case constants.NotificationEventTicketMessage:
+		return map[string]interface{}{
+			"ticket_no":       "TK202603230001",
+			"ticket_title":    localizedNotificationText(locale, "无法兑换卡密", "無法兌換卡密", "Unable to redeem card code"),
+			"ticket_priority": localizedNotificationText(locale, "中", "中", "Normal"),
+			"sender_label":    localizedNotificationText(locale, "张三 <zhangsan@example.com>", "張三 <zhangsan@example.com>", "Alex Zhang <zhangsan@example.com>"),
+			"content_excerpt": localizedNotificationText(locale, "我购买的卡密提示已被使用，但我还没有兑换过，请帮忙核实。", "我購買的卡密提示已被使用，但我還沒有兌換過，請幫忙核實。", "The card code I purchased says it's already used, but I haven't redeemed it yet. Please help check."),
+		}
 	default:
 		return map[string]interface{}{
 			"alert_type":             alertTypeLabelByType(locale, constants.NotificationAlertTypeLowStockProducts),
