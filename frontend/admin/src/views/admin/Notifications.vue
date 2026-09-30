@@ -74,6 +74,7 @@ const notificationData = reactive({
     manual_fulfillment_pending: true,
     restock_success: true,
     exception_alert: true,
+    ticket_message: true,
   },
   templates: {
     wallet_recharge_success: createNotificationSceneTemplate(),
@@ -81,6 +82,7 @@ const notificationData = reactive({
     manual_fulfillment_pending: createNotificationSceneTemplate(),
     restock_success: createNotificationSceneTemplate(),
     exception_alert: createNotificationSceneTemplate(),
+    ticket_message: createNotificationSceneTemplate(),
   },
   restock_broadcast: {
     chat_id: '',
@@ -289,6 +291,7 @@ const notificationSceneLabel = (value: string) => {
     manual_fulfillment_pending: 'admin.settings.notification.scenes.manualFulfillmentPending',
     restock_success: 'admin.settings.notification.scenes.restockSuccess',
     exception_alert: 'admin.settings.notification.scenes.exceptionAlert',
+    ticket_message: 'admin.settings.notification.scenes.ticketMessage',
   }
   const key = keyMap[value]
   if (!key) return value || '-'

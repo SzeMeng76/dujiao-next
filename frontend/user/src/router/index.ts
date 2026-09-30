@@ -186,6 +186,13 @@ const router = createRouter({
             meta: { requiresUserAuth: true }
         },
         {
+            path: '/me/tickets',
+            name: 'personal-center-tickets',
+            component: templateView('PersonalCenter', () => import('../views/PersonalCenter.vue')),
+            props: { section: 'ticket' },
+            meta: { requiresUserAuth: true }
+        },
+        {
             path: '/me/wallet',
             name: 'personal-center-wallet',
             component: templateView('PersonalCenter', () => import('../views/PersonalCenter.vue')),

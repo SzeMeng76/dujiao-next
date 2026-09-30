@@ -188,6 +188,30 @@ export interface AdminOrder {
   user_email?: string
 }
 
+export interface AdminTicketMessage {
+  id: number
+  sender_type: 'user' | 'admin'
+  sender_id: number
+  content: string
+  image_url?: string
+  created_at: string
+}
+
+export interface AdminTicket {
+  id: number
+  ticket_no: string
+  user_id: number
+  user_email?: string
+  user_display_name?: string
+  order_id?: number
+  title: string
+  priority: 'low' | 'normal' | 'high'
+  status: 'open' | 'replied' | 'closed'
+  created_at: string
+  updated_at: string
+  messages?: AdminTicketMessage[]
+}
+
 export interface AdminUserOAuthIdentity {
   id: number
   provider: string

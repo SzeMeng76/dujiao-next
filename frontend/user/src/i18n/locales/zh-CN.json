@@ -248,6 +248,7 @@
       "profile": "资料设置",
       "security": "安全中心",
       "orders": "我的订单",
+      "ticket": "我的工单",
       "wallet": "我的钱包",
       "affiliate": "推广返利",
       "reseller": "分销中心",
@@ -1570,6 +1571,54 @@
       "currentPage": "当前页订单数",
       "pendingPayment": "待支付",
       "finished": "已完成/已交付"
+    }
+  },
+  "tickets": {
+    "title": "我的工单",
+    "subtitle": "提交问题反馈，跟踪客服处理进度",
+    "create": "新建工单",
+    "backToList": "返回列表",
+    "empty": "暂无工单",
+    "ticketNo": "工单号",
+    "relatedOrder": "关联订单",
+    "senderAdmin": "客服",
+    "senderUser": "我",
+    "reply": "发送回复",
+    "replyPlaceholder": "输入回复内容...",
+    "replyRequired": "请输入回复内容",
+    "replySuccess": "回复成功",
+    "replyFailed": "回复失败，请稍后重试",
+    "closedHint": "工单已关闭，无法继续回复",
+    "uploadFailed": "图片上传失败",
+    "filterStatus": "状态筛选",
+    "filterStatusAll": "全部状态",
+    "status": {
+      "open": "待处理",
+      "replied": "已回复",
+      "closed": "已关闭"
+    },
+    "priority": {
+      "low": "低",
+      "normal": "中",
+      "high": "高"
+    },
+    "form": {
+      "title": "标题",
+      "titlePlaceholder": "简要描述您的问题",
+      "content": "详细描述",
+      "contentPlaceholder": "请详细描述您遇到的问题...",
+      "priority": "优先级",
+      "orderNo": "关联订单号（可选）",
+      "orderNoPlaceholder": "如与某个订单相关，请填写订单号",
+      "image": "上传图片（可选）",
+      "uploadImage": "上传图片",
+      "replaceImage": "更换图片",
+      "removeImage": "移除",
+      "submit": "提交工单",
+      "cancel": "取消",
+      "required": "请填写标题和详细描述",
+      "createSuccess": "工单提交成功",
+      "createFailed": "提交失败，请稍后重试"
     }
   },
   "rechargeOrder": {

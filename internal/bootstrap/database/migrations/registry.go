@@ -33,6 +33,7 @@ import (
 	settingsstore "github.com/dujiao-next/internal/modules/settings/infrastructure/gormstore"
 	siteconnectiondomain "github.com/dujiao-next/internal/modules/siteconnection/domain"
 	broadcastdomain "github.com/dujiao-next/internal/modules/telegram/broadcast/domain"
+	ticketdomain "github.com/dujiao-next/internal/modules/ticket/domain"
 	walletdomain "github.com/dujiao-next/internal/modules/wallet/domain"
 	"github.com/dujiao-next/internal/platform/database/gormdb"
 
@@ -61,6 +62,8 @@ func AutoMigrate() error {
 		&orderdomain.Order{},
 		&orderdomain.OrderItem{},
 		&orderdomain.OrderRefundRecord{},
+		&ticketdomain.Ticket{},
+		&ticketdomain.TicketMessage{},
 		&orderriskdomain.LockKey{},
 		&cartdomain.Item{},
 		&paymentdomain.PaymentChannel{},

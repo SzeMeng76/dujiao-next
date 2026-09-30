@@ -67,6 +67,12 @@ const routes = [
         meta: { permission: 'GET:/admin/orders' },
       },
       {
+        path: 'tickets',
+        name: 'tickets',
+        component: () => import('@/views/admin/Tickets.vue'),
+        meta: { permission: 'GET:/admin/tickets' },
+      },
+      {
         path: 'order-risk-control',
         name: 'order-risk-control',
         component: () => import('@/views/admin/OrderRiskControl.vue'),

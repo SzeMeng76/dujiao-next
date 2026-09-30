@@ -86,6 +86,7 @@ type NotificationSceneSetting struct {
 	ManualFulfillmentPending bool `json:"manual_fulfillment_pending"`
 	RestockSuccess           bool `json:"restock_success"`
 	ExceptionAlert           bool `json:"exception_alert"`
+	TicketMessage            bool `json:"ticket_message"`
 }
 
 // NotificationLocalizedTemplate 通知多语言模板
@@ -108,6 +109,7 @@ type NotificationTemplatesSetting struct {
 	ManualFulfillmentPending NotificationSceneTemplate `json:"manual_fulfillment_pending"`
 	RestockSuccess           NotificationSceneTemplate `json:"restock_success"`
 	ExceptionAlert           NotificationSceneTemplate `json:"exception_alert"`
+	TicketMessage            NotificationSceneTemplate `json:"ticket_message"`
 }
 
 // NotificationCenterSetting 通知中心配置
@@ -172,6 +174,7 @@ type NotificationScenePatch struct {
 	ManualFulfillmentPending *bool `json:"manual_fulfillment_pending"`
 	RestockSuccess           *bool `json:"restock_success"`
 	ExceptionAlert           *bool `json:"exception_alert"`
+	TicketMessage            *bool `json:"ticket_message"`
 }
 
 // NotificationTemplatesPatch 通知模板补丁
@@ -181,6 +184,7 @@ type NotificationTemplatesPatch struct {
 	ManualFulfillmentPending *NotificationSceneTemplatePatch `json:"manual_fulfillment_pending"`
 	RestockSuccess           *NotificationSceneTemplatePatch `json:"restock_success"`
 	ExceptionAlert           *NotificationSceneTemplatePatch `json:"exception_alert"`
+	TicketMessage            *NotificationSceneTemplatePatch `json:"ticket_message"`
 }
 
 // NotificationSceneTemplatePatch 单场景模板补丁
@@ -221,6 +225,7 @@ func NotificationCenterDefaultSetting() NotificationCenterSetting {
 			ManualFulfillmentPending: true,
 			RestockSuccess:           true,
 			ExceptionAlert:           true,
+			TicketMessage:            true,
 		},
 		Templates: NotificationTemplatesSetting{
 			WalletRechargeSuccess: NotificationSceneTemplate{
@@ -291,6 +296,20 @@ func NotificationCenterDefaultSetting() NotificationCenterSetting {
 				ENUS: NotificationLocalizedTemplate{
 					Title: "System Exception Alert",
 					Body:  "Type: {{alert_type}}\nLevel: {{alert_level}}\nCurrent: {{alert_value}}\nThreshold: {{alert_threshold}}\nDetails: {{message}}\n{{affected_items_summary}}",
+				},
+			},
+			TicketMessage: NotificationSceneTemplate{
+				ZHCN: NotificationLocalizedTemplate{
+					Title: "工单提醒：{{ticket_no}}",
+					Body:  "工单号：{{ticket_no}}\n标题：{{ticket_title}}\n优先级：{{ticket_priority}}\n发送人：{{sender_label}}\n内容：{{content_excerpt}}",
+				},
+				ZHTW: NotificationLocalizedTemplate{
+					Title: "工單提醒：{{ticket_no}}",
+					Body:  "工單號：{{ticket_no}}\n標題：{{ticket_title}}\n優先級：{{ticket_priority}}\n發送人：{{sender_label}}\n內容：{{content_excerpt}}",
+				},
+				ENUS: NotificationLocalizedTemplate{
+					Title: "Ticket Update: {{ticket_no}}",
+					Body:  "Ticket No: {{ticket_no}}\nTitle: {{ticket_title}}\nPriority: {{ticket_priority}}\nFrom: {{sender_label}}\nMessage: {{content_excerpt}}",
 				},
 			},
 		},
@@ -417,6 +436,7 @@ func NotificationCenterSettingToMap(setting NotificationCenterSetting) map[strin
 			"manual_fulfillment_pending": normalized.Scenes.ManualFulfillmentPending,
 			"restock_success":            normalized.Scenes.RestockSuccess,
 			"exception_alert":            normalized.Scenes.ExceptionAlert,
+			"ticket_message":             normalized.Scenes.TicketMessage,
 		},
 		"templates": map[string]interface{}{
 			"wallet_recharge_success":    notificationSceneTemplateToMap(normalized.Templates.WalletRechargeSuccess),
@@ -424,6 +444,7 @@ func NotificationCenterSettingToMap(setting NotificationCenterSetting) map[strin
 			"manual_fulfillment_pending": notificationSceneTemplateToMap(normalized.Templates.ManualFulfillmentPending),
 			"restock_success":            notificationSceneTemplateToMap(normalized.Templates.RestockSuccess),
 			"exception_alert":            notificationSceneTemplateToMap(normalized.Templates.ExceptionAlert),
+			"ticket_message":             notificationSceneTemplateToMap(normalized.Templates.TicketMessage),
 		},
 		"dedupe_ttl_seconds":                         normalized.DedupeTTLSeconds,
 		"inventory_alert_interval_seconds":           normalized.InventoryAlertIntervalSeconds,
@@ -532,6 +553,9 @@ func ApplyNotificationCenterSettingPatch(current NotificationCenterSetting, patc
 		if patch.Scenes.ExceptionAlert != nil {
 			next.Scenes.ExceptionAlert = *patch.Scenes.ExceptionAlert
 		}
+		if patch.Scenes.TicketMessage != nil {
+			next.Scenes.TicketMessage = *patch.Scenes.TicketMessage
+		}
 	}
 	if patch.Templates != nil {
 		if patch.Templates.WalletRechargeSuccess != nil {
@@ -548,6 +572,9 @@ func ApplyNotificationCenterSettingPatch(current NotificationCenterSetting, patc
 		}
 		if patch.Templates.ExceptionAlert != nil {
 			applyNotificationSceneTemplatePatch(&next.Templates.ExceptionAlert, patch.Templates.ExceptionAlert)
+		}
+		if patch.Templates.TicketMessage != nil {
+			applyNotificationSceneTemplatePatch(&next.Templates.TicketMessage, patch.Templates.TicketMessage)
 		}
 	}
 
@@ -571,6 +598,8 @@ func (s NotificationSceneSetting) IsSceneEnabled(eventType string) bool {
 		return s.RestockSuccess
 	case constants.NotificationEventExceptionAlert, constants.NotificationEventExceptionAlertCheck:
 		return s.ExceptionAlert
+	case constants.NotificationEventTicketMessage:
+		return s.TicketMessage
 	default:
 		return false
 	}
@@ -589,6 +618,8 @@ func (s NotificationTemplatesSetting) TemplateByEvent(eventType string) Notifica
 		return s.RestockSuccess
 	case constants.NotificationEventExceptionAlert, constants.NotificationEventExceptionAlertCheck:
 		return s.ExceptionAlert
+	case constants.NotificationEventTicketMessage:
+		return s.TicketMessage
 	default:
 		return s.ExceptionAlert
 	}
@@ -648,6 +679,7 @@ func DecodeNotificationCenterSetting(raw jsonmap.JSON, fallback NotificationCent
 		next.Scenes.ManualFulfillmentPending = settingsvalue.ReadBool(scenesMap, "manual_fulfillment_pending", next.Scenes.ManualFulfillmentPending)
 		next.Scenes.RestockSuccess = settingsvalue.ReadBool(scenesMap, "restock_success", next.Scenes.RestockSuccess)
 		next.Scenes.ExceptionAlert = settingsvalue.ReadBool(scenesMap, "exception_alert", next.Scenes.ExceptionAlert)
+		next.Scenes.TicketMessage = settingsvalue.ReadBool(scenesMap, "ticket_message", next.Scenes.TicketMessage)
 	}
 
 	if templatesMap := settingsvalue.ToStringAnyMap(raw["templates"]); templatesMap != nil {
@@ -665,6 +697,9 @@ func DecodeNotificationCenterSetting(raw jsonmap.JSON, fallback NotificationCent
 		}
 		if sceneMap := settingsvalue.ToStringAnyMap(templatesMap["exception_alert"]); sceneMap != nil {
 			next.Templates.ExceptionAlert = notificationSceneTemplateFromMap(sceneMap, next.Templates.ExceptionAlert)
+		}
+		if sceneMap := settingsvalue.ToStringAnyMap(templatesMap["ticket_message"]); sceneMap != nil {
+			next.Templates.TicketMessage = notificationSceneTemplateFromMap(sceneMap, next.Templates.TicketMessage)
 		}
 	}
 	if !legacyEnabled {
@@ -720,6 +755,7 @@ func normalizeNotificationTemplates(templates NotificationTemplatesSetting) Noti
 	templates.ManualFulfillmentPending = normalizeNotificationSceneTemplate(templates.ManualFulfillmentPending)
 	templates.RestockSuccess = normalizeNotificationSceneTemplate(templates.RestockSuccess)
 	templates.ExceptionAlert = normalizeNotificationSceneTemplate(templates.ExceptionAlert)
+	templates.TicketMessage = normalizeNotificationSceneTemplate(templates.TicketMessage)
 	return templates
 }
 

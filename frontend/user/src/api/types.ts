@@ -496,3 +496,24 @@ export interface CaptchaPayload {
     captcha_code?: string
     turnstile_token?: string
 }
+
+export interface TicketMessage {
+    id: number
+    sender_type: 'user' | 'admin'
+    sender_id: number
+    content: string
+    image_url?: string
+    created_at: string
+}
+
+export interface Ticket {
+    id: number
+    ticket_no: string
+    order_id?: number
+    title: string
+    priority: 'low' | 'normal' | 'high'
+    status: 'open' | 'replied' | 'closed'
+    created_at: string
+    updated_at: string
+    messages?: TicketMessage[]
+}

@@ -39,6 +39,8 @@ const (
 	TaskBotNotify = constants.TaskBotNotify
 	// TaskTelegramBroadcast Telegram 群发任务
 	TaskTelegramBroadcast = constants.TaskTelegramBroadcast
+	// TaskTicketMessageEmail 工单新消息邮件通知任务
+	TaskTicketMessageEmail = constants.TaskTicketMessageEmail
 )
 
 // OrderStatusEmailPayload 订单状态邮件任务载荷
@@ -246,4 +248,20 @@ func NewTelegramBroadcastTask(payload TelegramBroadcastPayload) (*asynq.Task, er
 		return nil, err
 	}
 	return asynq.NewTask(TaskTelegramBroadcast, body), nil
+}
+
+// TicketMessageEmailPayload 工单新消息邮件通知任务载荷。
+// 仅携带 ID，消费侧按最新数据查询并渲染，避免队列中滞留过期内容。
+type TicketMessageEmailPayload struct {
+	TicketID  uint `json:"ticket_id"`
+	MessageID uint `json:"message_id"`
+}
+
+// NewTicketMessageEmailTask 创建工单新消息邮件通知任务。
+func NewTicketMessageEmailTask(payload TicketMessageEmailPayload) (*asynq.Task, error) {
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+	return asynq.NewTask(TaskTicketMessageEmail, body), nil
 }
