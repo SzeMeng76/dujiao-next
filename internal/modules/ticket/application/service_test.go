@@ -25,7 +25,7 @@ func (f *fakeStore) Create(ticket *ticketdomain.Ticket, firstMessage *ticketdoma
 	return nil
 }
 
-func (f *fakeStore) GetByID(uint) (*ticketdomain.Ticket, error)         { return nil, nil }
+func (f *fakeStore) GetByID(uint) (*ticketdomain.Ticket, error) { return nil, nil }
 func (f *fakeStore) GetByIDAndUser(uint, uint) (*ticketdomain.Ticket, error) {
 	return nil, nil
 }

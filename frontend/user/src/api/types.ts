@@ -514,6 +514,10 @@ export interface Ticket {
     ticket_type?: 'pre_sale' | 'after_sale' | string
     /** 关联商品 ID（售前咨询常见） */
     product_id?: number
+    /** 关联订单号（由后端按 order_id 解析，仅用于展示） */
+    order_no?: string
+    /** 关联商品的多语言标题（raw JSON，按当前 locale 解析） */
+    product_title?: Record<string, string>
     title: string
     priority: 'low' | 'normal' | 'high'
     status: 'open' | 'replied' | 'closed'

@@ -22,16 +22,19 @@ type UserDirectory interface {
 
 // AdminHandler 处理管理端工单请求。
 type AdminHandler struct {
-	service *ticketapp.Service
-	users   UserDirectory
+	service       *ticketapp.Service
+	users         UserDirectory
+	orderNos      OrderNoResolver
+	productTitles ProductTitleResolver
 }
 
 // NewAdminHandler 创建管理端工单 handler。
-func NewAdminHandler(service *ticketapp.Service, users UserDirectory) *AdminHandler {
+// orderNos/productTitles 可为 nil，此时响应只带 ID，不补充订单号与商品名。
+func NewAdminHandler(service *ticketapp.Service, users UserDirectory, orderNos OrderNoResolver, productTitles ProductTitleResolver) *AdminHandler {
 	if service == nil || users == nil {
 		panic("ticket admin handler: required dependency is nil")
 	}
-	return &AdminHandler{service: service, users: users}
+	return &AdminHandler{service: service, users: users, orderNos: orderNos, productTitles: productTitles}
 }
 
 func fillTicketUserInfo(summary *ticketpresenter.TicketSummary, userMap map[uint]userdomain.User) {
@@ -88,6 +91,7 @@ func (h *AdminHandler) ListTickets(c *gin.Context) {
 	for i := range items {
 		fillTicketUserInfo(&items[i], userMap)
 	}
+	fillTicketAssociationInfo(items, h.orderNos, h.productTitles)
 
 	pagination := response.BuildPagination(page, pageSize, total)
 	response.SuccessWithPage(c, items, pagination)
@@ -114,6 +118,7 @@ func (h *AdminHandler) GetTicket(c *gin.Context) {
 			detail.UserDisplayName = user.DisplayName
 		}
 	}
+	fillTicketDetailAssociationInfo(&detail, h.orderNos, h.productTitles)
 
 	response.Success(c, detail)
 }

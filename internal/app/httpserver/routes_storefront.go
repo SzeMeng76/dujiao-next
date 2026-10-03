@@ -21,6 +21,8 @@ import (
 	paymentcallbacktransport "github.com/dujiao-next/internal/modules/payment/transport/http/callback"
 	resellertransport "github.com/dujiao-next/internal/modules/reseller/transport/http/user"
 	publicconfigtransport "github.com/dujiao-next/internal/modules/settings/transport/http/public"
+	ticketorderadapter "github.com/dujiao-next/internal/modules/ticket/infrastructure/orderadapter"
+	ticketproductadapter "github.com/dujiao-next/internal/modules/ticket/infrastructure/productadapter"
 	tickettransport "github.com/dujiao-next/internal/modules/ticket/transport/http"
 	wallettransport "github.com/dujiao-next/internal/modules/wallet/transport/http"
 
@@ -143,7 +145,12 @@ func registerStorefrontRoutes(
 		ordertransport.RegisterUserPreviewRoute(user, orderPreviewHandler)
 		ordertransport.RegisterUserPaymentChannelsRoute(user, userOrderHandler)
 		ordertransport.RegisterUserReadRoutes(user, userOrderHandler)
-		tickettransport.RegisterUserRoutes(user, tickettransport.NewUserHandler(c.TicketService, c.UploadService))
+		tickettransport.RegisterUserRoutes(user, tickettransport.NewUserHandler(
+			c.TicketService,
+			c.UploadService,
+			ticketorderadapter.New(c.OrderStore),
+			ticketproductadapter.New(c.ProductRepo),
+		))
 		ordertransport.RegisterUserCancelRoute(user, userOrderHandler)
 		paymenttransport.RegisterUserWriteRoutes(user, paymentWriteHandler)
 		paymenttransport.RegisterUserLatestRoute(user, paymentLatestHandler)

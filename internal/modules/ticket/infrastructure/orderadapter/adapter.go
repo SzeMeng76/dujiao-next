@@ -28,3 +28,23 @@ func (a *Adapter) ExistsForUser(orderNo string, userID uint) (uint, bool, error)
 	}
 	return order.ID, true, nil
 }
+
+// ResolveOrderNos 按订单ID批量解析订单号，仅用于工单响应展示。
+// 查不到的 ID 不会出现在结果中（订单被硬删除时属正常情况）。
+func (a *Adapter) ResolveOrderNos(ids []uint) (map[uint]string, error) {
+	if a.orders == nil || len(ids) == 0 {
+		return nil, nil
+	}
+	orders, err := a.orders.GetByIDs(ids)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[uint]string, len(orders))
+	for _, order := range orders {
+		if order.OrderNo == "" {
+			continue
+		}
+		result[order.ID] = order.OrderNo
+	}
+	return result, nil
+}

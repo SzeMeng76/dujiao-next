@@ -4,23 +4,29 @@ import (
 	"time"
 
 	ticketdomain "github.com/dujiao-next/internal/modules/ticket/domain"
+	"github.com/dujiao-next/internal/shared/jsonmap"
 )
 
 // TicketSummary 工单列表响应（精简字段，不含消息内容）。
 type TicketSummary struct {
-	ID              uint      `json:"id"`
-	TicketNo        string    `json:"ticket_no"`
-	UserID          uint      `json:"user_id"`
-	UserEmail       string    `json:"user_email,omitempty"`
-	UserDisplayName string    `json:"user_display_name,omitempty"`
-	OrderID         *uint     `json:"order_id,omitempty"`
-	TicketType      string    `json:"ticket_type"`
-	ProductID       *uint     `json:"product_id,omitempty"`
-	Title           string    `json:"title"`
-	Priority        string    `json:"priority"`
-	Status          string    `json:"status"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
+	ID              uint   `json:"id"`
+	TicketNo        string `json:"ticket_no"`
+	UserID          uint   `json:"user_id"`
+	UserEmail       string `json:"user_email,omitempty"`
+	UserDisplayName string `json:"user_display_name,omitempty"`
+	OrderID         *uint  `json:"order_id,omitempty"`
+	// OrderNo 是 OrderID 对应的订单号，由 transport 层解析填充，仅用于展示。
+	OrderNo    string `json:"order_no,omitempty"`
+	TicketType string `json:"ticket_type"`
+	ProductID  *uint  `json:"product_id,omitempty"`
+	// ProductTitleJSON 是 ProductID 对应商品的多语言标题（raw JSON），
+	// 与订单项 Title 契约一致，由前端按 locale 解析；商品已删除时为空。
+	ProductTitleJSON jsonmap.JSON `json:"product_title,omitempty"`
+	Title            string       `json:"title"`
+	Priority         string       `json:"priority"`
+	Status           string       `json:"status"`
+	CreatedAt        time.Time    `json:"created_at"`
+	UpdatedAt        time.Time    `json:"updated_at"`
 }
 
 // TicketMessageResp 工单消息响应。

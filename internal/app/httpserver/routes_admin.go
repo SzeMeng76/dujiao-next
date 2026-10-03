@@ -35,6 +35,8 @@ import (
 	settingstransport "github.com/dujiao-next/internal/modules/settings/transport/http"
 	siteconnectiontransport "github.com/dujiao-next/internal/modules/siteconnection/transport/http"
 	broadcasthttp "github.com/dujiao-next/internal/modules/telegram/broadcast/transport/http"
+	ticketorderadapter "github.com/dujiao-next/internal/modules/ticket/infrastructure/orderadapter"
+	ticketproductadapter "github.com/dujiao-next/internal/modules/ticket/infrastructure/productadapter"
 	tickettransport "github.com/dujiao-next/internal/modules/ticket/transport/http"
 	uploadtransport "github.com/dujiao-next/internal/modules/upload/transport/http"
 	wallettransport "github.com/dujiao-next/internal/modules/wallet/transport/http"
@@ -160,7 +162,12 @@ func registerAdminRoutes(
 	giftcardtransport.RegisterAdminRoutes(authorized, adminGiftCardHandler)
 
 	// 工单
-	tickettransport.RegisterAdminRoutes(authorized, tickettransport.NewAdminHandler(c.TicketService, c.UserStore))
+	tickettransport.RegisterAdminRoutes(authorized, tickettransport.NewAdminHandler(
+		c.TicketService,
+		c.UserStore,
+		ticketorderadapter.New(c.OrderStore),
+		ticketproductadapter.New(c.ProductRepo),
+	))
 
 	// 优惠券与活动价
 	coupontransport.RegisterAdminRoutes(authorized, adminCouponHandler)

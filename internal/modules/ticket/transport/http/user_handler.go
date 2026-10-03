@@ -12,6 +12,7 @@ import (
 
 	"github.com/dujiao-next/internal/platform/http/ginutil"
 	"github.com/dujiao-next/internal/platform/http/response"
+	"github.com/dujiao-next/internal/shared/jsonmap"
 
 	"github.com/gin-gonic/gin"
 )
@@ -21,18 +22,101 @@ type FileUploader interface {
 	SaveFileWithMeta(file *multipart.FileHeader, scene string) (*uploadcontract.Result, error)
 }
 
+// OrderNoResolver 按订单ID解析订单号，仅用于工单响应展示。
+type OrderNoResolver interface {
+	ResolveOrderNos(ids []uint) (map[uint]string, error)
+}
+
+// ProductTitleResolver 按商品ID解析多语言标题，仅用于工单响应展示。
+type ProductTitleResolver interface {
+	ResolveProductTitles(ids []uint) (map[uint]jsonmap.JSON, error)
+}
+
 // UserHandler 处理用户端工单请求。
 type UserHandler struct {
-	service  *ticketapp.Service
-	uploader FileUploader
+	service       *ticketapp.Service
+	uploader      FileUploader
+	orderNos      OrderNoResolver
+	productTitles ProductTitleResolver
 }
 
 // NewUserHandler 创建用户端工单 handler。
-func NewUserHandler(service *ticketapp.Service, uploader FileUploader) *UserHandler {
+// orderNos/productTitles 可为 nil，此时响应只带 ID，不补充订单号与商品名。
+func NewUserHandler(service *ticketapp.Service, uploader FileUploader, orderNos OrderNoResolver, productTitles ProductTitleResolver) *UserHandler {
 	if service == nil || uploader == nil {
 		panic("ticket user handler: required dependency is nil")
 	}
-	return &UserHandler{service: service, uploader: uploader}
+	return &UserHandler{service: service, uploader: uploader, orderNos: orderNos, productTitles: productTitles}
+}
+
+// collectAssociationIDs 汇总一批工单里出现过的订单ID与商品ID（去重）。
+func collectAssociationIDs(tickets []ticketpresenter.TicketSummary) (orderIDs []uint, productIDs []uint) {
+	seenOrder := map[uint]struct{}{}
+	seenProduct := map[uint]struct{}{}
+	for i := range tickets {
+		summary := &tickets[i]
+		if summary.OrderID != nil && *summary.OrderID != 0 {
+			if _, ok := seenOrder[*summary.OrderID]; !ok {
+				seenOrder[*summary.OrderID] = struct{}{}
+				orderIDs = append(orderIDs, *summary.OrderID)
+			}
+		}
+		if summary.ProductID != nil && *summary.ProductID != 0 {
+			if _, ok := seenProduct[*summary.ProductID]; !ok {
+				seenProduct[*summary.ProductID] = struct{}{}
+				productIDs = append(productIDs, *summary.ProductID)
+			}
+		}
+	}
+	return orderIDs, productIDs
+}
+
+// resolveAssociationMaps 汇总一批工单涉及的订单ID与商品ID并批量解析。
+// 解析失败不阻断工单主体返回，前端会退化为只显示 ID。
+func resolveAssociationMaps(tickets []ticketpresenter.TicketSummary, orderNos OrderNoResolver, productTitles ProductTitleResolver) (map[uint]string, map[uint]jsonmap.JSON) {
+	orderIDs, productIDs := collectAssociationIDs(tickets)
+
+	orderNoMap := map[uint]string{}
+	if orderNos != nil && len(orderIDs) > 0 {
+		if resolved, err := orderNos.ResolveOrderNos(orderIDs); err == nil {
+			orderNoMap = resolved
+		}
+	}
+
+	productTitleMap := map[uint]jsonmap.JSON{}
+	if productTitles != nil && len(productIDs) > 0 {
+		if resolved, err := productTitles.ResolveProductTitles(productIDs); err == nil {
+			productTitleMap = resolved
+		}
+	}
+	return orderNoMap, productTitleMap
+}
+
+// fillTicketAssociationInfo 为工单列表响应补充订单号与商品标题。
+func fillTicketAssociationInfo(tickets []ticketpresenter.TicketSummary, orderNos OrderNoResolver, productTitles ProductTitleResolver) {
+	if len(tickets) == 0 {
+		return
+	}
+	orderNoMap, productTitleMap := resolveAssociationMaps(tickets, orderNos, productTitles)
+	for i := range tickets {
+		summary := &tickets[i]
+		if summary.OrderID != nil {
+			summary.OrderNo = orderNoMap[*summary.OrderID]
+		}
+		if summary.ProductID != nil {
+			summary.ProductTitleJSON = productTitleMap[*summary.ProductID]
+		}
+	}
+}
+
+// fillTicketDetailAssociationInfo 为工单详情响应补充订单号与商品标题。
+func fillTicketDetailAssociationInfo(detail *ticketpresenter.TicketDetail, orderNos OrderNoResolver, productTitles ProductTitleResolver) {
+	if detail == nil {
+		return
+	}
+	summaries := []ticketpresenter.TicketSummary{detail.TicketSummary}
+	fillTicketAssociationInfo(summaries, orderNos, productTitles)
+	detail.TicketSummary = summaries[0]
 }
 
 // CreateTicketRequest 创建工单请求体。
@@ -75,7 +159,9 @@ func (h *UserHandler) CreateTicket(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, ticketpresenter.NewTicketDetail(ticket))
+	detail := ticketpresenter.NewTicketDetail(ticket)
+	fillTicketDetailAssociationInfo(&detail, h.orderNos, h.productTitles)
+	response.Success(c, detail)
 }
 
 // ListTickets 用户端工单列表。
@@ -99,8 +185,11 @@ func (h *UserHandler) ListTickets(c *gin.Context) {
 		return
 	}
 
+	items := ticketpresenter.NewTicketSummaryList(tickets)
+	fillTicketAssociationInfo(items, h.orderNos, h.productTitles)
+
 	pagination := response.BuildPagination(page, pageSize, total)
-	response.SuccessWithPage(c, ticketpresenter.NewTicketSummaryList(tickets), pagination)
+	response.SuccessWithPage(c, items, pagination)
 }
 
 // GetTicket 用户端工单详情。
@@ -121,7 +210,9 @@ func (h *UserHandler) GetTicket(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, ticketpresenter.NewTicketDetail(ticket))
+	detail := ticketpresenter.NewTicketDetail(ticket)
+	fillTicketDetailAssociationInfo(&detail, h.orderNos, h.productTitles)
+	response.Success(c, detail)
 }
 
 // ReplyTicketRequest 用户回复工单请求体。

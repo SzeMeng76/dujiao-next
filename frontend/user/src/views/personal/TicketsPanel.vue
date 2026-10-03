@@ -278,10 +278,10 @@
           </div>
         </div>
         <div v-if="activeTicket.order_id" class="mt-2 text-xs text-muted-foreground">
-          {{ t('tickets.relatedOrder') }}：#{{ activeTicket.order_id }}
+          {{ t('tickets.relatedOrder') }}：{{ relatedOrderLabel(activeTicket) }}
         </div>
         <div v-else-if="activeTicket.product_id" class="mt-2 text-xs text-muted-foreground">
-          {{ t('tickets.relatedProduct') }}：#{{ activeTicket.product_id }}
+          {{ t('tickets.relatedProduct') }}：{{ relatedProductLabel(activeTicket) }}
         </div>
       </div>
 
@@ -715,6 +715,16 @@ const priorityVariant = (priority: string): BadgeTone => {
 /** 历史工单没有 ticket_type，按后端兼容默认值展示为售后 */
 const typeLabel = (type?: string) =>
   type === 'pre_sale' ? t('tickets.form.typePreSale') : t('tickets.form.typeAfterSale')
+
+/** 关联订单展示：优先订单号，后端未解析出来时回退到订单 ID */
+const relatedOrderLabel = (ticket: Ticket) =>
+  ticket.order_no || `#${ticket.order_id}`
+
+/** 关联商品展示：优先商品名，商品已删除或未解析时回退到商品 ID */
+const relatedProductLabel = (ticket: Ticket) => {
+  const title = getLocalizedText(ticket.product_title, appStore.locale)
+  return title || `#${ticket.product_id}`
+}
 
 
 const formatDate = (raw?: string) => {

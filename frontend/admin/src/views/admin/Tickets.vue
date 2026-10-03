@@ -15,7 +15,7 @@ import TableSkeleton from '@/components/TableSkeleton.vue'
 import ListPagination from '@/components/ListPagination.vue'
 import { useListRefresh } from '@/composables/useListRefresh'
 import { useAdminAuthStore } from '@/stores/auth'
-import { formatDate } from '@/utils/format'
+import { formatDate, getLocalizedText } from '@/utils/format'
 import { notifyError, notifySuccess } from '@/utils/notify'
 import { confirmAction } from '@/utils/confirm'
 
@@ -115,6 +115,16 @@ const typeLabel = (type?: string) =>
 const typeClass = (type?: string) => {
   if (type === 'pre_sale') return 'text-sky-700 border-sky-200 bg-sky-50'
   return 'text-violet-700 border-violet-200 bg-violet-50'
+}
+
+/** 关联订单展示：优先订单号，后端未解析出来时回退到订单 ID */
+const relatedOrderLabel = (ticket: AdminTicket) =>
+  ticket.order_no || (ticket.order_id ? `#${ticket.order_id}` : '')
+
+/** 关联商品展示：优先商品名，商品已删除或未解析时回退到商品 ID */
+const relatedProductLabel = (ticket: AdminTicket) => {
+  const title = getLocalizedText(ticket.product_title)
+  return title || (ticket.product_id ? `#${ticket.product_id}` : '')
 }
 
 const statusLabel = (status: string) => {
@@ -301,6 +311,7 @@ onMounted(() => {
             <TableHead>{{ t('admin.tickets.columns.ticketNo') }}</TableHead>
             <TableHead>{{ t('admin.tickets.columns.title') }}</TableHead>
             <TableHead>{{ t('admin.tickets.columns.type') }}</TableHead>
+            <TableHead>{{ t('admin.tickets.columns.related') }}</TableHead>
             <TableHead>{{ t('admin.tickets.columns.user') }}</TableHead>
             <TableHead>{{ t('admin.tickets.columns.priority') }}</TableHead>
             <TableHead>{{ t('admin.tickets.columns.status') }}</TableHead>
@@ -310,7 +321,7 @@ onMounted(() => {
         </TableHeader>
         <TableBody>
           <TableRow v-if="tickets.length === 0">
-            <TableCell :colspan="batchMode ? 9 : 8" class="text-center text-sm text-muted-foreground py-8">
+            <TableCell :colspan="batchMode ? 10 : 9" class="text-center text-sm text-muted-foreground py-8">
               {{ t('admin.tickets.empty') }}
             </TableCell>
           </TableRow>
@@ -324,6 +335,11 @@ onMounted(() => {
               <span class="inline-flex rounded-full border px-2 py-0.5 text-xs" :class="typeClass(ticket.ticket_type)">
                 {{ typeLabel(ticket.ticket_type) }}
               </span>
+            </TableCell>
+            <TableCell class="max-w-xs text-xs text-muted-foreground">
+              <span v-if="ticket.order_id" class="block truncate">{{ t('admin.tickets.relatedOrder') }}：{{ relatedOrderLabel(ticket) }}</span>
+              <span v-else-if="ticket.product_id" class="block truncate">{{ t('admin.tickets.relatedProduct') }}：{{ relatedProductLabel(ticket) }}</span>
+              <span v-else>—</span>
             </TableCell>
             <TableCell class="text-sm">{{ ticket.user_display_name || ticket.user_email || `#${ticket.user_id}` }}</TableCell>
             <TableCell><span class="inline-flex rounded-full border px-2 py-0.5 text-xs" :class="priorityClass(ticket.priority)">{{ priorityLabel(ticket.priority) }}</span></TableCell>
@@ -371,8 +387,8 @@ onMounted(() => {
               <span class="text-muted-foreground">{{ t('admin.tickets.columns.status') }}：</span>
               <span class="inline-flex rounded-full border px-2 py-0.5 text-xs" :class="statusClass(detail.status)">{{ statusLabel(detail.status) }}</span>
             </div>
-            <div v-if="detail.order_id"><span class="text-muted-foreground">{{ t('admin.tickets.relatedOrder') }}：</span>#{{ detail.order_id }}</div>
-            <div v-if="detail.product_id"><span class="text-muted-foreground">{{ t('admin.tickets.relatedProduct') }}：</span>#{{ detail.product_id }}</div>
+            <div v-if="detail.order_id"><span class="text-muted-foreground">{{ t('admin.tickets.relatedOrder') }}：</span>{{ relatedOrderLabel(detail) }}</div>
+            <div v-if="detail.product_id"><span class="text-muted-foreground">{{ t('admin.tickets.relatedProduct') }}：</span>{{ relatedProductLabel(detail) }}</div>
           </div>
 
           <div class="max-h-80 space-y-3 overflow-y-auto rounded-lg border border-border bg-muted/20 p-4">
