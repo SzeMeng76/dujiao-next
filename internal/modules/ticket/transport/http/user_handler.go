@@ -36,12 +36,15 @@ func NewUserHandler(service *ticketapp.Service, uploader FileUploader) *UserHand
 }
 
 // CreateTicketRequest 创建工单请求体。
+// TicketType/ProductID 为新增字段，旧客户端不传时保持原有行为（默认按售后兼容）。
 type CreateTicketRequest struct {
-	Title    string `json:"title" binding:"required"`
-	Content  string `json:"content" binding:"required"`
-	Priority string `json:"priority"`
-	OrderNo  string `json:"order_no"`
-	ImageURL string `json:"image_url"`
+	Title      string `json:"title" binding:"required"`
+	Content    string `json:"content" binding:"required"`
+	Priority   string `json:"priority"`
+	OrderNo    string `json:"order_no"`
+	ImageURL   string `json:"image_url"`
+	TicketType string `json:"ticket_type"`
+	ProductID  *uint  `json:"product_id"`
 }
 
 // CreateTicket 用户创建工单。
@@ -58,12 +61,14 @@ func (h *UserHandler) CreateTicket(c *gin.Context) {
 	}
 
 	ticket, err := h.service.Create(ticketapp.CreateInput{
-		UserID:   uid,
-		Title:    req.Title,
-		Content:  req.Content,
-		Priority: req.Priority,
-		OrderNo:  req.OrderNo,
-		ImageURL: req.ImageURL,
+		UserID:     uid,
+		Title:      req.Title,
+		Content:    req.Content,
+		Priority:   req.Priority,
+		OrderNo:    req.OrderNo,
+		ImageURL:   req.ImageURL,
+		TicketType: req.TicketType,
+		ProductID:  req.ProductID,
 	})
 	if err != nil {
 		respondTicketError(c, err, "error.ticket_create_failed")
@@ -212,6 +217,10 @@ func respondTicketError(c *gin.Context, err error, fallbackKey string) {
 		ginutil.RespondError(c, response.CodeBadRequest, "error.ticket_priority_invalid", err)
 	case errors.Is(err, ticketapp.ErrTicketOrderInvalid):
 		ginutil.RespondError(c, response.CodeBadRequest, "error.ticket_order_invalid", err)
+	case errors.Is(err, ticketapp.ErrTicketTypeBad):
+		ginutil.RespondError(c, response.CodeBadRequest, "error.ticket_type_invalid", err)
+	case errors.Is(err, ticketapp.ErrTicketOrderMissing):
+		ginutil.RespondError(c, response.CodeBadRequest, "error.ticket_order_required", err)
 	default:
 		ginutil.RespondError(c, response.CodeInternal, fallbackKey, err)
 	}

@@ -1169,6 +1169,7 @@ const messages = {
         columns: {
           ticketNo: '工单号',
           title: '标题',
+          type: '服务类型',
           user: '用户',
           priority: '优先级',
           status: '状态',
@@ -1178,6 +1179,11 @@ const messages = {
         viewDetail: '查看详情',
         detailTitle: '工单详情',
         relatedOrder: '关联订单',
+        relatedProduct: '关联商品',
+        type: {
+          preSale: '售前咨询',
+          afterSale: '售后支持',
+        },
         senderAdmin: '客服',
         senderUser: '用户',
         replyPlaceholder: '输入回复内容...',
@@ -5767,6 +5773,7 @@ const messages = {
         columns: {
           ticketNo: '工單號',
           title: '標題',
+          type: '服務類型',
           user: '用戶',
           priority: '優先級',
           status: '狀態',
@@ -5776,6 +5783,11 @@ const messages = {
         viewDetail: '查看詳情',
         detailTitle: '工單詳情',
         relatedOrder: '關聯訂單',
+        relatedProduct: '關聯商品',
+        type: {
+          preSale: '售前諮詢',
+          afterSale: '售後支持',
+        },
         senderAdmin: '客服',
         senderUser: '用戶',
         replyPlaceholder: '輸入回覆內容...',
@@ -10366,6 +10378,7 @@ const messages = {
         columns: {
           ticketNo: 'Ticket No',
           title: 'Title',
+          type: 'Service Type',
           user: 'User',
           priority: 'Priority',
           status: 'Status',
@@ -10375,6 +10388,11 @@ const messages = {
         viewDetail: 'View Detail',
         detailTitle: 'Ticket Detail',
         relatedOrder: 'Related Order',
+        relatedProduct: 'Related Product',
+        type: {
+          preSale: 'Pre-sales Inquiry',
+          afterSale: 'After-sales Support',
+        },
         senderAdmin: 'Support',
         senderUser: 'User',
         replyPlaceholder: 'Type your reply...',

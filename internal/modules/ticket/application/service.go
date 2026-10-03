@@ -32,6 +32,11 @@ var validPriorities = map[string]struct{}{
 	ticketdomain.PriorityHigh:   {},
 }
 
+var validTicketTypes = map[string]struct{}{
+	ticketdomain.TypePreSale:   {},
+	ticketdomain.TypeAfterSale: {},
+}
+
 // Service 工单业务逻辑服务。
 type Service struct {
 	store       ticketcontract.Store
@@ -50,12 +55,14 @@ func NewService(store ticketcontract.Store, orders OrderOwnershipChecker, notifi
 
 // CreateInput 创建工单入参。
 type CreateInput struct {
-	UserID   uint
-	Title    string
-	Content  string
-	Priority string
-	OrderNo  string
-	ImageURL string
+	UserID     uint
+	Title      string
+	Content    string
+	Priority   string
+	OrderNo    string
+	ImageURL   string
+	TicketType string
+	ProductID  *uint
 }
 
 // Create 用户创建工单。
@@ -76,8 +83,22 @@ func (s *Service) Create(input CreateInput) (*ticketdomain.Ticket, error) {
 		return nil, ErrTicketPriorityBad
 	}
 
-	var orderID *uint
+	// 服务类型：未传时按 after_sale 兼容旧客户端；显式传入的非法值直接拒绝。
+	ticketType := strings.TrimSpace(input.TicketType)
+	if ticketType == "" {
+		ticketType = ticketdomain.TypeAfterSale
+	}
+	if _, ok := validTicketTypes[ticketType]; !ok {
+		return nil, ErrTicketTypeBad
+	}
+
 	orderNo := strings.TrimSpace(input.OrderNo)
+	// 售后必须关联订单：无论订单来自下拉选择还是手动输入，都必须属于当前用户。
+	if ticketType == ticketdomain.TypeAfterSale && orderNo == "" {
+		return nil, ErrTicketOrderMissing
+	}
+
+	var orderID *uint
 	if orderNo != "" {
 		if s.orders == nil {
 			return nil, ErrTicketOrderInvalid
@@ -93,12 +114,14 @@ func (s *Service) Create(input CreateInput) (*ticketdomain.Ticket, error) {
 	}
 
 	ticket := &ticketdomain.Ticket{
-		TicketNo: serial.Generate("TK"),
-		UserID:   input.UserID,
-		OrderID:  orderID,
-		Title:    title,
-		Priority: priority,
-		Status:   ticketdomain.StatusOpen,
+		TicketNo:   serial.Generate("TK"),
+		UserID:     input.UserID,
+		OrderID:    orderID,
+		TicketType: ticketType,
+		ProductID:  input.ProductID,
+		Title:      title,
+		Priority:   priority,
+		Status:     ticketdomain.StatusOpen,
 	}
 	message := &ticketdomain.TicketMessage{
 		SenderType: ticketdomain.SenderUser,

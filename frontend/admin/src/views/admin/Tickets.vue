@@ -110,6 +110,13 @@ const handleBatchDelete = async () => {
   }
 }
 
+const typeLabel = (type?: string) =>
+  type === 'pre_sale' ? t('admin.tickets.type.preSale') : t('admin.tickets.type.afterSale')
+const typeClass = (type?: string) => {
+  if (type === 'pre_sale') return 'text-sky-700 border-sky-200 bg-sky-50'
+  return 'text-violet-700 border-violet-200 bg-violet-50'
+}
+
 const statusLabel = (status: string) => {
   const map: Record<string, string> = {
     open: t('admin.tickets.status.open'),
@@ -293,6 +300,7 @@ onMounted(() => {
             <TableHead v-if="batchMode" class="w-10"></TableHead>
             <TableHead>{{ t('admin.tickets.columns.ticketNo') }}</TableHead>
             <TableHead>{{ t('admin.tickets.columns.title') }}</TableHead>
+            <TableHead>{{ t('admin.tickets.columns.type') }}</TableHead>
             <TableHead>{{ t('admin.tickets.columns.user') }}</TableHead>
             <TableHead>{{ t('admin.tickets.columns.priority') }}</TableHead>
             <TableHead>{{ t('admin.tickets.columns.status') }}</TableHead>
@@ -302,7 +310,7 @@ onMounted(() => {
         </TableHeader>
         <TableBody>
           <TableRow v-if="tickets.length === 0">
-            <TableCell :colspan="batchMode ? 8 : 7" class="text-center text-sm text-muted-foreground py-8">
+            <TableCell :colspan="batchMode ? 9 : 8" class="text-center text-sm text-muted-foreground py-8">
               {{ t('admin.tickets.empty') }}
             </TableCell>
           </TableRow>
@@ -312,6 +320,11 @@ onMounted(() => {
             </TableCell>
             <TableCell class="font-mono text-xs">{{ ticket.ticket_no }}</TableCell>
             <TableCell class="max-w-xs truncate">{{ ticket.title }}</TableCell>
+            <TableCell>
+              <span class="inline-flex rounded-full border px-2 py-0.5 text-xs" :class="typeClass(ticket.ticket_type)">
+                {{ typeLabel(ticket.ticket_type) }}
+              </span>
+            </TableCell>
             <TableCell class="text-sm">{{ ticket.user_display_name || ticket.user_email || `#${ticket.user_id}` }}</TableCell>
             <TableCell><span class="inline-flex rounded-full border px-2 py-0.5 text-xs" :class="priorityClass(ticket.priority)">{{ priorityLabel(ticket.priority) }}</span></TableCell>
             <TableCell><span class="inline-flex rounded-full border px-2 py-0.5 text-xs" :class="statusClass(ticket.status)">{{ statusLabel(ticket.status) }}</span></TableCell>
@@ -347,6 +360,10 @@ onMounted(() => {
             <div><span class="text-muted-foreground">{{ t('admin.tickets.columns.title') }}：</span>{{ detail.title }}</div>
             <div><span class="text-muted-foreground">{{ t('admin.tickets.columns.user') }}：</span>{{ detail.user_display_name || detail.user_email || `#${detail.user_id}` }}</div>
             <div>
+              <span class="text-muted-foreground">{{ t('admin.tickets.columns.type') }}：</span>
+              <span class="inline-flex rounded-full border px-2 py-0.5 text-xs" :class="typeClass(detail.ticket_type)">{{ typeLabel(detail.ticket_type) }}</span>
+            </div>
+            <div>
               <span class="text-muted-foreground">{{ t('admin.tickets.columns.priority') }}：</span>
               <span class="inline-flex rounded-full border px-2 py-0.5 text-xs" :class="priorityClass(detail.priority)">{{ priorityLabel(detail.priority) }}</span>
             </div>
@@ -355,6 +372,7 @@ onMounted(() => {
               <span class="inline-flex rounded-full border px-2 py-0.5 text-xs" :class="statusClass(detail.status)">{{ statusLabel(detail.status) }}</span>
             </div>
             <div v-if="detail.order_id"><span class="text-muted-foreground">{{ t('admin.tickets.relatedOrder') }}：</span>#{{ detail.order_id }}</div>
+            <div v-if="detail.product_id"><span class="text-muted-foreground">{{ t('admin.tickets.relatedProduct') }}：</span>#{{ detail.product_id }}</div>
           </div>
 
           <div class="max-h-80 space-y-3 overflow-y-auto rounded-lg border border-border bg-muted/20 p-4">

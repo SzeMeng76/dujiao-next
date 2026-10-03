@@ -14,6 +14,8 @@ type TicketSummary struct {
 	UserEmail       string    `json:"user_email,omitempty"`
 	UserDisplayName string    `json:"user_display_name,omitempty"`
 	OrderID         *uint     `json:"order_id,omitempty"`
+	TicketType      string    `json:"ticket_type"`
+	ProductID       *uint     `json:"product_id,omitempty"`
 	Title           string    `json:"title"`
 	Priority        string    `json:"priority"`
 	Status          string    `json:"status"`
@@ -40,15 +42,17 @@ type TicketDetail struct {
 // NewTicketSummary 从 ticketdomain.Ticket 构造 TicketSummary。
 func NewTicketSummary(t *ticketdomain.Ticket) TicketSummary {
 	return TicketSummary{
-		ID:        t.ID,
-		TicketNo:  t.TicketNo,
-		UserID:    t.UserID,
-		OrderID:   t.OrderID,
-		Title:     t.Title,
-		Priority:  t.Priority,
-		Status:    t.Status,
-		CreatedAt: t.CreatedAt,
-		UpdatedAt: t.UpdatedAt,
+		ID:         t.ID,
+		TicketNo:   t.TicketNo,
+		UserID:     t.UserID,
+		OrderID:    t.OrderID,
+		TicketType: t.TicketType,
+		ProductID:  t.ProductID,
+		Title:      t.Title,
+		Priority:   t.Priority,
+		Status:     t.Status,
+		CreatedAt:  t.CreatedAt,
+		UpdatedAt:  t.UpdatedAt,
 	}
 }
 

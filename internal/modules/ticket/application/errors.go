@@ -10,4 +10,6 @@ var (
 	ErrTicketNotClosed    = errors.New("ticket is not closed")
 	ErrTicketPriorityBad  = errors.New("ticket priority invalid")
 	ErrTicketOrderInvalid = errors.New("ticket order invalid or not owned by user")
+	ErrTicketTypeBad      = errors.New("ticket type invalid")
+	ErrTicketOrderMissing = errors.New("ticket order is required for after-sale support")
 )

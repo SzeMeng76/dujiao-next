@@ -204,6 +204,10 @@ export interface AdminTicket {
   user_email?: string
   user_display_name?: string
   order_id?: number
+  /** 服务类型：售前咨询 / 售后支持（历史工单为 after_sale 兼容值） */
+  ticket_type?: 'pre_sale' | 'after_sale' | string
+  /** 关联商品 ID（售前咨询常见） */
+  product_id?: number
   title: string
   priority: 'low' | 'normal' | 'high'
   status: 'open' | 'replied' | 'closed'
