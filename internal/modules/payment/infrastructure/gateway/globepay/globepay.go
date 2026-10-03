@@ -117,9 +117,13 @@ func CreatePayment(ctx context.Context, cfg *Config, input CreateInput) (*Create
 	query := fmt.Sprintf("?time=%d&nonce_str=%s&sign=%s", timestamp, nonceStr, sign)
 
 	channelType := strings.ToLower(input.ChannelType)
+	price, err := parseAmountToCents(input.Amount)
+	if err != nil {
+		return nil, fmt.Errorf("%w: invalid amount: %v", ErrConfigInvalid, err)
+	}
 	params := map[string]interface{}{
 		"description": input.Subject,
-		"price":       parseAmountToCents(input.Amount),
+		"price":       price,
 		"currency":    "CNY",
 		"notify_url":  input.NotifyURL,
 	}
@@ -147,7 +151,11 @@ func CreatePayment(ctx context.Context, cfg *Config, input CreateInput) (*Create
 		if err != nil {
 			return nil, fmt.Errorf("%w: currency exchange failed: %v", ErrRequestFailed, err)
 		}
-		params["price"] = parseAmountToCents(gbpAmount)
+		gbpPrice, err := parseAmountToCents(gbpAmount)
+		if err != nil {
+			return nil, fmt.Errorf("%w: invalid converted amount: %v", ErrRequestFailed, err)
+		}
+		params["price"] = gbpPrice
 		params["currency"] = "GBP"
 		params["channel"] = "AlipayPlus"
 		params["extra"] = map[string]string{"payType": strings.ToUpper(channelType)}
@@ -229,10 +237,24 @@ func randString(length int) string {
 	return string(result)
 }
 
-func parseAmountToCents(amountStr string) int {
-	var amount float64
-	fmt.Sscanf(strings.TrimSpace(amountStr), "%f", &amount)
-	return int(amount * 100)
+func parseAmountToCents(amountStr string) (int, error) {
+	amount, err := decimal.NewFromString(strings.TrimSpace(amountStr))
+	if err != nil {
+		return 0, fmt.Errorf("parse amount %q: %w", amountStr, err)
+	}
+	if amount.IsNegative() {
+		return 0, fmt.Errorf("amount must not be negative")
+	}
+
+	cents := amount.Mul(decimal.NewFromInt(100)).Round(0)
+	if !cents.IsInteger() {
+		return 0, fmt.Errorf("amount cannot be represented as cents")
+	}
+	centsInt64 := cents.IntPart()
+	if int64(int(centsInt64)) != centsInt64 {
+		return 0, fmt.Errorf("amount exceeds integer range")
+	}
+	return int(centsInt64), nil
 }
 
 func sendRequest(ctx context.Context, url string, params map[string]interface{}) (*APIResponse, error) {
