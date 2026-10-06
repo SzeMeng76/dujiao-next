@@ -177,6 +177,7 @@ type childOrderPlan struct {
 	Product           *productdomain.Product
 	SKU               *productdomain.ProductSKU
 	Item              orderdomain.OrderItem
+	BaseUnitPrice     decimal.Decimal
 	TotalAmount       decimal.Decimal
 	MemberDiscount    decimal.Decimal
 	PromotionDiscount decimal.Decimal

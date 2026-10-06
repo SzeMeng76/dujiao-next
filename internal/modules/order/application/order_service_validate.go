@@ -82,7 +82,7 @@ func (s *OrderService) buildOrderResult(input orderCreateParams) (*orderBuildRes
 	}
 
 	var promotionService *promotionapp.Service
-	if !resellerOrder {
+	if s.promotionRepo != nil {
 		promotionService = promotionapp.NewService(s.promotionRepo)
 	}
 	manualFormData := input.ManualFormData
@@ -148,9 +148,7 @@ func (s *OrderService) buildOrderResult(input orderCreateParams) (*orderBuildRes
 		var wholesaleUnitPrice decimal.Decimal
 		wholesaleDiscount := decimal.Zero
 		wholesaleMatched := false
-		if !resellerOrder {
-			wholesaleUnitPrice, wholesaleDiscount, wholesaleMatched = productdomain.ResolveWholesaleUnitPriceForSKU(product, basePrice, sku.ID, sku.SKUCode, wholesaleMatchQuantity, item.Quantity)
-		}
+		wholesaleUnitPrice, wholesaleDiscount, wholesaleMatched = productdomain.ResolveWholesaleUnitPriceForSKU(product, basePrice, sku.ID, sku.SKUCode, wholesaleMatchQuantity, item.Quantity)
 		if wholesaleMatched && wholesaleUnitPrice.LessThan(unitPriceAmount) {
 			unitPriceAmount = wholesaleUnitPrice
 			promotion = nil
@@ -267,6 +265,7 @@ func (s *OrderService) buildOrderResult(input orderCreateParams) (*orderBuildRes
 			Product:           product,
 			SKU:               sku,
 			Item:              orderItem,
+			BaseUnitPrice:     unitPriceAmount,
 			TotalAmount:       total,
 			MemberDiscount:    itemMemberDiscount,
 			PromotionDiscount: promotionDiscount,

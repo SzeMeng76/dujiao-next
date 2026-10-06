@@ -122,7 +122,7 @@ func newOrderResellerSnapshotFixture(t *testing.T) orderResellerSnapshotFixture 
 		UserID:               owner.ID,
 		Status:               resellerdomain.ProfileStatusActive,
 		DefaultMarkupPercent: money.FromDecimal(decimal.NewFromInt(20)),
-		MaxMarkupPercent:     money.FromDecimal(decimal.NewFromInt(80)),
+		MaxMarkupPercent:     money.FromDecimal(decimal.NewFromInt(200)),
 	}
 	if err := db.Create(&profile).Error; err != nil {
 		t.Fatalf("create profile failed: %v", err)
@@ -317,7 +317,7 @@ func TestCreateOrderResellerWritesSnapshotAndTenantFields(t *testing.T) {
 	if order.ResellerDomain != "primary.example.test" {
 		t.Fatalf("parent reseller domain mismatch: %q", order.ResellerDomain)
 	}
-	if !order.TotalAmount.Decimal.Equal(decimal.NewFromInt(130)) || !order.ResellerProfitAmount.Decimal.Equal(decimal.NewFromInt(30)) {
+	if !order.TotalAmount.Decimal.Equal(decimal.NewFromInt(130)) || !order.ResellerProfitAmount.Decimal.Equal(decimal.NewFromInt(70)) {
 		t.Fatalf("parent amounts mismatch total=%s profit=%s", order.TotalAmount.String(), order.ResellerProfitAmount.String())
 	}
 	if order.AffiliateProfileID != nil || order.AffiliateCode != "" {
@@ -330,7 +330,7 @@ func TestCreateOrderResellerWritesSnapshotAndTenantFields(t *testing.T) {
 	if child.ResellerID == nil || *child.ResellerID != f.profile.ID || child.ResellerDomain != "primary.example.test" {
 		t.Fatalf("child reseller fields mismatch: %+v domain=%q", child.ResellerID, child.ResellerDomain)
 	}
-	if !child.TotalAmount.Decimal.Equal(decimal.NewFromInt(130)) || !child.ResellerProfitAmount.Decimal.Equal(decimal.NewFromInt(30)) {
+	if !child.TotalAmount.Decimal.Equal(decimal.NewFromInt(130)) || !child.ResellerProfitAmount.Decimal.Equal(decimal.NewFromInt(70)) {
 		t.Fatalf("child amounts mismatch total=%s profit=%s", child.TotalAmount.String(), child.ResellerProfitAmount.String())
 	}
 	if len(child.Items) != 1 {
@@ -350,7 +350,7 @@ func TestCreateOrderResellerWritesSnapshotAndTenantFields(t *testing.T) {
 	if snapshot.Currency != order.Currency || snapshot.ResellerUserID != f.owner.ID || snapshot.BuyerUserID != f.buyer.ID {
 		t.Fatalf("snapshot identity mismatch: %+v", snapshot)
 	}
-	if !snapshot.BaseAmount.Decimal.Equal(decimal.NewFromInt(100)) || !snapshot.ResellerAmount.Decimal.Equal(decimal.NewFromInt(130)) || !snapshot.ProfitAmount.Decimal.Equal(decimal.NewFromInt(30)) {
+	if !snapshot.BaseAmount.Decimal.Equal(decimal.NewFromInt(60)) || !snapshot.ResellerAmount.Decimal.Equal(decimal.NewFromInt(130)) || !snapshot.ProfitAmount.Decimal.Equal(decimal.NewFromInt(70)) {
 		t.Fatalf("snapshot amounts mismatch base=%s reseller=%s profit=%s", snapshot.BaseAmount.String(), snapshot.ResellerAmount.String(), snapshot.ProfitAmount.String())
 	}
 	if !snapshot.ProfitEligible || snapshot.ProfitBlockReason != "" {
@@ -396,7 +396,7 @@ func TestCreateOrderResellerRuntimePricesMatchPreviewAndSnapshotAcrossRuleSource
 	if order.TotalAmount.String() != preview.TotalAmount.String() {
 		t.Fatalf("order total should match preview total, order=%s preview=%s", order.TotalAmount.String(), preview.TotalAmount.String())
 	}
-	if order.ResellerProfitAmount.String() != "90.00" {
+	if order.ResellerProfitAmount.String() != "130.00" {
 		t.Fatalf("parent reseller profit mismatch: %s", order.ResellerProfitAmount.String())
 	}
 	if len(order.Children) != 3 {
@@ -410,7 +410,7 @@ func TestCreateOrderResellerRuntimePricesMatchPreviewAndSnapshotAcrossRuleSource
 	if snapshot == nil {
 		t.Fatal("expected reseller order snapshot")
 	}
-	if snapshot.BaseAmount.String() != "310.00" || snapshot.ResellerAmount.String() != "400.00" || snapshot.ProfitAmount.String() != "90.00" {
+	if snapshot.BaseAmount.String() != "270.00" || snapshot.ResellerAmount.String() != "400.00" || snapshot.ProfitAmount.String() != "130.00" {
 		t.Fatalf("snapshot totals mismatch base=%s reseller=%s profit=%s", snapshot.BaseAmount.String(), snapshot.ResellerAmount.String(), snapshot.ProfitAmount.String())
 	}
 	items, ok := snapshot.PricingSnapshotJSON["items"].([]interface{})
@@ -503,7 +503,7 @@ func TestCreateOrderResellerOwnerSelfDealingWritesZeroEffectiveProfit(t *testing
 	if snapshot == nil || snapshot.ProfitEligible || snapshot.ProfitBlockReason != "self_dealing_owner" {
 		t.Fatalf("expected owner self-dealing snapshot, got %+v", snapshot)
 	}
-	if !snapshot.ProfitAmount.Decimal.Equal(decimal.NewFromInt(30)) {
+	if !snapshot.ProfitAmount.Decimal.Equal(decimal.NewFromInt(70)) {
 		t.Fatalf("snapshot should keep calculated blocked profit, got %s", snapshot.ProfitAmount.String())
 	}
 }

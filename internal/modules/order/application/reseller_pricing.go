@@ -78,7 +78,10 @@ func (r *ResellerPricingResolver) ApplyToOrderBuildResult(tenant resellercontrac
 			return nil, ErrResellerProductNotListed
 		}
 
-		baseUnit := plan.SKU.PriceAmount.Decimal.Round(2)
+		baseUnit := plan.BaseUnitPrice.Round(2)
+		if baseUnit.LessThanOrEqual(decimal.Zero) {
+			baseUnit = plan.SKU.PriceAmount.Decimal.Round(2)
+		}
 		resellerUnit, rule, err := resolveResellerUnitAmount(profile, productSetting, skuSetting, baseUnit)
 		if err != nil {
 			return nil, err
