@@ -140,6 +140,45 @@ func TestResellerPricingResolverMainTenantNoop(t *testing.T) {
 	}
 }
 
+// 主站活动价/批发价只影响分销商的成本基准（利润），不影响分销对客售价：
+// 售价始终按商品/SKU 原价套用分销商自己的加价规则。
+func TestResellerPricingResolverUsesOriginalPriceForSaleAndEffectivePriceForProfit(t *testing.T) {
+	repo := &resellerPricingRepoStub{profile: testResellerProfile(), related: map[uint]bool{}}
+	resolver := NewResellerPricingResolver(repo)
+	result := testOrderBuildResult(struct {
+		productID uint
+		skuID     uint
+		base      decimal.Decimal
+		cost      decimal.Decimal
+		quantity  int
+	}{productID: 1, skuID: 11, base: decimal.NewFromInt(100), cost: decimal.NewFromInt(50), quantity: 2})
+	// 模拟主站活动价/批发价命中：有效单价 60（原价 100）。
+	result.Plans[0].BaseUnitPrice = decimal.NewFromInt(60)
+
+	ctx, err := resolver.ApplyToOrderBuildResult(testResellerTenant(), 123, result)
+	if err != nil {
+		t.Fatalf("ApplyToOrderBuildResult failed: %v", err)
+	}
+	// profile 默认加价 20%：售价 = 原价 100 * 1.2 = 120，而不是 60 * 1.2 = 72。
+	item := ctx.Items[0]
+	if item.ResellerUnitAmount.StringFixed(2) != "120.00" {
+		t.Fatalf("reseller unit must be marked up from original price, got %s", item.ResellerUnitAmount)
+	}
+	if result.Plans[0].Item.UnitPrice.Decimal.StringFixed(2) != "120.00" {
+		t.Fatalf("order item unit price mismatch: %s", result.Plans[0].Item.UnitPrice.Decimal)
+	}
+	if result.TotalAmount.StringFixed(2) != "240.00" {
+		t.Fatalf("order total mismatch: %s", result.TotalAmount)
+	}
+	// 利润 = 售价 - 活动/批发后的有效成本：(120 - 60) * 2 = 120。
+	if item.BaseUnitAmount.StringFixed(2) != "60.00" || ctx.BaseAmount.StringFixed(2) != "120.00" {
+		t.Fatalf("cost basis must be effective price, got unit=%s total=%s", item.BaseUnitAmount, ctx.BaseAmount)
+	}
+	if ctx.ProfitAmount.StringFixed(2) != "120.00" || item.ProfitAmount.StringFixed(2) != "120.00" {
+		t.Fatalf("profit mismatch ctx=%s item=%s", ctx.ProfitAmount, item.ProfitAmount)
+	}
+}
+
 func TestResellerPricingResolverAppliesPriorityAndDefaultMarkup(t *testing.T) {
 	repo := &resellerPricingRepoStub{
 		profile: testResellerProfile(),

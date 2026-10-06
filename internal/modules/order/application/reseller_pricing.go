@@ -78,19 +78,27 @@ func (r *ResellerPricingResolver) ApplyToOrderBuildResult(tenant resellercontrac
 			return nil, ErrResellerProductNotListed
 		}
 
-		baseUnit := plan.BaseUnitPrice.Round(2)
-		if baseUnit.LessThanOrEqual(decimal.Zero) {
-			baseUnit = plan.SKU.PriceAmount.Decimal.Round(2)
-		}
-		resellerUnit, rule, err := resolveResellerUnitAmount(profile, productSetting, skuSetting, baseUnit)
+		// pricingBaseUnit 是分销商加价/定价规则的基准：商品/SKU 原价，不受主站活动价、
+		// 批发价影响。分销商按自己的规则（百分比加价/固定加价/固定售价）在此基础上定价，
+		// 卖多高是分销商自己的商业决策，不应被主站当前是否打折所左右。
+		pricingBaseUnit := plan.SKU.PriceAmount.Decimal.Round(2)
+		resellerUnit, rule, err := resolveResellerUnitAmount(profile, productSetting, skuSetting, pricingBaseUnit)
 		if err != nil {
 			return nil, err
 		}
-		if err := validateResellerUnitAmount(profile, plan.SKU, baseUnit, resellerUnit); err != nil {
+		if err := validateResellerUnitAmount(profile, plan.SKU, pricingBaseUnit, resellerUnit); err != nil {
 			return nil, err
 		}
+
+		// costBaseUnit 是平台结算给分销商的实际成本基准：主站活动价/批发价之后的有效单价
+		// （plan.BaseUnitPrice），用于计算分销商的真实利润，不展示给买家、不影响成交价。
+		costBaseUnit := plan.BaseUnitPrice.Round(2)
+		if costBaseUnit.LessThanOrEqual(decimal.Zero) {
+			costBaseUnit = pricingBaseUnit
+		}
+
 		quantity := decimal.NewFromInt(int64(plan.Item.Quantity))
-		baseTotal := baseUnit.Mul(quantity).Round(2)
+		baseTotal := costBaseUnit.Mul(quantity).Round(2)
 		resellerTotal := resellerUnit.Mul(quantity).Round(2)
 		profit := resellerTotal.Sub(baseTotal).Round(2)
 
@@ -117,7 +125,7 @@ func (r *ResellerPricingResolver) ApplyToOrderBuildResult(tenant resellercontrac
 			ProductID:           plan.Product.ID,
 			SKUID:               plan.SKU.ID,
 			Quantity:            plan.Item.Quantity,
-			BaseUnitAmount:      baseUnit,
+			BaseUnitAmount:      costBaseUnit,
 			ResellerUnitAmount:  resellerUnit,
 			BaseTotalAmount:     baseTotal,
 			ResellerTotalAmount: resellerTotal,

@@ -122,7 +122,7 @@ func newOrderResellerSnapshotFixture(t *testing.T) orderResellerSnapshotFixture 
 		UserID:               owner.ID,
 		Status:               resellerdomain.ProfileStatusActive,
 		DefaultMarkupPercent: money.FromDecimal(decimal.NewFromInt(20)),
-		MaxMarkupPercent:     money.FromDecimal(decimal.NewFromInt(200)),
+		MaxMarkupPercent:     money.FromDecimal(decimal.NewFromInt(80)),
 	}
 	if err := db.Create(&profile).Error; err != nil {
 		t.Fatalf("create profile failed: %v", err)
