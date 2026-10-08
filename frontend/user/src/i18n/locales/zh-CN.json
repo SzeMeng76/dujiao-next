@@ -1148,6 +1148,8 @@
     "couponRefreshing": "优惠码已更新，正在重新计算...",
     "stockSyncing": "正在同步最新库存，请稍候...",
     "previewFailed": "价格预览失败",
+    "selfDealingTitle": "检测到分销商自买订单",
+    "selfDealingMessage": "您正在使用分销商账号购买自己的商品，已自动调整为成本价，不计入分销利润。",
     "paymentMethod": "支付方式",
     "noPaymentChannels": "暂无可用的支付方式",
     "channelAmountLimitHint": "该渠道需满足金额大于{min} 或小于{max}",

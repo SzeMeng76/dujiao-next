@@ -301,6 +301,8 @@ type OrderPreview struct {
 	WholesaleDiscountAmount money.Amount       `json:"wholesale_discount_amount"`
 	TotalAmount             money.Amount       `json:"total_amount"`
 	Items                   []OrderPreviewItem `json:"items"`
+	IsSelfDealing           bool               `json:"is_self_dealing,omitempty"`
+	SelfDealingReason       string             `json:"self_dealing_reason,omitempty"`
 }
 
 // OrderPreviewItem 订单项金额预览
@@ -386,8 +388,10 @@ func (s *OrderService) previewOrder(input orderCreateParams) (*OrderPreview, err
 	if err != nil {
 		return nil, err
 	}
+	var resellerCtx *resellercontract.OrderPricingContext
 	if s.resellerPricingResolver != nil {
-		if _, err := s.resellerPricingResolver.ApplyToOrderBuildResult(input.Tenant, input.UserID, result); err != nil {
+		resellerCtx, err = s.resellerPricingResolver.ApplyToOrderBuildResult(input.Tenant, input.UserID, result)
+		if err != nil {
 			return nil, err
 		}
 	} else if isResellerOrderContext(input.Tenant) {
@@ -414,7 +418,7 @@ func (s *OrderService) previewOrder(input orderCreateParams) (*OrderPreview, err
 			FulfillmentType:    item.FulfillmentType,
 		})
 	}
-	return &OrderPreview{
+	preview := &OrderPreview{
 		Currency:                result.Currency,
 		OriginalAmount:          money.FromDecimal(result.OriginalAmount),
 		MemberDiscountAmount:    money.FromDecimal(result.MemberDiscountAmount),
@@ -423,7 +427,13 @@ func (s *OrderService) previewOrder(input orderCreateParams) (*OrderPreview, err
 		WholesaleDiscountAmount: money.FromDecimal(result.WholesaleDiscountAmount),
 		TotalAmount:             money.FromDecimal(result.TotalAmount),
 		Items:                   items,
-	}, nil
+	}
+	// 填充自买信息
+	if resellerCtx != nil && !resellerCtx.ProfitEligible {
+		preview.IsSelfDealing = true
+		preview.SelfDealingReason = resellerCtx.ProfitBlockReason
+	}
+	return preview, nil
 }
 
 func (s *OrderService) createOrder(input orderCreateParams) (*orderdomain.Order, error) {

@@ -1195,6 +1195,8 @@
     "couponRefreshing": "Coupon updated, recalculating...",
     "stockSyncing": "Syncing latest stock, please wait...",
     "previewFailed": "Failed to preview price",
+    "selfDealingTitle": "Reseller Self-Purchase Detected",
+    "selfDealingMessage": "You are purchasing from your own reseller store. The price has been automatically adjusted to cost price and will not generate reseller profit.",
     "paymentMethod": "Payment Method",
     "noPaymentChannels": "No payment methods available",
     "channelAmountLimitHint": "This channel requires amount greater than {min} or less than {max}",

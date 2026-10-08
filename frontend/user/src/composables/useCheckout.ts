@@ -240,6 +240,8 @@ export function useCheckout() {
   const previewMemberDiscount = computed(() => preview.value?.member_discount_amount ?? '0')
   const previewTotal = computed(() => preview.value?.total_amount ?? totalAmount.value)
   const checkoutItemCurrency = computed(() => previewCurrency.value)
+  const isSelfDealingOrder = computed(() => preview.value?.is_self_dealing === true)
+  const selfDealingReason = computed(() => preview.value?.self_dealing_reason || '')
 
   const previewItemsByKey = computed(() => {
     const map = new Map<string, any>()
@@ -1158,6 +1160,8 @@ export function useCheckout() {
     hasPositiveAmount,
     formatDiscountPrice,
     checkoutAlert,
+    isSelfDealingOrder,
+    selfDealingReason,
     // wallet / balance
     showBalanceOption,
     walletLoading,

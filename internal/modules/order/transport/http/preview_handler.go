@@ -149,6 +149,8 @@ type OrderPreview struct {
 	WholesaleDiscountAmount money.Amount       `json:"wholesale_discount_amount"`
 	TotalAmount             money.Amount       `json:"total_amount"`
 	Items                   []OrderPreviewItem `json:"items"`
+	IsSelfDealing           bool               `json:"is_self_dealing,omitempty"`
+	SelfDealingReason       string             `json:"self_dealing_reason,omitempty"`
 }
 
 // OrderPreviewItem 订单项金额预览。

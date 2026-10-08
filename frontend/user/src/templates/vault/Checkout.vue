@@ -134,6 +134,18 @@
         </div>
 
         <div v-if="previewLoading || couponRefreshing" class="mt-3 text-xs text-muted-foreground">{{ previewStatusText }}</div>
+
+        <!-- Self-Dealing Warning -->
+        <div v-if="isSelfDealingOrder" class="mt-3.5 rounded-sm border border-amber-500/50 bg-amber-500/10 px-3 py-2.5 text-[13px]">
+          <div class="flex items-start gap-2">
+            <span class="text-base">⚠️</span>
+            <div class="text-amber-700 dark:text-amber-300">
+              <div class="font-bold mb-0.5">{{ t('checkout.selfDealingTitle') }}</div>
+              <div>{{ t('checkout.selfDealingMessage') }}</div>
+            </div>
+          </div>
+        </div>
+
         <div v-if="checkoutAlert" class="mt-3.5 rounded-sm px-3 py-2.5 text-[13px] font-semibold" :class="checkoutAlert.level === 'error' ? 'bg-destructive/10 text-destructive' : 'bg-warning/10 text-warning'">{{ checkoutAlert.message }}</div>
 
         <!-- 支付方式 -->
@@ -223,6 +235,7 @@ const {
   guestImageCaptchaRef, guestTurnstileRef, handleGuestCaptchaConfigStale,
   previewCurrency, previewOriginal, previewCoupon, previewPromotion, previewWholesale, previewMemberDiscount, previewTotal,
   previewLoading, couponRefreshing, previewStatusText, hasPositiveAmount, formatDiscountPrice, checkoutAlert,
+  isSelfDealingOrder,
   showBalanceOption, walletLoading, walletBalance, useBalance, walletOnlyPayment,
   expectedWalletPaidDisplay, expectedOnlinePayDisplay, expectedOnlinePayCents,
   requiresOnlineChannel, paymentChannels, selectedChannelId, isChannelDisabledForAmount, channelAmountLimitHint,

@@ -226,6 +226,20 @@
           <div v-if="previewLoading || couponRefreshing" class="mb-3 text-xs text-muted-foreground">
             {{ previewStatusText }}
           </div>
+
+          <!-- Self-Dealing Warning -->
+          <Alert v-if="isSelfDealingOrder" variant="default" class="mb-4 border-amber-500/50 bg-amber-500/10">
+            <AlertDescription class="text-amber-700 dark:text-amber-300">
+              <div class="flex items-start gap-2">
+                <span class="text-base">⚠️</span>
+                <div>
+                  <div class="font-semibold mb-1">{{ t('checkout.selfDealingTitle') }}</div>
+                  <div class="text-sm">{{ t('checkout.selfDealingMessage') }}</div>
+                </div>
+              </div>
+            </AlertDescription>
+          </Alert>
+
           <Alert
             v-if="checkoutAlert"
             :variant="pageAlertVariant(checkoutAlert.level)"
@@ -338,6 +352,7 @@ const {
   guestImageCaptchaRef, guestTurnstileRef, handleGuestCaptchaConfigStale,
   previewCurrency, previewOriginal, previewCoupon, previewPromotion, previewWholesale, previewMemberDiscount, previewTotal,
   previewLoading, couponRefreshing, previewStatusText, hasPositiveAmount, formatDiscountPrice, checkoutAlert,
+  isSelfDealingOrder,
   showBalanceOption, walletLoading, walletBalance, useBalance, walletOnlyPayment,
   expectedWalletPaidDisplay, expectedOnlinePayDisplay, expectedOnlinePayCents,
   requiresOnlineChannel, paymentChannels, selectedChannelId, isChannelDisabledForAmount, channelAmountLimitHint,
