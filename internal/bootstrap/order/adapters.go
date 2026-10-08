@@ -493,6 +493,8 @@ func mapOrderPreview(preview *orderapp.OrderPreview) *ordertransport.OrderPrevie
 		WholesaleDiscountAmount: preview.WholesaleDiscountAmount,
 		TotalAmount:             preview.TotalAmount,
 		Items:                   items,
+		IsSelfDealing:           preview.IsSelfDealing,
+		SelfDealingReason:       preview.SelfDealingReason,
 	}
 }
 
