@@ -157,6 +157,32 @@ func (r *ResellerPricingResolver) ApplyToOrderBuildResult(tenant resellercontrac
 		ctx.EffectiveProfit = ctx.ProfitAmount
 	} else {
 		ctx.EffectiveProfit = decimal.Zero
+		// 自买订单：同步调整订单计划价格为成本价
+		if ctx.ProfitBlockReason == resellercontract.ProfitBlockOwner || ctx.ProfitBlockReason == resellercontract.ProfitBlockRelatedAccount {
+			for i := range result.Plans {
+				if i >= len(ctx.Items) {
+					break
+				}
+				plan := &result.Plans[i]
+				item := &ctx.Items[i]
+				costUnit := item.BaseUnitAmount
+				quantity := decimal.NewFromInt(int64(plan.Item.Quantity))
+				costTotal := costUnit.Mul(quantity).Round(2)
+
+				plan.TotalAmount = costTotal
+				plan.Item.OriginalUnitPrice = money.FromDecimal(costUnit)
+				plan.Item.UnitPrice = money.FromDecimal(costUnit)
+				plan.Item.OriginalTotalPrice = money.FromDecimal(costTotal)
+				plan.Item.TotalPrice = money.FromDecimal(costTotal)
+			}
+			// 重新计算订单总金额
+			result.OriginalAmount = decimal.Zero
+			result.TotalAmount = decimal.Zero
+			for _, plan := range result.Plans {
+				result.OriginalAmount = result.OriginalAmount.Add(plan.TotalAmount).Round(2)
+				result.TotalAmount = result.TotalAmount.Add(plan.TotalAmount.Sub(plan.CouponDiscount)).Round(2)
+			}
+		}
 	}
 	ctx.PricingSnapshot = ctx.BuildPricingSnapshotJSON()
 	ctx.RiskSnapshot = ctx.BuildRiskSnapshotJSON()

@@ -190,6 +190,8 @@ func BuildSettingIndexes(settings []resellerdomain.ProductSetting) (map[uint]*re
 
 // ApplySelfDealingRisk 根据买家与分销商关系标记利润是否可结算。
 // relatedAccountMatch 由调用方完成关联账号查询后传入，避免用例依赖仓储。
+// 当检测到自买时，调整实际成交价为成本价，避免分销商为测试多付费用。
+// 注意：快照中的 ProfitAmount 保留理论利润用于统计分析，ResellerAmount 调整为成本价用于实际收费。
 func ApplySelfDealingRisk(ctx *OrderPricingContext, profile *resellerdomain.Profile, relatedAccountMatch bool) {
 	if ctx == nil || profile == nil {
 		return
@@ -205,6 +207,18 @@ func ApplySelfDealingRisk(ctx *OrderPricingContext, profile *resellerdomain.Prof
 		ctx.ProfitEligible = false
 		ctx.ProfitBlockReason = ProfitBlockRelatedAccount
 	}
+
+	// 自买检测：调整实际成交价为成本价，避免分销商付分销价但不获利润的不公平情况
+	// 保留 ProfitAmount（理论利润）在快照中用于统计，但调整 ResellerAmount 用于实际收费
+	if ownerMatch || relatedMatch {
+		ctx.ResellerAmount = ctx.BaseAmount
+		for i := range ctx.Items {
+			ctx.Items[i].ResellerUnitAmount = ctx.Items[i].BaseUnitAmount
+			ctx.Items[i].ResellerTotalAmount = ctx.Items[i].BaseTotalAmount
+			// 注意：保留 ctx.Items[i].ProfitAmount 用于快照统计
+		}
+	}
+
 	ctx.RiskSnapshot = jsonmap.JSON{
 		"buyer_user_id":         ctx.BuyerUserID,
 		"reseller_user_id":      ctx.ResellerUserID,
