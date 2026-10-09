@@ -173,9 +173,10 @@ func registerStorefrontRoutes(
 	}
 }
 
-func registerPaymentCallbackRoutes(apiV1 *gin.RouterGroup, callbackHandler *paymentcallbacktransport.Handler, webhookHandler *paymenttransport.WebhookHandler, epayRedirectHandler *paymenttransport.EpayRedirectHandler, redisClient *redis.Client, callbackRule middleware.RateLimitRule) {
+func registerPaymentCallbackRoutes(apiV1 *gin.RouterGroup, callbackHandler *paymentcallbacktransport.Handler, webhookHandler *paymenttransport.WebhookHandler, writeHandler *paymenttransport.WriteHandler, epayRedirectHandler *paymenttransport.EpayRedirectHandler, redisClient *redis.Client, callbackRule middleware.RateLimitRule) {
 	callbacks := apiV1.Group("", middleware.RateLimitMiddleware(redisClient, callbackRule, middleware.KeyByIP))
 	paymentcallbacktransport.RegisterRoutes(callbacks, callbackHandler)
 	paymenttransport.RegisterWebhookRoutes(callbacks, webhookHandler)
+	paymenttransport.RegisterRedirectRoutes(callbacks, writeHandler)
 	paymenttransport.RegisterEpayRedirectRoute(callbacks, epayRedirectHandler)
 }
