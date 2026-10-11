@@ -51,6 +51,14 @@ func BuildTestVariables(scene, locale string) map[string]interface{} {
 			"fulfillment_items_summary": buildNotificationTestFulfillmentItems(locale),
 			"delivery_summary":          BuildDeliverySummary(locale, OrderItemCounts{Total: 2, Auto: 1, Manual: 1}),
 		}
+	case constants.NotificationEventRestockSuccess:
+		return map[string]interface{}{
+			"product_id":      "123",
+			"product_title":   localizedNotificationText(locale, "Netflix 年付", "Netflix 年付", "Netflix Annual"),
+			"product_slug":    "netflix-annual",
+			"stock_added":     "10",
+			"stock_available": "15",
+		}
 	case constants.NotificationEventManualFulfillmentPending:
 		return map[string]interface{}{
 			"customer_label":            localizedNotificationText(locale, "张三 <zhangsan@example.com>", "張三 <zhangsan@example.com>", "Alex Zhang <zhangsan@example.com>"),
