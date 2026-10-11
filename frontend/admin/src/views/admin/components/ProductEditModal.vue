@@ -37,6 +37,7 @@ const { t, locale } = useI18n()
 const { translating, translateFields } = useAutoTranslate()
 const submitting = ref(false)
 const isEditing = ref(false)
+const originalManualStockTotal = ref<number | null>(null)
 const paymentChannels = ref<AdminPaymentChannel[]>([])
 const editingIsMapped = ref(false)
 const initialCategoryID = ref<number | null>(null)
@@ -98,6 +99,8 @@ type SKUFormItem = {
   price_amount: number
   cost_price_amount: number
   manual_stock_total: number
+  // 打开编辑框时的库存；保存时未改动则不提交，后端保留期间被下单预占后的实时库存
+  original_manual_stock_total: number | null
   is_active: boolean
   sort_order: number
 }
@@ -150,6 +153,7 @@ const createSKUFormItem = (raw?: Partial<AdminProductSKU>): SKUFormItem => ({
   price_amount: Number(raw?.price_amount || 0),
   cost_price_amount: Number(raw?.cost_price_amount || 0),
   manual_stock_total: toSafeStockTotal(raw?.manual_stock_total),
+  original_manual_stock_total: raw?.id ? toSafeStockTotal(raw?.manual_stock_total) : null,
   is_active: raw?.is_active ?? true,
   sort_order: Number(raw?.sort_order || 0),
 })
@@ -489,6 +493,7 @@ const normalizeSKUsForSubmit = () => {
 
     const isActive = Boolean(item.is_active)
     const manualStockTotal = form.fulfillment_type === 'manual' ? toSafeStockTotal(item.manual_stock_total) : 0
+    const stockUnchanged = item.id > 0 && form.fulfillment_type === 'manual' && manualStockTotal === item.original_manual_stock_total
     const specValues = normalizeSpecValues(item.spec_values)
 
     return {
@@ -497,7 +502,7 @@ const normalizeSKUsForSubmit = () => {
       spec_values: specValues,
       price_amount: priceAmount,
       cost_price_amount: Number(item.cost_price_amount) || 0,
-      manual_stock_total: manualStockTotal,
+      manual_stock_total: stockUnchanged ? undefined : manualStockTotal,
       is_active: isActive,
       sort_order: Number(item.sort_order) || 0,
     }
@@ -515,6 +520,7 @@ const isTextLikeField = (fieldType: string) => {
 
 const resetForm = () => {
   initialCategoryID.value = null
+  originalManualStockTotal.value = null
   Object.assign(form, {
     id: 0,
     title: { 'zh-CN': '', 'zh-TW': '', 'en-US': '' },
@@ -545,6 +551,7 @@ const resetForm = () => {
 
 const populateForm = (product: AdminProduct) => {
   initialCategoryID.value = Number(product.category_id || 0) || null
+  originalManualStockTotal.value = resolveManualStockMetrics(product).total
   let imagesList: string[] = []
   if (product.images) {
     if (Array.isArray(product.images)) {
@@ -629,12 +636,15 @@ const handleSubmit = async () => {
     const effectiveManualStockTotal = normalizedSKUs.length
       ? (() => {
           const activeRows = normalizedSKUs.filter((item) => item.is_active)
-          if (activeRows.some((item) => toSafeStockTotal(item.manual_stock_total) === -1)) {
+          const stockOf = (item: (typeof activeRows)[number]) =>
+            toSafeStockTotal(item.manual_stock_total ?? form.skus.find((sku) => sku.id === item.id)?.original_manual_stock_total)
+          if (activeRows.some((item) => stockOf(item) === -1)) {
             return -1
           }
-          return activeRows.reduce((sum, item) => sum + toSafeStockTotal(item.manual_stock_total), 0)
+          return activeRows.reduce((sum, item) => sum + stockOf(item), 0)
         })()
       : toSafeStockTotal(form.manual_stock_total)
+    const productStockUnchanged = isEditing.value && !normalizedSKUs.length && effectiveManualStockTotal === originalManualStockTotal.value
 
     const payload = {
       slug: String(form.slug || '').trim(),
@@ -653,7 +663,7 @@ const handleSubmit = async () => {
       max_purchase_quantity: maxPurchaseQuantityValue,
       stock_display_mode: form.stock_display_mode,
       fulfillment_type: form.fulfillment_type,
-      manual_stock_total: effectiveManualStockTotal,
+      manual_stock_total: productStockUnchanged ? undefined : effectiveManualStockTotal,
       skus: normalizedSKUs,
       payment_channel_ids: form.payment_channel_ids.length > 0 ? form.payment_channel_ids : [],
       is_affiliate_enabled: form.is_affiliate_enabled,
