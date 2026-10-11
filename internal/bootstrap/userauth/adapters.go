@@ -651,6 +651,7 @@ func mapUserAuthTransportError(err error) error {
 		target error
 	}{
 		{userauthapp.ErrProfileEmpty, userauthtransport.ErrProfileEmpty},
+		{userauthapp.ErrNicknameInvalid, userauthtransport.ErrNicknameInvalid},
 		{userauthapp.ErrNotFound, userauthtransport.ErrUserNotFound},
 		{totpapplication.ErrSubjectNotFound, userauthtransport.ErrUserNotFound},
 		{userauthapp.ErrInvalidEmail, userauthtransport.ErrInvalidEmail},
