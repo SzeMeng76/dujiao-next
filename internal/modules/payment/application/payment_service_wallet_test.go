@@ -46,6 +46,7 @@ import (
 	"github.com/dujiao-next/internal/constants"
 	paymentcontract "github.com/dujiao-next/internal/modules/payment/contract"
 	"github.com/dujiao-next/internal/modules/payment/infrastructure/gateway/provider"
+	resellercontract "github.com/dujiao-next/internal/modules/reseller/contract"
 	"github.com/dujiao-next/internal/platform/database/gormdb"
 	"github.com/dujiao-next/internal/shared/jsonmap"
 	"github.com/dujiao-next/internal/shared/money"
@@ -1531,5 +1532,45 @@ func TestGlobepayGBPChannelUnderpaidCallbackRejected(t *testing.T) {
 	}
 	if !account.Balance.Decimal.IsZero() {
 		t.Fatalf("rejected underpaid callback must not credit wallet, got balance=%s", account.Balance.StringFixed(2))
+	}
+}
+
+type recordingResellerAccounting struct{ orderIDs []uint }
+
+func (r *recordingResellerAccounting) PostOrderProfit(_ resellercontract.AccountingLedgerStore, order *orderdomain.Order, _ *paymentdomain.Payment) error {
+	r.orderIDs = append(r.orderIDs, order.ID)
+	return nil
+}
+
+// 余额全额支付与在线支付回调一样要入账分销利润，否则分销站余额支付的订单利润丢失。
+func TestCreatePaymentWalletFullAmountPostsResellerProfit(t *testing.T) {
+	svc, db := setupPaymentServiceWalletTest(t)
+	accounting := &recordingResellerAccounting{}
+	svc.resellerAccounting = accounting
+	now := time.Now()
+	user := &userdomain.User{Email: "wallet_reseller@example.com", PasswordHash: "hash", Status: constants.UserStatusActive}
+	if err := db.Create(user).Error; err != nil {
+		t.Fatalf("create user failed: %v", err)
+	}
+	order := &orderdomain.Order{
+		OrderNo:     "DJTESTWALLETRESELLER",
+		UserID:      user.ID,
+		Status:      constants.OrderStatusPendingPayment,
+		Currency:    "CNY",
+		TotalAmount: money.FromDecimal(decimal.NewFromInt(50)),
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	if err := db.Create(order).Error; err != nil {
+		t.Fatalf("create order failed: %v", err)
+	}
+	if err := db.Create(&walletdomain.Account{UserID: user.ID, Balance: money.FromDecimal(decimal.NewFromInt(100))}).Error; err != nil {
+		t.Fatalf("create wallet account failed: %v", err)
+	}
+	if _, err := svc.CreatePayment(CreatePaymentInput{OrderID: order.ID, UseBalance: true}); err != nil {
+		t.Fatalf("create payment failed: %v", err)
+	}
+	if len(accounting.orderIDs) != 1 || accounting.orderIDs[0] != order.ID {
+		t.Fatalf("expected reseller profit posted once for order %d, got %v", order.ID, accounting.orderIDs)
 	}
 }
