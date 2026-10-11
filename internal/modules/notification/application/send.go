@@ -297,7 +297,7 @@ func (s *Service) dispatchRestockBroadcast(ctx context.Context, setting settings
 		title = "Notification"
 	}
 
-	message := format.ComposeTelegramMessage(title, body)
+	message := format.ComposePlainTextMessage(title, body)
 	replyMarkup := format.BuildTelegramInlineButton(locale, variables)
 
 	var sendErr error
