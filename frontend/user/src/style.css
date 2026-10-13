@@ -330,6 +330,10 @@ html[data-telegram-mini-app="true"] body {
     min-width: 0;
   }
 
+  .prose a {
+    word-break: break-all;
+  }
+
   .theme-prose a {
     color: var(--ui-accent);
     text-decoration-line: underline;
