@@ -56,7 +56,7 @@
 
           <!-- Post Content -->
           <div v-html="processHtmlForDisplay(getLocalizedText(post.content))"
-            class="prose prose-lg max-w-none dark:prose-invert theme-prose">
+            class="prose prose-lg max-w-none dark:prose-invert theme-prose break-words">
           </div>
 
           <!-- Related Products -->
