@@ -1,6 +1,6 @@
 <template>
   <div
-    class="blog-detail-page min-h-screen bg-background text-foreground pt-24 pb-16 relative overflow-hidden">
+    class="blog-detail-page min-h-screen bg-background text-foreground pt-24 pb-16 relative">
     <div class="container mx-auto px-4 max-w-4xl relative z-10">
       <!-- Loading State -->
       <div v-if="loading" class="animate-pulse space-y-8">
