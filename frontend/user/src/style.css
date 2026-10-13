@@ -336,8 +336,7 @@ html[data-telegram-mini-app="true"] body {
     text-decoration-color: transparent;
     text-underline-offset: 0.2em;
     transition: color 0.2s ease, text-decoration-color 0.2s ease;
-    overflow-wrap: anywhere;
-    white-space: normal;
+    word-break: break-all;
   }
 
   .theme-prose a:hover {
