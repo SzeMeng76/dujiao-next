@@ -326,6 +326,10 @@ html[data-telegram-mini-app="true"] body {
     color: var(--ui-text-secondary);
   }
 
+  .theme-prose {
+    min-width: 0;
+  }
+
   .theme-prose a {
     color: var(--ui-accent);
     text-decoration-line: underline;
@@ -333,6 +337,7 @@ html[data-telegram-mini-app="true"] body {
     text-underline-offset: 0.2em;
     transition: color 0.2s ease, text-decoration-color 0.2s ease;
     overflow-wrap: anywhere;
+    word-break: break-word;
   }
 
   .theme-prose a:hover {
