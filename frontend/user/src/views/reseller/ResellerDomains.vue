@@ -137,6 +137,13 @@
                 {{ t('resellerConsole.domains.submitDisabledDesc') }}
               </p>
               <p class="mt-2 text-xs leading-relaxed text-muted-foreground">{{ t('resellerConsole.domains.verifyDesc') }}</p>
+              <div class="mt-3 rounded-lg border border-border bg-muted/20 px-4 py-3 text-xs leading-relaxed text-muted-foreground">
+                <div class="font-semibold text-foreground">{{ t('resellerConsole.domains.dnsGuideTitle') }}</div>
+                <ul class="mt-1.5 list-disc space-y-1 pl-4">
+                  <li>{{ t('resellerConsole.domains.dnsGuideSubdomain') }}</li>
+                  <li>{{ t('resellerConsole.domains.dnsGuideRoot') }}</li>
+                </ul>
+              </div>
             </div>
           </section>
 

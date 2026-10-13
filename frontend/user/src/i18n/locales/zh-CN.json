@@ -1419,7 +1419,10 @@
       "tableActions": "操作",
       "visit": "访问",
       "verifyTitle": "域名验证",
-      "verifyDesc": "自定义域名提交后进入待审核状态：请先将该域名解析（CNAME/A 记录）指向平台，再等待平台人工核验，通过后即生效。"
+      "verifyDesc": "自定义域名提交后进入待审核状态：请先将该域名解析（CNAME/A 记录）指向平台，再等待平台人工核验，通过后即生效。",
+      "dnsGuideTitle": "解析设置说明",
+      "dnsGuideSubdomain": "推荐使用子域名（如 shop.example.com、www.example.com）：在域名服务商处添加一条 CNAME 记录，指向平台提供的接入域名即可。",
+      "dnsGuideRoot": "根域名（如 example.com）按 DNS 标准不能设置 CNAME。请使用服务商提供的 CNAME 拉平 / ALIAS / ANAME 功能（如 Cloudflare），或使用 A 记录指向平台提供的 IP。服务商都不支持时，请改用子域名。"
     },
     "site": {
       "title": "店铺设置",

@@ -1466,7 +1466,10 @@
       "tableActions": "Actions",
       "visit": "Visit",
       "verifyTitle": "Domain verification",
-      "verifyDesc": "A custom domain enters pending review after submission: first point its DNS (CNAME/A record) to the platform, then wait for manual review by the platform — it goes live once verified."
+      "verifyDesc": "A custom domain enters pending review after submission: first point its DNS (CNAME/A record) to the platform, then wait for manual review by the platform — it goes live once verified.",
+      "dnsGuideTitle": "DNS setup guide",
+      "dnsGuideSubdomain": "A subdomain (e.g. shop.example.com or www.example.com) is recommended: add one CNAME record at your DNS provider pointing to the access domain provided by the platform.",
+      "dnsGuideRoot": "A root domain (e.g. example.com) cannot have a CNAME record under DNS standards. Use your provider's CNAME flattening / ALIAS / ANAME feature (e.g. Cloudflare), or an A record pointing to the IP provided by the platform. If your provider supports none of these, use a subdomain instead."
     },
     "site": {
       "title": "Store Settings",

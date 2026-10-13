@@ -1466,7 +1466,10 @@
       "tableActions": "操作",
       "visit": "造訪",
       "verifyTitle": "域名驗證",
-      "verifyDesc": "自訂域名提交後進入待審核狀態：請先將該域名解析（CNAME/A 記錄）指向平台，再等待平台人工核驗，通過後即生效。"
+      "verifyDesc": "自訂域名提交後進入待審核狀態：請先將該域名解析（CNAME/A 記錄）指向平台，再等待平台人工核驗，通過後即生效。",
+      "dnsGuideTitle": "解析設定說明",
+      "dnsGuideSubdomain": "建議使用子域名（如 shop.example.com、www.example.com）：在域名服務商處新增一筆 CNAME 記錄，指向平台提供的接入域名即可。",
+      "dnsGuideRoot": "根域名（如 example.com）依 DNS 標準不能設定 CNAME。請使用服務商提供的 CNAME 攤平 / ALIAS / ANAME 功能（如 Cloudflare），或使用 A 記錄指向平台提供的 IP。服務商都不支援時，請改用子域名。"
     },
     "site": {
       "title": "店鋪設定",
