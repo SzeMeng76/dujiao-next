@@ -14,6 +14,7 @@ const messages = {
         serviceUnavailable: '服务不可用',
         requestFailedStatus: '请求失败 (状态码: {status})',
         networkError: '网络连接失败',
+        timeout: '请求超时，请稍后重试或缩小查询范围',
       },
       translate: {
         button: 'AI 翻译',
@@ -4784,6 +4785,7 @@ const messages = {
         serviceUnavailable: '服務不可用',
         requestFailedStatus: '請求失敗 (狀態碼: {status})',
         networkError: '網路連線失敗',
+        timeout: '請求逾時，請稍後重試或縮小查詢範圍',
       },
       translate: {
         button: 'AI 翻譯',
@@ -9555,6 +9557,7 @@ const messages = {
         serviceUnavailable: 'Service unavailable',
         requestFailedStatus: 'Request failed (status: {status})',
         networkError: 'Network error',
+        timeout: 'Request timed out. Please retry or narrow the query.',
       },
       translate: {
         button: 'AI Translate',
