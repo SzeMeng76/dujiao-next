@@ -2,6 +2,8 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '../stores/app'
 import { amountToCents, centsToAmount } from '../utils/money'
+import { useUserAuthStore } from '../stores/userAuth'
+import { useUserProfileStore } from '../stores/userProfile'
 
 export function useLocalized() {
   const appStore = useAppStore()
@@ -32,6 +34,9 @@ export function useLocalized() {
 }
 
 export function useProductLabels() {
+  const userAuthStore = useUserAuthStore()
+  const userProfileStore = useUserProfileStore()
+  if (userAuthStore.isAuthenticated) void userProfileStore.loadMyProductPrices()
   const { t } = useI18n()
 
   const getPurchaseTypeLabel = (purchaseType: string) => {
@@ -216,7 +221,26 @@ export function useProductLabels() {
     return memberCents < base ? centsToAmount(memberCents) : null
   }
 
+  // 列表卡片展示价：用户有专属一口价时优先于活动价；取各 SKU 中最低的专属价，且必须低于当前展示价才生效。
+  const getCardExclusivePrice = (product: any): string | null => {
+    if (!userAuthStore.isAuthenticated) return null
+    const prices = userProfileStore.myProductPrices
+    if (!Array.isArray(prices) || prices.length === 0) return null
+    const skus = (Array.isArray(product?.skus) ? product.skus : []).filter((s: any) => s?.is_active !== false)
+    const skuIds: any[] = skus.length > 0 ? skus.map((s: any) => s.id) : [0]
+    let best: number | null = null
+    for (const id of skuIds) {
+      const cents = parsePriceAmount(resolveUserPriceAmount(product, id, prices))
+      if (cents !== null && (best === null || cents < best)) best = cents
+    }
+    if (best === null) return null
+    const current = parsePriceAmount(hasPromotionPrice(product) ? getPromotionPriceAmount(product) : product?.price_amount)
+    if (current !== null && best >= current) return null
+    return centsToAmount(best)
+  }
+
   return {
+    getCardExclusivePrice,
     getPurchaseTypeLabel,
     getFulfillmentTypeLabel,
     getStockBadgeVariant,
