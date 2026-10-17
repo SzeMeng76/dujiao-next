@@ -174,7 +174,29 @@ export function useProductLabels() {
     return centsToAmount(matchedCents)
   }
 
-  const resolveMemberPriceAmount = (product: any, skuId: any, basePrice: any, memberLevelId: any, discountRate?: any) => {
+  // 用户专属一口价：命中后直接作为最终价，不再叠加批发价、活动价与会员等级价（口径与下单一致）。
+  // 仅当专属价低于该 SKU 的原价时生效；已存在 SKU 级专属价时不回退到商品级。
+  const resolveUserPriceAmount = (product: any, skuId: any, userPrices?: any[]) => {
+    if (!Array.isArray(userPrices) || userPrices.length === 0) return null
+    const productId = Number(product?.id || 0)
+    const normalizedSkuId = Number(skuId || 0)
+    if (productId <= 0) return null
+    const rows = userPrices.filter((p: any) => Number(p?.product_id || 0) === productId)
+    const row = (normalizedSkuId > 0 ? rows.find((p: any) => Number(p?.sku_id || 0) === normalizedSkuId) : undefined)
+      ?? rows.find((p: any) => Number(p?.sku_id || 0) === 0)
+    const priceCents = parsePriceAmount(row?.price_amount)
+    if (priceCents === null || priceCents <= 0) return null
+    const skus = Array.isArray(product?.skus) ? product.skus : []
+    const sku = skus.find((s: any) => Number(s?.id || 0) === normalizedSkuId)
+    const skuBase = parsePriceAmount(sku?.price_amount ?? product?.price_amount)
+    if (skuBase === null || priceCents >= skuBase) return null
+    return centsToAmount(priceCents)
+  }
+
+  const resolveMemberPriceAmount = (product: any, skuId: any, basePrice: any, memberLevelId: any, discountRate?: any, userPrices?: any[]) => {
+    const exclusive = resolveUserPriceAmount(product, skuId, userPrices)
+    if (exclusive !== null) return exclusive
+
     const base = parsePriceAmount(basePrice)
     const levelId = Number(memberLevelId || 0)
     if (base === null || base <= 0 || !Number.isFinite(levelId) || levelId <= 0) return null

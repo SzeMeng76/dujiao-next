@@ -45,6 +45,7 @@ import {
   Wifi,
   Send,
   Crown,
+  BadgeDollarSign,
   Bell,
   ImageIcon,
 } from 'lucide-vue-next'
@@ -254,6 +255,12 @@ const navGroups = computed<NavGroup[]>(() => {
           to: '/member-levels',
           icon: Crown,
           permission: 'GET:/admin/member-levels',
+        },
+        {
+          label: t('admin.navItems.userPrices'),
+          to: '/user-prices',
+          icon: BadgeDollarSign,
+          permission: 'GET:/admin/member-user-prices',
         },
       ],
     },
