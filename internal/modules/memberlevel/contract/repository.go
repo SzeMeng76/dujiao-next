@@ -35,6 +35,14 @@ type PriceRepository interface {
 	DeleteByProduct(productID uint) error
 }
 
+// UserPriceRepository 持久化用户专属商品价（一口价）。
+type UserPriceRepository interface {
+	GetByUserAndProductAndSKU(userID, productID, skuID uint) (*memberleveldomain.UserProductPrice, error)
+	ListByUser(userID uint, page, pageSize int) ([]memberleveldomain.UserProductPrice, int64, error)
+	BatchUpsert(prices []memberleveldomain.UserProductPrice) error
+	Delete(id uint) error
+}
+
 // UserRepository is the member-level consumer's minimal user persistence port.
 type UserRepository interface {
 	GetByID(id uint) (*userdomain.User, error)

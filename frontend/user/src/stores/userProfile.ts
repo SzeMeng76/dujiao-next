@@ -99,6 +99,29 @@ export const useUserProfileStore = defineStore('user-profile', () => {
         }
     })
 
+    // 当前用户的专属一口价（口径与下单一致：命中后不再叠加批发价、活动价与等级价）
+    const myProductPrices = ref<Array<{ product_id: number; sku_id: number; price_amount: string | number }>>([])
+    let myProductPricesLoadedFor = 0
+
+    const loadMyProductPrices = async (force = false) => {
+        const userId = Number(userAuthStore.user?.id || 0)
+        if (!userAuthStore.isAuthenticated || userId <= 0) {
+            myProductPrices.value = []
+            myProductPricesLoadedFor = 0
+            return
+        }
+        if (!force && myProductPricesLoadedFor === userId) return
+        if (myProductPricesLoadedFor !== userId) myProductPrices.value = []
+        myProductPricesLoadedFor = userId
+        try {
+            const response = await userProfileAPI.productPrices()
+            myProductPrices.value = Array.isArray(response.data.data) ? response.data.data : []
+        } catch {
+            myProductPrices.value = []
+            myProductPricesLoadedFor = 0
+        }
+    }
+
     const loadMemberLevels = async () => {
         try {
             const response = await memberLevelAPI.list()
@@ -387,6 +410,8 @@ export const useUserProfileStore = defineStore('user-profile', () => {
         changePassword,
         loadRecentOrders,
         loadMemberLevels,
+        myProductPrices,
+        loadMyProductPrices,
         loadRecentLoginLogs,
         loadTelegramBinding,
         bindTelegram,
