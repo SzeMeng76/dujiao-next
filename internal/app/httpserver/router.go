@@ -42,6 +42,7 @@ import (
 	coupontransport "github.com/dujiao-next/internal/modules/coupon/transport/http"
 	dashboardtransport "github.com/dujiao-next/internal/modules/dashboard/transport/http"
 	giftcardtransport "github.com/dujiao-next/internal/modules/giftcard/transport/http"
+	memberlevelproductadapter "github.com/dujiao-next/internal/modules/memberlevel/infrastructure/productadapter"
 	memberleveltransport "github.com/dujiao-next/internal/modules/memberlevel/transport/http"
 	notificationtransport "github.com/dujiao-next/internal/modules/notification/transport/http"
 	procurementtransport "github.com/dujiao-next/internal/modules/procurement/transport/http"
@@ -119,7 +120,7 @@ func SetupRouter(cfg *config.Config, c *container.Container) *gin.Engine {
 	adminDashboardHandler := dashboardtransport.NewAdminHandler(c.DashboardService)
 	adminMemberLevelHandler := memberleveltransport.NewAdminHandler(c.MemberLevelService)
 	publicMemberLevelHandler := memberleveltransport.NewPublicHandler(c.MemberLevelService)
-	userMemberLevelHandler := memberleveltransport.NewUserHandler(c.MemberLevelService)
+	userMemberLevelHandler := memberleveltransport.NewUserHandler(c.MemberLevelService, memberlevelproductadapter.New(c.ProductRepo, c.ProductSKURepo))
 	userAuthHandlers := userauthwiring.New(c)
 	userProfileHandler := userAuthHandlers.Profile
 	userEmailHandler := userAuthHandlers.Email

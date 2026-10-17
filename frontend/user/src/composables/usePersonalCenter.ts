@@ -7,6 +7,8 @@ import type { PageAlert } from '../utils/alerts'
 import { useAppStore } from '../stores/app'
 import { useUserProfileStore } from '../stores/userProfile'
 import type { PublicMemberLevel } from '../api'
+import { useLocalized } from './useProduct'
+import { formatSkuSpecValues } from '../utils/sku'
 
 export type PersonalSection = 'overview' | 'profile' | 'security' | 'orders' | 'ticket' | 'wallet' | 'giftCard' | 'affiliate' | 'reseller' | 'api'
 
@@ -130,12 +132,35 @@ export function usePersonalCenter(sectionGetter: () => PersonalSection) {
     return level.name[loc] || level.name['zh-CN'] || level.name['en'] || level.slug || t('personalCenter.memberLevel.defaultLevel')
   }
 
+  // 我的专属价：独立于会员等级，没有任何专属价时列表为空，由模板决定不渲染。
+  const { formatPrice, siteCurrency } = useLocalized()
+  const exclusivePriceItems = computed(() => {
+    const loc = locale.value as string
+    return userProfileStore.myProductPrices.map((row) => {
+      const titleMap = row.product_title || {}
+      const title = titleMap[loc] || titleMap['zh-CN'] || titleMap['en-US'] || titleMap['zh-TW'] || Object.values(titleMap)[0] || ''
+      const skuText = row.sku_id > 0
+        ? formatSkuSpecValues(row.sku_spec_values, loc) || row.sku_code || ''
+        : ''
+      const active = row.product_active === true && !!row.product_slug
+      return {
+        key: `${row.product_id}-${row.sku_id}`,
+        title: title || `#${row.product_id}`,
+        skuText,
+        priceText: formatPrice(row.price_amount, siteCurrency.value),
+        to: active ? `/products/${row.product_slug}` : '',
+        unavailable: !active,
+      }
+    })
+  })
+
   const initialize = async () => {
     globalAlert.value = null
     const [profileOk] = await Promise.all([
       userProfileStore.loadProfile(),
       userProfileStore.loadRecentOrders(5),
       userProfileStore.loadMemberLevels(),
+      userProfileStore.loadMyProductPrices(true),
     ])
     if (!profileOk) {
       globalAlert.value = {
@@ -167,5 +192,6 @@ export function usePersonalCenter(sectionGetter: () => PersonalSection) {
     discountText,
     isImagePath,
     levelName,
+    exclusivePriceItems,
   }
 }

@@ -100,7 +100,17 @@ export const useUserProfileStore = defineStore('user-profile', () => {
     })
 
     // 当前用户的专属一口价（口径与下单一致：命中后不再叠加批发价、活动价与等级价）
-    const myProductPrices = ref<Array<{ product_id: number; sku_id: number; price_amount: string | number }>>([])
+    // product_* / sku_* 仅用于个人中心展示，商品已删除时这些字段缺省。
+    const myProductPrices = ref<Array<{
+        product_id: number
+        sku_id: number
+        price_amount: string | number
+        product_slug?: string
+        product_title?: Record<string, string>
+        product_active?: boolean
+        sku_code?: string
+        sku_spec_values?: Record<string, unknown>
+    }>>([])
     let myProductPricesLoadedFor = 0
 
     const loadMyProductPrices = async (force = false) => {
