@@ -7,6 +7,7 @@ import (
 	memberleveldomain "github.com/dujiao-next/internal/modules/memberlevel/domain"
 	"github.com/dujiao-next/internal/platform/http/ginutil"
 	"github.com/dujiao-next/internal/platform/http/response"
+	"github.com/dujiao-next/internal/shared/jsonmap"
 	"github.com/dujiao-next/internal/shared/money"
 
 	"github.com/gin-gonic/gin"
@@ -96,23 +97,31 @@ type UserPriceReader interface {
 
 // UserHandler 处理登录用户查看自己专属价的请求。
 type UserHandler struct {
-	prices UserPriceReader
+	prices   UserPriceReader
+	products memberlevelcontract.ProductDirectory
 }
 
-func NewUserHandler(prices UserPriceReader) *UserHandler {
+// NewUserHandler 创建用户专属价 handler。products 可为 nil，此时响应只带 ID 与价格。
+func NewUserHandler(prices UserPriceReader, products memberlevelcontract.ProductDirectory) *UserHandler {
 	if prices == nil {
 		panic("memberlevel user handler: prices is nil")
 	}
-	return &UserHandler{prices: prices}
+	return &UserHandler{prices: prices, products: products}
 }
 
 type userPriceView struct {
-	ProductID   uint         `json:"product_id"`
-	SKUID       uint         `json:"sku_id"`
-	PriceAmount money.Amount `json:"price_amount"`
+	ProductID     uint         `json:"product_id"`
+	SKUID         uint         `json:"sku_id"`
+	PriceAmount   money.Amount `json:"price_amount"`
+	ProductSlug   string       `json:"product_slug,omitempty"`
+	ProductTitle  jsonmap.JSON `json:"product_title,omitempty"`
+	ProductActive bool         `json:"product_active"`
+	SKUCode       string       `json:"sku_code,omitempty"`
+	SKUSpecValues jsonmap.JSON `json:"sku_spec_values,omitempty"`
 }
 
 // ListMyPrices GET /me/product-prices 返回当前用户的全部专属价，前台据此展示一口价。
+// 商品标题、slug 与 SKU 规格仅用于个人中心展示；解析失败不阻断主体返回。
 func (h *UserHandler) ListMyPrices(c *gin.Context) {
 	userID, ok := ginutil.GetUserID(c)
 	if !ok {
@@ -123,9 +132,53 @@ func (h *UserHandler) ListMyPrices(c *gin.Context) {
 		ginutil.RespondError(c, response.CodeInternal, "error.user_product_price_fetch_failed", err)
 		return
 	}
+	productMap, skuMap := h.resolveDirectory(prices)
 	views := make([]userPriceView, 0, len(prices))
 	for _, p := range prices {
-		views = append(views, userPriceView{ProductID: p.ProductID, SKUID: p.SKUID, PriceAmount: p.PriceAmount})
+		view := userPriceView{ProductID: p.ProductID, SKUID: p.SKUID, PriceAmount: p.PriceAmount}
+		if product, found := productMap[p.ProductID]; found {
+			view.ProductSlug = product.Slug
+			view.ProductTitle = product.Title
+			view.ProductActive = product.IsActive
+		}
+		if sku, found := skuMap[p.SKUID]; found && p.SKUID > 0 {
+			view.SKUCode = sku.SKUCode
+			view.SKUSpecValues = sku.SpecValues
+		}
+		views = append(views, view)
 	}
 	response.Success(c, views)
+}
+
+func (h *UserHandler) resolveDirectory(prices []memberleveldomain.UserProductPrice) (map[uint]memberlevelcontract.ProductSummary, map[uint]memberlevelcontract.SKUSummary) {
+	productMap := map[uint]memberlevelcontract.ProductSummary{}
+	skuMap := map[uint]memberlevelcontract.SKUSummary{}
+	if h.products == nil || len(prices) == 0 {
+		return productMap, skuMap
+	}
+	productIDs := make([]uint, 0, len(prices))
+	skuIDs := make([]uint, 0, len(prices))
+	seenProduct := map[uint]struct{}{}
+	seenSKU := map[uint]struct{}{}
+	for _, p := range prices {
+		if _, dup := seenProduct[p.ProductID]; !dup {
+			seenProduct[p.ProductID] = struct{}{}
+			productIDs = append(productIDs, p.ProductID)
+		}
+		if p.SKUID > 0 {
+			if _, dup := seenSKU[p.SKUID]; !dup {
+				seenSKU[p.SKUID] = struct{}{}
+				skuIDs = append(skuIDs, p.SKUID)
+			}
+		}
+	}
+	if resolved, err := h.products.ResolveProducts(productIDs); err == nil && resolved != nil {
+		productMap = resolved
+	}
+	if len(skuIDs) > 0 {
+		if resolved, err := h.products.ResolveSKUs(skuIDs); err == nil && resolved != nil {
+			skuMap = resolved
+		}
+	}
+	return productMap, skuMap
 }

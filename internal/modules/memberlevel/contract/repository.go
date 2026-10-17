@@ -3,6 +3,7 @@ package contract
 import (
 	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
 	memberleveldomain "github.com/dujiao-next/internal/modules/memberlevel/domain"
+	"github.com/dujiao-next/internal/shared/jsonmap"
 	"github.com/shopspring/decimal"
 )
 
@@ -51,4 +52,24 @@ type UserRepository interface {
 	IncrementTotalSpent(userID uint, amount decimal.Decimal) error
 	UpdateMemberLevelIfCurrent(userID, currentLevelID, nextLevelID uint) (int64, error)
 	AssignDefaultMemberLevel(defaultLevelID uint) (int64, error)
+}
+
+// ProductSummary 是专属价展示所需的商品摘要。
+type ProductSummary struct {
+	Slug     string
+	Title    jsonmap.JSON
+	IsActive bool
+}
+
+// SKUSummary 是专属价展示所需的 SKU 摘要。
+type SKUSummary struct {
+	SKUCode    string
+	SpecValues jsonmap.JSON
+}
+
+// ProductDirectory 按 ID 批量解析商品与 SKU 摘要，仅用于用户专属价的前台展示。
+// 已删除的商品或 SKU 不会出现在结果中。
+type ProductDirectory interface {
+	ResolveProducts(ids []uint) (map[uint]ProductSummary, error)
+	ResolveSKUs(ids []uint) (map[uint]SKUSummary, error)
 }
