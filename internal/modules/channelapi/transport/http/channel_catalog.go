@@ -105,18 +105,19 @@ type channelWholesalePrice struct {
 }
 
 // resolveChannelMemberPrice 解析渠道目录展示的会员价，口径与下单一致：用户专属价优先，其次会员等级价。
-func (h *Handler) resolveChannelMemberPrice(userID, memberLevelID, productID, skuID uint, base decimal.Decimal) (decimal.Decimal, bool) {
+// 第三个返回值表示命中的是用户专属一口价；一口价不与活动价叠加，调用方应隐藏活动价。
+func (h *Handler) resolveChannelMemberPrice(userID, memberLevelID, productID, skuID uint, base decimal.Decimal) (decimal.Decimal, bool, bool) {
 	if userID > 0 {
 		if price, hit := h.MemberLevelService.ResolveUserPrice(userID, productID, skuID, base); hit {
-			return price, true
+			return price, true, true
 		}
 	}
 	if memberLevelID > 0 {
 		if price, _ := h.MemberLevelService.ResolveMemberPrice(memberLevelID, productID, skuID, base); price.LessThan(base) {
-			return price, true
+			return price, true, false
 		}
 	}
-	return base, false
+	return base, false, false
 }
 
 func normalizeChannelWholesalePrices(tiers productdomain.WholesalePriceTiers) []channelWholesalePrice {
@@ -248,15 +249,17 @@ func (h *Handler) GetProducts(c *gin.Context) {
 		}
 
 		// 计算会员价
+		exclusive := false
 		if (userID > 0 || memberLevelID > 0) && h.MemberLevelService != nil {
-			memberPrice, _ := h.resolveChannelMemberPrice(userID, memberLevelID, p.ID, 0, p.PriceAmount.Decimal)
-			if memberPrice.LessThan(p.PriceAmount.Decimal) {
+			memberPrice, hit, isExclusive := h.resolveChannelMemberPrice(userID, memberLevelID, p.ID, 0, p.PriceAmount.Decimal)
+			if hit && memberPrice.LessThan(p.PriceAmount.Decimal) {
 				item.MemberPriceFrom = money.FromDecimal(memberPrice).String()
+				exclusive = isExclusive
 			}
 		}
 
-		// 计算活动价
-		if h.PromotionService != nil {
+		// 计算活动价（命中用户专属一口价时不再展示活动价）
+		if h.PromotionService != nil && !exclusive {
 			promotion, discountedPrice, err := h.PromotionService.ApplyPromotion(&p, 1)
 			if err != nil && !errors.Is(err, promotioncontract.ErrInvalid) {
 				logger.Warnw("channel_catalog_apply_promotion", "product_id", p.ID, "error", err)
@@ -366,9 +369,20 @@ func (h *Handler) GetProductDetail(c *gin.Context) {
 		StockQuantityHidden bool   `json:"stock_quantity_hidden"`
 	}
 
-	// 商品级活动价：与展示价（price_from 对应的 SKU 或商品本身）保持同一口径
+	// 商品级会员价
+	var memberPriceFrom string
+	productExclusive := false
+	if (userID > 0 || memberLevelID > 0) && h.MemberLevelService != nil {
+		mp, hit, isExclusive := h.resolveChannelMemberPrice(userID, memberLevelID, product.ID, 0, product.PriceAmount.Decimal)
+		if hit && mp.LessThan(product.PriceAmount.Decimal) {
+			memberPriceFrom = money.FromDecimal(mp).String()
+			productExclusive = isExclusive
+		}
+	}
+
+	// 商品级活动价：与展示价（price_from 对应的 SKU 或商品本身）保持同一口径；命中用户专属一口价时不展示
 	var promotionName, promotionType, promotionPriceFrom string
-	if h.PromotionService != nil {
+	if h.PromotionService != nil && !productExclusive {
 		priceCarrier := *product
 		promotion, discountedPrice, err := h.PromotionService.ApplyPromotion(&priceCarrier, 1)
 		if err != nil && !errors.Is(err, promotioncontract.ErrInvalid) {
@@ -402,13 +416,15 @@ func (h *Handler) GetProductDetail(c *gin.Context) {
 			StockRangeMax:       stockDisplay.RangeMax,
 			StockQuantityHidden: stockDisplay.QuantityHidden,
 		}
+		skuExclusive := false
 		if (userID > 0 || memberLevelID > 0) && h.MemberLevelService != nil {
-			memberPrice, _ := h.resolveChannelMemberPrice(userID, memberLevelID, product.ID, sku.ID, sku.PriceAmount.Decimal)
-			if memberPrice.LessThan(sku.PriceAmount.Decimal) {
+			memberPrice, hit, isExclusive := h.resolveChannelMemberPrice(userID, memberLevelID, product.ID, sku.ID, sku.PriceAmount.Decimal)
+			if hit && memberPrice.LessThan(sku.PriceAmount.Decimal) {
 				si.MemberPrice = money.FromDecimal(memberPrice).String()
+				skuExclusive = isExclusive
 			}
 		}
-		if h.PromotionService != nil {
+		if h.PromotionService != nil && !skuExclusive {
 			priceCarrier := *product
 			priceCarrier.PriceAmount = sku.PriceAmount
 			promotion, discountedPrice, err := h.PromotionService.ApplyPromotion(&priceCarrier, 1)
@@ -419,15 +435,6 @@ func (h *Handler) GetProductDetail(c *gin.Context) {
 			}
 		}
 		skus = append(skus, si)
-	}
-
-	// 商品级会员价
-	var memberPriceFrom string
-	if (userID > 0 || memberLevelID > 0) && h.MemberLevelService != nil {
-		mp, _ := h.resolveChannelMemberPrice(userID, memberLevelID, product.ID, 0, product.PriceAmount.Decimal)
-		if mp.LessThan(product.PriceAmount.Decimal) {
-			memberPriceFrom = money.FromDecimal(mp).String()
-		}
 	}
 
 	stockCount := domaincatalog.StockQuantity(effectiveFT, product.AutoStockAvailable, product.ManualStockTotal)
