@@ -144,11 +144,12 @@
             <div class="mb-1 flex items-center gap-2">
               <BadgePercent class="h-5 w-5 text-[color:var(--gold-strong)]" />
               <h3 class="text-lg font-bold">{{ t('personalCenter.exclusivePrice.title') }}</h3>
+              <span v-if="hasMoreExclusivePrices" class="text-[12.5px] text-muted-foreground">{{ t('personalCenter.exclusivePrice.total', { n: exclusivePriceItems.length }) }}</span>
             </div>
             <p class="mb-4 text-[12.5px] text-muted-foreground">{{ t('personalCenter.exclusivePrice.hint') }}</p>
             <div class="grid gap-2.5">
               <div
-                v-for="item in exclusivePriceItems"
+                v-for="item in visibleExclusivePriceItems"
                 :key="item.key"
                 class="flex flex-wrap items-center justify-between gap-3.5 rounded-lg border p-4"
               >
@@ -164,6 +165,13 @@
                 </div>
                 <div class="flex-none text-base font-extrabold tabular-nums text-[color:var(--gold-strong)]">{{ item.priceText }}</div>
               </div>
+            </div>
+            <div v-if="hasMoreExclusivePrices" class="mt-3 text-center">
+              <Button variant="ghost" size="sm" class="rounded-full" @click="toggleExclusivePrices">
+                {{ exclusivePriceExpanded
+                  ? t('personalCenter.exclusivePrice.collapse')
+                  : t('personalCenter.exclusivePrice.showAll', { n: exclusivePriceItems.length }) }}
+              </Button>
             </div>
           </div>
 
@@ -240,5 +248,6 @@ const {
   userProfileStore, canAccessResellerConsole, visibleSectionItems, currentSection, globalAlert,
   displayInitial, switchSection, statusLabel, statusVariant, formatMoney, formatDate,
   emailVerifiedLabel, emailVerifiedVariant, discountText, isImagePath, levelName, exclusivePriceItems,
+  visibleExclusivePriceItems, hasMoreExclusivePrices, exclusivePriceExpanded, toggleExclusivePrices,
 } = usePersonalCenter(() => props.section)
 </script>

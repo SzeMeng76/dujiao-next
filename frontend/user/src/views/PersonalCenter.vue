@@ -216,11 +216,12 @@
               <div class="mb-1 flex items-center gap-2">
                 <BadgePercent class="h-5 w-5 text-primary" />
                 <h3 class="text-lg font-bold text-foreground">{{ t('personalCenter.exclusivePrice.title') }}</h3>
+                <span v-if="hasMoreExclusivePrices" class="text-xs text-muted-foreground">{{ t('personalCenter.exclusivePrice.total', { n: exclusivePriceItems.length }) }}</span>
               </div>
               <p class="mb-4 text-xs text-muted-foreground">{{ t('personalCenter.exclusivePrice.hint') }}</p>
               <div class="space-y-3">
                 <div
-                  v-for="item in exclusivePriceItems"
+                  v-for="item in visibleExclusivePriceItems"
                   :key="item.key"
                   class="flex flex-col gap-2 rounded-xl border bg-card px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
                 >
@@ -236,6 +237,13 @@
                   </div>
                   <div class="shrink-0 text-base font-bold tabular-nums text-primary">{{ item.priceText }}</div>
                 </div>
+              </div>
+              <div v-if="hasMoreExclusivePrices" class="mt-3 text-center">
+                <Button variant="ghost" size="sm" class="rounded-full" @click="toggleExclusivePrices">
+                  {{ exclusivePriceExpanded
+                    ? t('personalCenter.exclusivePrice.collapse')
+                    : t('personalCenter.exclusivePrice.showAll', { n: exclusivePriceItems.length }) }}
+                </Button>
               </div>
             </div>
 
@@ -339,5 +347,6 @@ const {
   userProfileStore, canAccessResellerConsole, visibleSectionItems, currentSection, globalAlert,
   displayInitial, switchSection, statusLabel, statusVariant, formatMoney, formatDate,
   emailVerifiedLabel, emailVerifiedVariant, discountText, isImagePath, levelName, exclusivePriceItems,
+  visibleExclusivePriceItems, hasMoreExclusivePrices, exclusivePriceExpanded, toggleExclusivePrices,
 } = usePersonalCenter(() => props.section)
 </script>

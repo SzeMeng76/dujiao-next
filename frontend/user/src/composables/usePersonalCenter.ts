@@ -152,6 +152,18 @@ export function usePersonalCenter(sectionGetter: () => PersonalSection) {
     })
   })
 
+  // 概览只先展示前 N 条，其余点击展开，避免专属价很多时把最近订单挤到页面底部。
+  const EXCLUSIVE_PREVIEW_COUNT = 5
+  const exclusivePriceExpanded = ref(false)
+  const hasMoreExclusivePrices = computed(() => exclusivePriceItems.value.length > EXCLUSIVE_PREVIEW_COUNT)
+  const visibleExclusivePriceItems = computed(() => {
+    if (exclusivePriceExpanded.value || !hasMoreExclusivePrices.value) return exclusivePriceItems.value
+    return exclusivePriceItems.value.slice(0, EXCLUSIVE_PREVIEW_COUNT)
+  })
+  const toggleExclusivePrices = () => {
+    exclusivePriceExpanded.value = !exclusivePriceExpanded.value
+  }
+
   const initialize = async () => {
     globalAlert.value = null
     const [profileOk] = await Promise.all([
@@ -191,5 +203,9 @@ export function usePersonalCenter(sectionGetter: () => PersonalSection) {
     isImagePath,
     levelName,
     exclusivePriceItems,
+    visibleExclusivePriceItems,
+    hasMoreExclusivePrices,
+    exclusivePriceExpanded,
+    toggleExclusivePrices,
   }
 }
