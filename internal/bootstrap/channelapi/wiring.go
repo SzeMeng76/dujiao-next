@@ -115,12 +115,12 @@ func (a orderAdapter) PreviewOrder(input channeltransport.CreateOrderInput) (*ch
 			ProductID: item.ProductID, SKUID: item.SKUID, TitleJSON: item.TitleJSON, SKUSnapshotJSON: item.SKUSnapshotJSON,
 			OriginalUnitPrice: item.OriginalUnitPrice, UnitPrice: item.UnitPrice, Quantity: item.Quantity,
 			OriginalTotalPrice: item.OriginalTotalPrice, TotalPrice: item.TotalPrice,
-			CouponDiscount: item.CouponDiscount, PromotionDiscount: item.PromotionDiscount,
+			MemberDiscount: item.MemberDiscount, CouponDiscount: item.CouponDiscount, PromotionDiscount: item.PromotionDiscount,
 			WholesaleDiscount: item.WholesaleDiscount, FulfillmentType: item.FulfillmentType,
 		})
 	}
 	return &channeltransport.OrderPreview{
-		Currency: preview.Currency, OriginalAmount: preview.OriginalAmount, DiscountAmount: preview.DiscountAmount,
+		Currency: preview.Currency, OriginalAmount: preview.OriginalAmount, MemberDiscountAmount: preview.MemberDiscountAmount, DiscountAmount: preview.DiscountAmount,
 		PromotionDiscountAmount: preview.PromotionDiscountAmount, WholesaleDiscountAmount: preview.WholesaleDiscountAmount,
 		TotalAmount: preview.TotalAmount, Items: items,
 	}, nil

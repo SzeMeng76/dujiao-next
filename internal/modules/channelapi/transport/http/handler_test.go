@@ -67,6 +67,7 @@ func TestBuildChannelOrderPreviewResponseIncludesTelegramFriendlyFields(t *testi
 		Currency:                "CNY",
 		OriginalAmount:          money.FromDecimal(decimal.RequireFromString("108.00")),
 		DiscountAmount:          money.FromDecimal(decimal.RequireFromString("8.00")),
+		MemberDiscountAmount:    money.FromDecimal(decimal.RequireFromString("12.00")),
 		PromotionDiscountAmount: money.FromDecimal(decimal.RequireFromString("10.00")),
 		TotalAmount:             money.FromDecimal(decimal.RequireFromString("90.00")),
 		Items: []OrderPreviewItem{{
@@ -79,6 +80,7 @@ func TestBuildChannelOrderPreviewResponseIncludesTelegramFriendlyFields(t *testi
 			UnitPrice:          money.FromDecimal(decimal.RequireFromString("54.00")),
 			OriginalTotalPrice: money.FromDecimal(decimal.RequireFromString("120.00")),
 			TotalPrice:         money.FromDecimal(decimal.RequireFromString("108.00")),
+			MemberDiscount:     money.FromDecimal(decimal.RequireFromString("12.00")),
 			CouponDiscount:     money.FromDecimal(decimal.RequireFromString("8.00")),
 			PromotionDiscount:  money.FromDecimal(decimal.RequireFromString("10.00")),
 			FulfillmentType:    "manual",
@@ -106,6 +108,12 @@ func TestBuildChannelOrderPreviewResponseIncludesTelegramFriendlyFields(t *testi
 	}
 	if got := items[0]["promotion_discount"]; got != "10.00" {
 		t.Fatalf("expected promotion_discount=10.00, got=%v", got)
+	}
+	if got := items[0]["member_discount"]; got != "12.00" {
+		t.Fatalf("expected item member_discount=12.00, got=%v", got)
+	}
+	if got := resp["member_discount"]; got != "12.00" {
+		t.Fatalf("expected member_discount=12.00, got=%v", got)
 	}
 	if got := items[0]["fulfillment_type"]; got != "manual" {
 		t.Fatalf("expected fulfillment_type=manual, got=%v", got)

@@ -101,6 +101,7 @@ type CreateOrderInput struct {
 type OrderPreview struct {
 	Currency                string
 	OriginalAmount          money.Amount
+	MemberDiscountAmount    money.Amount
 	DiscountAmount          money.Amount
 	PromotionDiscountAmount money.Amount
 	WholesaleDiscountAmount money.Amount
@@ -117,6 +118,7 @@ type OrderPreviewItem struct {
 	Quantity           int
 	OriginalTotalPrice money.Amount
 	TotalPrice         money.Amount
+	MemberDiscount     money.Amount
 	CouponDiscount     money.Amount
 	PromotionDiscount  money.Amount
 	WholesaleDiscount  money.Amount
