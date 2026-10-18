@@ -147,7 +147,7 @@
               <span v-if="hasMoreExclusivePrices" class="text-[12.5px] text-muted-foreground">{{ t('personalCenter.exclusivePrice.total', { n: exclusivePriceItems.length }) }}</span>
             </div>
             <p class="mb-4 text-[12.5px] text-muted-foreground">{{ t('personalCenter.exclusivePrice.hint') }}</p>
-            <div class="grid gap-2.5">
+            <div class="grid grid-cols-1 gap-2.5">
               <div
                 v-for="item in visibleExclusivePriceItems"
                 :key="item.key"
