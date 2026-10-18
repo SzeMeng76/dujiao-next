@@ -21,7 +21,7 @@
       </div>
     </header>
 
-    <div class="grid items-start gap-[22px] lg:grid-cols-[248px_1fr]">
+    <div class="grid grid-cols-1 items-start gap-[22px] lg:grid-cols-[248px_1fr]">
       <!-- 侧栏 -->
       <aside class="min-w-0 sticky top-[90px] max-[900px]:static">
         <nav class="flex flex-col gap-0.5 rounded-xl border bg-card p-2.5 max-[900px]:flex-row max-[900px]:overflow-x-auto">
@@ -40,7 +40,7 @@
       </aside>
 
       <!-- 内容 -->
-      <section class="grid min-w-0 gap-[18px]">
+      <section class="grid grid-cols-1 min-w-0 gap-[18px]">
         <div v-if="globalAlert" class="rounded-sm px-3.5 py-3 text-[13px] font-semibold" :class="globalAlert.level === 'error' ? 'bg-destructive/10 text-destructive' : (globalAlert.level === 'success' ? 'bg-[color:var(--teal-soft)] text-[color:var(--teal-strong)]' : 'bg-warning/10 text-warning')">
           {{ globalAlert.message }}
         </div>
