@@ -29,12 +29,14 @@
             v-for="item in visibleSectionItems"
             :key="item.key"
             type="button"
-            class="flex w-full items-center gap-[11px] rounded-sm px-3.5 py-[11px] text-left text-[14.5px] font-semibold transition-colors max-[900px]:whitespace-nowrap"
+            class="block w-full rounded-sm px-3.5 py-[11px] text-left text-[14.5px] font-semibold transition-colors max-[900px]:w-auto max-[900px]:shrink-0 max-[900px]:whitespace-nowrap"
             :class="currentSection === item.key ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'"
             @click="switchSection(item.key)"
           >
-            <component :is="item.icon" class="h-[18px] w-[18px] flex-none" />
-            <span>{{ t(item.label) }}</span>
+            <span class="flex items-center gap-[11px]">
+              <component :is="item.icon" class="h-[18px] w-[18px] flex-none" />
+              <span>{{ t(item.label) }}</span>
+            </span>
           </button>
         </nav>
       </aside>
