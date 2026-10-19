@@ -24,9 +24,11 @@ import (
 
 type LocalizedTextInput map[string]string
 
+// ResellerAnnouncementInput 的 Display 为展示方式：modal 弹窗（缺省） / ticker 顶部跑马灯。
 type ResellerAnnouncementInput struct {
 	Enabled bool               `json:"enabled"`
 	Type    string             `json:"type"`
+	Display string             `json:"display"`
 	Title   LocalizedTextInput `json:"title"`
 	Content LocalizedTextInput `json:"content"`
 }
@@ -174,6 +176,14 @@ func NormalizeResellerSupport(input ResellerSupportInput) (jsonmap.JSON, error) 
 	return jsonmap.JSON{"telegram": telegram, "whatsapp": whatsApp, "email": email, "support_url": supportURL}, nil
 }
 
+// normalizeResellerAnnouncementDisplay 非法或缺省时回退为弹窗，保持旧数据行为不变。
+func normalizeResellerAnnouncementDisplay(raw string) string {
+	if strings.TrimSpace(raw) == "ticker" {
+		return "ticker"
+	}
+	return "modal"
+}
+
 func normalizeResellerAnnouncement(input ResellerAnnouncementInput) jsonmap.JSON {
 	typ := trimLimit(input.Type, 32)
 	if typ != "info" && typ != "success" && typ != "warning" {
@@ -182,6 +192,7 @@ func normalizeResellerAnnouncement(input ResellerAnnouncementInput) jsonmap.JSON
 	return jsonmap.JSON{
 		"enabled": input.Enabled,
 		"type":    typ,
+		"display": normalizeResellerAnnouncementDisplay(input.Display),
 		"title":   normalizeResellerLocalizedText(input.Title, 120),
 		// 公告内容为富文本 HTML（前端 TipTap），含标签开销，限额需高于纯文本；
 		// 按 rune 截断仍可能切断标签，但前端渲染统一经 DOMPurify 解析补全，不会破坏页面。
@@ -462,8 +473,10 @@ func applyResellerAnnouncementToPublicConfig(out map[string]interface{}, raw jso
 	if annType == "" {
 		annType = "info"
 	}
+	display, _ := raw["display"].(string)
 	out["announcement"] = map[string]interface{}{
 		"type":    annType,
+		"display": normalizeResellerAnnouncementDisplay(display),
 		"title":   title,
 		"content": content,
 		"version": announcementVersion(annType, title, content),

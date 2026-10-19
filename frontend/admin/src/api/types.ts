@@ -925,6 +925,7 @@ export interface AdminResellerSiteConfigPayload {
   announcement?: {
     enabled?: boolean
     type?: string
+    display?: string
     title?: AdminResellerLocalizedText
     content?: AdminResellerLocalizedText
   }

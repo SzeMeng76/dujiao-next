@@ -258,6 +258,52 @@ func TestResellerSiteConfigServiceOverlayEmitsActiveAnnouncement(t *testing.T) {
 	}
 }
 
+func TestResellerSiteConfigServiceOverlayAnnouncementDisplay(t *testing.T) {
+	db := openResellerManagementServiceTestDB(t)
+	repo := resellergormstore.New(db)
+	user := seedResellerManagementUser(t, db, "site-config-announcement-display@example.test")
+	profile := resellerdomain.Profile{UserID: user.ID, Status: resellerdomain.ProfileStatusActive, SettlementStatus: resellerdomain.SettlementStatusNormal}
+	if err := db.Create(&profile).Error; err != nil {
+		t.Fatalf("create profile failed: %v", err)
+	}
+	svc := NewResellerSiteConfigService(repo)
+	tenant := ResellerTenantContext("shop.example.test", profile.ID, user.ID, "shop.example.test")
+
+	displayFor := func(display string) interface{} {
+		t.Helper()
+		if _, err := svc.UpdateUserSiteConfig(context.Background(), user.ID, ResellerSiteConfigInput{
+			SiteName: "Display Store",
+			Announcement: ResellerAnnouncementInput{
+				Enabled: true,
+				Type:    "info",
+				Display: display,
+				Content: LocalizedTextInput{"zh-CN": "<p>跑马灯</p>"},
+			},
+		}); err != nil {
+			t.Fatalf("save config failed: %v", err)
+		}
+		out, err := svc.ApplyPublicConfigOverlay(context.Background(), tenant, map[string]interface{}{})
+		if err != nil {
+			t.Fatalf("apply overlay failed: %v", err)
+		}
+		announcement := resellerSiteConfigTestMap(out["announcement"])
+		if announcement == nil {
+			t.Fatalf("expected announcement to be emitted for display %q", display)
+		}
+		return announcement["display"]
+	}
+
+	if got := displayFor("ticker"); got != "ticker" {
+		t.Fatalf("expected ticker display to be kept, got %v", got)
+	}
+	if got := displayFor(""); got != "modal" {
+		t.Fatalf("expected missing display to default to modal, got %v", got)
+	}
+	if got := displayFor("banana"); got != "modal" {
+		t.Fatalf("expected invalid display to fall back to modal, got %v", got)
+	}
+}
+
 func resellerSiteConfigTestMap(value interface{}) map[string]interface{} {
 	switch typed := value.(type) {
 	case jsonmap.JSON:

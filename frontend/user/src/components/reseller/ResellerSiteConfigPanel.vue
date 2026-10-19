@@ -206,6 +206,18 @@
                   </Select>
                 </div>
                 <div class="block">
+                  <span class="mb-2 block text-sm font-medium text-muted-foreground">{{ t('personalCenter.reseller.siteConfig.fields.announcementDisplay') }}</span>
+                  <Select v-model="form.announcement!.display">
+                    <SelectTrigger class="h-11">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="modal">{{ t('personalCenter.reseller.siteConfig.fields.announcementDisplayModal') }}</SelectItem>
+                      <SelectItem value="ticker">{{ t('personalCenter.reseller.siteConfig.fields.announcementDisplayTicker') }}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div class="block">
                   <span class="mb-2 block text-sm font-medium text-muted-foreground">{{ t('personalCenter.reseller.siteConfig.announcementPanel.language') }}</span>
                   <ResellerLocaleTabs v-model="activeLocale" :labels="localeLabels" />
                 </div>
@@ -496,6 +508,7 @@ const createBlankForm = (): ResellerSiteConfigPayload => ({
     announcement: {
         enabled: false,
         type: 'info',
+        display: 'modal',
         title: blankLocalizedText(),
         content: blankLocalizedText(),
     },
@@ -550,6 +563,7 @@ const assignForm = (config?: ResellerSiteConfigData) => {
         next.announcement = {
             enabled: config.announcement?.enabled === true,
             type: config.announcement?.type || 'info',
+            display: config.announcement?.display === 'ticker' ? 'ticker' : 'modal',
             title: normalizeLocalizedTextForForm(config.announcement?.title),
             content: normalizeLocalizedTextForForm(config.announcement?.content),
         }

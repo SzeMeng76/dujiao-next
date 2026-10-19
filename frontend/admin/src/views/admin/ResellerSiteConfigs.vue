@@ -49,6 +49,7 @@ type ResellerSiteConfigForm = {
   announcement: {
     enabled: boolean
     type: string
+    display: string
     title: ResellerLocalizedText
     content: ResellerLocalizedText
   }
@@ -125,6 +126,7 @@ const createBlankForm = (): ResellerSiteConfigForm => ({
   announcement: {
     enabled: false,
     type: 'info',
+    display: 'modal',
     title: blankLocalizedText(),
     content: blankLocalizedText(),
   },
@@ -182,6 +184,7 @@ const normalizeConfigForForm = (row: AdminResellerSiteConfig): ResellerSiteConfi
     announcement: {
       enabled: announcement.enabled === true,
       type: String(announcement.type || 'info'),
+      display: announcement.display === 'ticker' ? 'ticker' : 'modal',
       title: normalizeLocalizedTextForForm(announcement.title),
       content: normalizeLocalizedTextForForm(announcement.content),
     },
@@ -209,6 +212,7 @@ const buildPayload = (): AdminResellerSiteConfigPayload => ({
   announcement: {
     enabled: form.announcement.enabled,
     type: form.announcement.type.trim() || 'info',
+    display: form.announcement.display === 'ticker' ? 'ticker' : 'modal',
     title: form.announcement.title,
     content: form.announcement.content,
   },
@@ -515,6 +519,16 @@ onMounted(() => {
                         {{ t(`admin.resellerSiteConfigs.announcementTypes.${opt.value}`) }}
                       </span>
                     </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div class="grid gap-1">
+                <span class="text-xs text-muted-foreground">{{ t('admin.resellerSiteConfigs.fields.announcementDisplay') }}</span>
+                <Select v-model="form.announcement.display">
+                  <SelectTrigger class="h-9 w-44"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="modal">{{ t('admin.resellerSiteConfigs.fields.announcementDisplayModal') }}</SelectItem>
+                    <SelectItem value="ticker">{{ t('admin.resellerSiteConfigs.fields.announcementDisplayTicker') }}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
