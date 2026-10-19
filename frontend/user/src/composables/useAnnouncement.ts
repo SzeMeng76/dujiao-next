@@ -1,5 +1,6 @@
 const DISMISS_KEY = 'announcement_dismiss'
 const SESSION_KEY = 'announcement_closed'
+const TICKER_SESSION_KEY = 'announcement_ticker_closed'
 
 interface DismissRecord {
   version: string
@@ -9,6 +10,8 @@ interface DismissRecord {
 
 export interface HomeAnnouncement {
   type: string
+  // 展示方式：modal 弹窗（缺省） / ticker 顶部跑马灯
+  display?: 'modal' | 'ticker' | string
   title: Record<string, string>
   content: Record<string, string>
   version: string
@@ -77,5 +80,24 @@ export function useAnnouncement() {
     }
   }
 
-  return { shouldShow, dismissForever, dismissToday, closeForSession }
+  // 跑马灯：只在本次会话内可关闭，不受弹窗“不再提示”记录影响
+  const shouldShowTicker = (announcement: HomeAnnouncement | null | undefined): boolean => {
+    if (!announcement || !announcement.version || announcement.display !== 'ticker') return false
+    try {
+      if (sessionStorage.getItem(TICKER_SESSION_KEY) === announcement.version) return false
+    } catch {
+      // sessionStorage 不可用时忽略
+    }
+    return true
+  }
+
+  const closeTickerForSession = (version: string) => {
+    try {
+      sessionStorage.setItem(TICKER_SESSION_KEY, version)
+    } catch {
+      // 忽略写入失败
+    }
+  }
+
+  return { shouldShow, dismissForever, dismissToday, closeForSession, shouldShowTicker, closeTickerForSession }
 }

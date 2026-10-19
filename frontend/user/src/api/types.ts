@@ -259,6 +259,7 @@ export interface ResellerSiteConfigPayload {
     announcement?: {
         enabled: boolean
         type: string
+        display?: string
         title: ResellerLocalizedText
         content: ResellerLocalizedText
     }

@@ -18,6 +18,21 @@ var homeAnnouncementTypes = map[string]struct{}{
 	"warning": {},
 }
 
+// homeAnnouncementDisplays 首页公告允许的展示方式：弹窗 / 顶部跑马灯。
+var homeAnnouncementDisplays = map[string]struct{}{
+	"modal":  {},
+	"ticker": {},
+}
+
+// normalizeHomeAnnouncementDisplay 非法或缺省时回退为弹窗，保持旧数据行为不变。
+func normalizeHomeAnnouncementDisplay(raw interface{}) string {
+	display := normalizeAnnouncementText(raw)
+	if _, ok := homeAnnouncementDisplays[display]; !ok {
+		return "modal"
+	}
+	return display
+}
+
 // NormalizeHomeAnnouncementJSON 是 Registry 使用的原始 JSON 写入策略。
 func NormalizeHomeAnnouncementJSON(value jsonmap.JSON) jsonmap.JSON {
 	return normalizeHomeAnnouncement(value)
@@ -32,6 +47,7 @@ func normalizeHomeAnnouncement(value map[string]interface{}) jsonmap.JSON {
 	return jsonmap.JSON{
 		"enabled":  settingsvalue.ParseBool(value["enabled"]),
 		"type":     annType,
+		"display":  normalizeHomeAnnouncementDisplay(value["display"]),
 		"title":    normalizeAnnouncementLocalizedField(value["title"]),
 		"content":  normalizeAnnouncementLocalizedField(value["content"]),
 		"start_at": normalizeHomeAnnouncementTime(value["start_at"]),
@@ -141,8 +157,10 @@ func ActiveHomeAnnouncement(value jsonmap.JSON, now time.Time) (jsonmap.JSON, bo
 	}
 	title, _ := announcement["title"].(map[string]interface{})
 	annType, _ := announcement["type"].(string)
+	display, _ := announcement["display"].(string)
 	return jsonmap.JSON{
 		"type":    annType,
+		"display": display,
 		"title":   title,
 		"content": content,
 		"version": homeAnnouncementVersion(annType, title, content),

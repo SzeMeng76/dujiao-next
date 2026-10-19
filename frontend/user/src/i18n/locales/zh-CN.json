@@ -208,6 +208,7 @@
     "empty": "暂无公告"
   },
   "announcement": {
+    "label": "公告",
     "close": "关闭",
     "dismissToday": "今日不再提示",
     "dismissForever": "不再提示"

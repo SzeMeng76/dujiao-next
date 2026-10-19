@@ -1,5 +1,10 @@
 <template>
   <div>
+    <!-- 公告跑马灯（后台公告展示方式选“跑马灯”时显示，两种模式共用） -->
+    <div v-if="tickerAnnouncement" class="mx-auto w-full max-w-[1180px] px-4 pt-5 sm:px-6">
+      <AnnouncementTicker :announcement="tickerAnnouncement" @close="closeTicker" />
+    </div>
+
     <!-- 站长配置的横幅轮播（两种模式共用，顶部展示） -->
     <VaultBannerHero />
 
@@ -184,6 +189,7 @@ import VaultCategorySidebar from './components/VaultCategorySidebar.vue'
 import VaultBannerHero from './components/VaultBannerHero.vue'
 import ProductQuickBuy from '../../components/ProductQuickBuy.vue'
 import AnnouncementModal from '../../components/AnnouncementModal.vue'
+import AnnouncementTicker from '../../components/AnnouncementTicker.vue'
 import { useAnnouncement, type HomeAnnouncement } from '../../composables/useAnnouncement'
 
 const route = useRoute()
@@ -262,12 +268,25 @@ const latestVisible = computed(() => blogEnabled.value || noticeEnabled.value)
 const formatDate = (value: string) => (value ? new Date(value).toLocaleDateString() : '')
 
 // ==================== 公告弹窗（版本化可关闭，两种模式共用） ====================
-const { shouldShow } = useAnnouncement()
+const { shouldShow, shouldShowTicker, closeTickerForSession } = useAnnouncement()
 const activeAnnouncement = ref<HomeAnnouncement | null>(null)
 const announcementVisible = ref(false)
+
+// 跑马灯：公告展示方式为 ticker 时显示，且不再弹窗
+const tickerClosed = ref(false)
+const tickerAnnouncement = computed(() => {
+  if (tickerClosed.value) return null
+  const announcement = appStore.config?.announcement as HomeAnnouncement | undefined
+  return announcement && shouldShowTicker(announcement) ? announcement : null
+})
+const closeTicker = () => {
+  if (tickerAnnouncement.value) closeTickerForSession(tickerAnnouncement.value.version)
+  tickerClosed.value = true
+}
+
 const showAnnouncementIfNeeded = () => {
   const announcement = appStore.config?.announcement as HomeAnnouncement | undefined
-  if (announcement && shouldShow(announcement)) {
+  if (announcement && announcement.display !== 'ticker' && shouldShow(announcement)) {
     activeAnnouncement.value = announcement
     announcementVisible.value = true
   }

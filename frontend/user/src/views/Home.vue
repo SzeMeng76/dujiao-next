@@ -1,10 +1,15 @@
 <template>
   <div class="home-page min-h-screen bg-background text-foreground">
 
+    <!-- 顶部公告跑马灯（后台公告展示方式选“跑马灯”时显示；导航栏为 fixed，故自带顶部留白） -->
+    <div v-if="tickerAnnouncement" class="container relative z-10 mx-auto px-4 pt-24">
+      <AnnouncementTicker :announcement="tickerAnnouncement" @close="closeTicker" />
+    </div>
+
     <!-- ==================== LIST MODE ==================== -->
     <template v-if="templateMode === 'list'">
       <!-- Hero Banner (shared with card mode) -->
-      <section v-if="showHeroSection" class="relative z-10 border-b pt-24 pb-10">
+      <section v-if="showHeroSection" class="relative z-10 border-b pb-10" :class="tickerAnnouncement ? 'pt-4' : 'pt-24'">
         <div class="container mx-auto px-4">
           <div class="relative overflow-hidden rounded-2xl border bg-card"
             @touchstart="onBannerTouchStart"
@@ -57,7 +62,7 @@
       </section>
 
       <!-- Main: Left Categories + Right Product List -->
-      <section class="relative z-10 pb-6" :class="showHeroSection ? 'pt-6' : 'pt-24'">
+      <section class="relative z-10 pb-6" :class="showHeroSection || tickerAnnouncement ? 'pt-6' : 'pt-24'">
         <div class="container mx-auto px-4">
           <div class="flex flex-col lg:flex-row gap-6">
 
@@ -163,7 +168,7 @@
 
     <!-- ==================== CARD MODE (default) ==================== -->
     <template v-else>
-    <section v-if="showHeroSection" class="relative z-10 border-b pt-24 pb-10">
+    <section v-if="showHeroSection" class="relative z-10 border-b pb-10" :class="tickerAnnouncement ? 'pt-4' : 'pt-24'">
       <div class="container mx-auto px-4">
         <div class="relative overflow-hidden rounded-2xl border bg-card"
           @touchstart="onBannerTouchStart"
@@ -260,7 +265,7 @@
       </div>
     </section>
 
-    <section id="featured" class="relative z-10 pb-14" :class="showHeroSection ? 'pt-14' : 'pt-32 md:pt-36'">
+    <section id="featured" class="relative z-10 pb-14" :class="showHeroSection ? 'pt-14' : tickerAnnouncement ? 'pt-8' : 'pt-32 md:pt-36'">
       <div class="container mx-auto px-4">
         <div class="mb-8 flex items-end justify-between gap-4">
           <div>
@@ -367,6 +372,7 @@ import CategorySidebar from '../components/CategorySidebar.vue'
 import PaginationNav from '../components/PaginationNav.vue'
 import EmptyState from '../components/EmptyState.vue'
 import AnnouncementModal from '../components/AnnouncementModal.vue'
+import AnnouncementTicker from '../components/AnnouncementTicker.vue'
 import { useAnnouncement, type HomeAnnouncement } from '../composables/useAnnouncement'
 
 const router = useRouter()
@@ -389,9 +395,21 @@ const posts = ref<any[]>([])
 const quickBuyProduct = ref<any>(null)
 const quickBuyVisible = ref(false)
 
-const { shouldShow } = useAnnouncement()
+const { shouldShow, shouldShowTicker, closeTickerForSession } = useAnnouncement()
 const activeAnnouncement = ref<HomeAnnouncement | null>(null)
 const announcementVisible = ref(false)
+
+// 跑马灯：公告展示方式为 ticker 时显示，且不再弹窗
+const tickerClosed = ref(false)
+const tickerAnnouncement = computed(() => {
+  if (tickerClosed.value) return null
+  const announcement = appStore.config?.announcement as HomeAnnouncement | undefined
+  return announcement && shouldShowTicker(announcement) ? announcement : null
+})
+const closeTicker = () => {
+  if (tickerAnnouncement.value) closeTickerForSession(tickerAnnouncement.value.version)
+  tickerClosed.value = true
+}
 
 const openQuickBuy = (product: any) => {
   quickBuyProduct.value = product
@@ -501,7 +519,7 @@ const loadLatestPosts = async () => {
 // ==================== Lifecycle ====================
 const showAnnouncementIfNeeded = () => {
   const announcement = appStore.config?.announcement as HomeAnnouncement | undefined
-  if (announcement && shouldShow(announcement)) {
+  if (announcement && announcement.display !== 'ticker' && shouldShow(announcement)) {
     activeAnnouncement.value = announcement
     announcementVisible.value = true
   }

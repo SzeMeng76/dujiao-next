@@ -256,6 +256,7 @@
     "empty": "暫無公告"
   },
   "announcement": {
+    "label": "公告",
     "close": "關閉",
     "dismissToday": "今日不再提示",
     "dismissForever": "不再提示"

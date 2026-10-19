@@ -37,6 +37,7 @@ const createLocalizedField = (): Record<SupportedLanguage, string> => ({
 const form = reactive({
   enabled: false,
   type: 'normal' as 'normal' | 'info' | 'warning',
+  display: 'modal' as 'modal' | 'ticker',
   title: createLocalizedField(),
   content: createLocalizedField(),
   start_at: '',
@@ -75,6 +76,7 @@ const fetchAnnouncement = async () => {
       const d = data as Record<string, unknown>
       form.enabled = d.enabled === true
       form.type = d.type === 'info' || d.type === 'warning' ? d.type : 'normal'
+      form.display = d.display === 'ticker' ? 'ticker' : 'modal'
       const title = (d.title as Record<string, string>) || {}
       const content = (d.content as Record<string, string>) || {}
       for (const lang of supportedLanguages) {
@@ -101,6 +103,7 @@ const save = async () => {
     await adminAPI.updateHomeAnnouncement({
       enabled: form.enabled,
       type: form.type,
+      display: form.display,
       title: { ...form.title },
       content,
       start_at: toRFC3339(form.start_at),
@@ -146,6 +149,21 @@ defineExpose({ save, submitting })
             <p class="mt-1 text-xs text-muted-foreground">{{ t('admin.settings.homeAnnouncement.enabledDesc') }}</p>
           </div>
           <Switch v-model="form.enabled" />
+        </div>
+
+        <!-- 展示方式：弹窗 / 顶部跑马灯 -->
+        <div class="space-y-2">
+          <Label class="text-sm font-medium">{{ t('admin.settings.homeAnnouncement.display') }}</Label>
+          <Select v-model="form.display">
+            <SelectTrigger class="h-10 w-full sm:w-60">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="modal">{{ t('admin.settings.homeAnnouncement.displayModal') }}</SelectItem>
+              <SelectItem value="ticker">{{ t('admin.settings.homeAnnouncement.displayTicker') }}</SelectItem>
+            </SelectContent>
+          </Select>
+          <p class="text-xs text-muted-foreground">{{ t('admin.settings.homeAnnouncement.displayHint') }}</p>
         </div>
 
         <!-- 公告类型 -->

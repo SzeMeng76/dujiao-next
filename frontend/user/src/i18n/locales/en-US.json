@@ -256,6 +256,7 @@
     "empty": "No notices"
   },
   "announcement": {
+    "label": "Notice",
     "close": "Close",
     "dismissToday": "Don't show today",
     "dismissForever": "Don't show again"

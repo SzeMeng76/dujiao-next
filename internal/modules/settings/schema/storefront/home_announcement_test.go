@@ -71,3 +71,27 @@ func TestHomeAnnouncementSchedule(t *testing.T) {
 		t.Fatalf("expected active within window")
 	}
 }
+
+func TestHomeAnnouncementDisplay(t *testing.T) {
+	legacy := normalizeHomeAnnouncement(map[string]interface{}{"enabled": true})
+	if legacy["display"] != "modal" {
+		t.Fatalf("expected missing display to default to modal, got %v", legacy["display"])
+	}
+	invalid := normalizeHomeAnnouncement(map[string]interface{}{"display": "banana"})
+	if invalid["display"] != "modal" {
+		t.Fatalf("expected invalid display to fall back to modal, got %v", invalid["display"])
+	}
+
+	now := time.Date(2026, 5, 20, 12, 0, 0, 0, time.UTC)
+	active, ok := ActiveHomeAnnouncement(map[string]interface{}{
+		"enabled": true,
+		"display": "ticker",
+		"content": map[string]interface{}{"zh-CN": "<p>正文</p>"},
+	}, now)
+	if !ok {
+		t.Fatalf("expected announcement to be active")
+	}
+	if active["display"] != "ticker" {
+		t.Fatalf("expected ticker display in public payload, got %v", active["display"])
+	}
+}
