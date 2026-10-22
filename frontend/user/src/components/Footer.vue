@@ -109,6 +109,8 @@
           <div class="flex flex-wrap items-center gap-x-4 gap-y-1 justify-center md:justify-end">
             <router-link to="/privacy" class="hover:text-gray-900 dark:hover:text-gray-400">{{ t('footer.privacy') || 'Privacy Policy' }}</router-link>
             <router-link to="/terms" class="hover:text-gray-900 dark:hover:text-gray-400">{{ t('footer.terms') || 'Terms of Service' }}</router-link>
+            <!-- /guide 是后端渲染的静态引导页，不在 SPA 路由内，必须用原生 <a> 整页跳转 -->
+            <a href="/guide" class="hover:text-gray-900 dark:hover:text-gray-400">{{ t('footer.guide') }}</a>
           </div>
           <div v-if="footerLinks.length" class="flex flex-wrap items-center gap-x-4 gap-y-1 justify-center md:justify-end">
             <a

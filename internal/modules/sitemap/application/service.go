@@ -125,6 +125,8 @@ func (s *Service) collectURLs(ctx context.Context, baseURL string) ([]domain.URL
 	}{
 		{"/", "daily", "1.0"},
 		{"/products", "daily", "0.9"},
+		// 服务端渲染的静态引导页：含全部分类与商品的真实 <a> 内链，供爬虫发现详情页
+		{"/guide", "daily", "0.8"},
 		{"/blog", "weekly", "0.6"},
 		{"/notice", "weekly", "0.5"},
 		{"/about", "monthly", "0.3"},
@@ -148,6 +150,13 @@ func (s *Service) collectURLs(ctx context.Context, baseURL string) ([]domain.URL
 	for _, cat := range categories {
 		entries = append(entries, domain.URL{
 			Location:        baseURL + "/categories/" + url.PathEscape(cat.Slug),
+			LastModified:    cat.CreatedAt.UTC().Format("2006-01-02"),
+			ChangeFrequency: "weekly",
+			Priority:        "0.7",
+		})
+		// 对应的服务端渲染引导页：分类下全部商品的真实内链
+		entries = append(entries, domain.URL{
+			Location:        baseURL + "/guide/c/" + url.PathEscape(cat.Slug),
 			LastModified:    cat.CreatedAt.UTC().Format("2006-01-02"),
 			ChangeFrequency: "weekly",
 			Priority:        "0.7",

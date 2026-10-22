@@ -104,13 +104,16 @@ func (s *Service) BuildHomePage(locale string) (*seoguidedomain.GuidePage, error
 		})
 	}
 
+	lang, labels := seoguidedomain.LabelsFor(locale)
 	siteName := b.SiteName
 	title := siteName
 	if title == "" {
-		title = "商品目录"
+		title = labels.DefaultTitle
 	}
 
 	return &seoguidedomain.GuidePage{
+		Lang:         lang,
+		Labels:       labels,
 		Title:        title,
 		Description:  title,
 		CanonicalURL: siteURL + "/guide",
@@ -177,7 +180,11 @@ func (s *Service) BuildCategoryPage(categorySlug, locale string) (*seoguidedomai
 		title = catName + " - " + siteName
 	}
 
+	lang, labels := seoguidedomain.LabelsFor(locale)
+
 	return &seoguidedomain.GuidePage{
+		Lang:         lang,
+		Labels:       labels,
 		Title:        title,
 		Description:  title,
 		CanonicalURL: guideURL,

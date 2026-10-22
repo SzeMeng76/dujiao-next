@@ -8,7 +8,7 @@ package seoguidehttp
 //   - 有真实可见的正文（标题、描述、价格），让 Google 判定为有内容的页面
 //   - 不做任何 JavaScript，不依赖前端渲染
 const guideTmplSrc = `<!doctype html>
-<html lang="zh">
+<html lang="{{if .Lang}}{{.Lang}}{{else}}zh-CN{{end}}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -61,8 +61,8 @@ const guideTmplSrc = `<!doctype html>
   {{if .SiteName}}<h1><a href="{{safeURL .SiteURL}}">{{.SiteName}}</a></h1>{{end}}
 
   {{if .CurrentCategory}}
-  <a class="back" href="{{safeURL .SiteURL}}/guide">← 返回全部分类</a>
-  <h2>分类：{{.CurrentCategory.Name}}</h2>
+  <a class="back" href="{{safeURL .SiteURL}}/guide">{{.Labels.BackToAll}}</a>
+  <h2>{{.Labels.CategoryPre}}{{.CurrentCategory.Name}}</h2>
   {{end}}
 
   {{if .Categories}}
@@ -89,7 +89,7 @@ const guideTmplSrc = `<!doctype html>
   {{end}}
 
   {{if .Posts}}
-  <h2>最新资讯</h2>
+  <h2>{{.Labels.LatestPosts}}</h2>
   <ul class="posts">
     {{range .Posts}}
     <li><a href="{{safeURL .PostURL}}">{{.Title}}</a></li>
@@ -98,7 +98,7 @@ const guideTmplSrc = `<!doctype html>
   {{end}}
 
   <footer>
-    <a href="{{safeURL .SiteURL}}/guide">商品索引</a>
+    <a href="{{safeURL .SiteURL}}/guide">{{.Labels.GuideIndex}}</a>
     &nbsp;·&nbsp;
     <a href="{{safeURL .SiteURL}}/sitemap.xml">Sitemap</a>
   </footer>

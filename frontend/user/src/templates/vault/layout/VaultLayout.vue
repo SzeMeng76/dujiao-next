@@ -136,6 +136,8 @@
           <h4 class="mb-3 text-sm font-bold">{{ t('vault.footer.legal') }}</h4>
           <RouterLink to="/terms" class="flex items-center gap-[7px] py-[5px] text-[14.5px] text-muted-foreground hover:text-primary">{{ t('footer.terms') }}</RouterLink>
           <RouterLink to="/privacy" class="flex items-center gap-[7px] py-[5px] text-[14.5px] text-muted-foreground hover:text-primary">{{ t('footer.privacy') }}</RouterLink>
+          <!-- /guide 是后端渲染的静态引导页，不在 SPA 路由内，必须用原生 <a> 整页跳转 -->
+          <a href="/guide" class="flex items-center gap-[7px] py-[5px] text-[14.5px] text-muted-foreground hover:text-primary">{{ t('footer.guide') }}</a>
           <a v-for="link in footerLinks" :key="link.name" :href="link.url || 'javascript:void(0)'" :target="link.url ? '_blank' : undefined" rel="noopener noreferrer" class="flex items-center gap-[7px] py-[5px] text-[14.5px] text-muted-foreground hover:text-primary">{{ link.name }}</a>
         </div>
       </div>

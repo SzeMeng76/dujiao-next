@@ -94,12 +94,21 @@ func resolveLocale(c *gin.Context) string {
 }
 
 // resolveLocaleFromHeader 从 Accept-Language 头推断语言，默认 zh-CN。
+// 按头里出现的顺序取第一个受支持的语言（浏览器按偏好从高到低排列），
+// 避免 "zh-CN,zh;q=0.9,en;q=0.8" 因为包含 en 被误判成英文。
 func resolveLocaleFromHeader(accept string) string {
-	if strings.Contains(accept, "zh-TW") || strings.Contains(accept, "zh-Hant") {
-		return "zh-TW"
-	}
-	if strings.Contains(accept, "en") {
-		return "en-US"
+	for _, part := range strings.Split(accept, ",") {
+		tag := strings.ToLower(strings.TrimSpace(strings.SplitN(part, ";", 2)[0]))
+		switch {
+		case strings.HasPrefix(tag, "zh"):
+			if strings.Contains(tag, "tw") || strings.Contains(tag, "hk") ||
+				strings.Contains(tag, "mo") || strings.Contains(tag, "hant") {
+				return "zh-TW"
+			}
+			return "zh-CN"
+		case strings.HasPrefix(tag, "en"):
+			return "en-US"
+		}
 	}
 	return "zh-CN"
 }
