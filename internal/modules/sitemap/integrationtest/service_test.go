@@ -246,6 +246,9 @@ func TestSitemapServiceGenerateRobotsIncludesSitemapURL(t *testing.T) {
 
 	mustContain := []string{
 		"User-agent: *",
+		"Disallow: /api/",
+		// CSR SPA 渲染期要从公开只读接口取数据，必须放行，否则页面渲染成空列表
+		"Allow: /api/v1/public/",
 		"Disallow: /admin/",
 		"Disallow: /me/",
 		"Sitemap: https://example.com/sitemap.xml",

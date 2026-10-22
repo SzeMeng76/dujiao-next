@@ -73,6 +73,13 @@ func (s *Service) GenerateRobots(baseURL string) string {
 	var b strings.Builder
 	b.WriteString("User-agent: *\n")
 	b.WriteString("Disallow: /api/\n")
+	// 前台是 CSR SPA，商品/分类/文章/站点配置等页面正文全靠 /api/v1/public/ 下的
+	// 公开只读接口在渲染期 fetch。robots.txt 对渲染期子请求同样生效：一旦这段被
+	// Disallow，Googlebot 渲染详情页时拿不到数据，只能输出「商品不存在」或空列表，
+	// 页面被判 Soft 404 而不收录。
+	// Allow 按路径长度优先（RFC 9309 最长匹配），这条比上面的 /api/ 更长，
+	// 所以只会放行 public 只读接口，写入 / 鉴权接口仍在 /api/ 之下继续屏蔽。
+	b.WriteString("Allow: /api/v1/public/\n")
 	b.WriteString("Disallow: /admin/\n")
 	b.WriteString("Disallow: /me/\n")
 	b.WriteString("Disallow: /cart\n")
