@@ -69,6 +69,7 @@ import (
 	reconciliationcontract "github.com/dujiao-next/internal/modules/reconciliation/contract"
 	reseller "github.com/dujiao-next/internal/modules/reseller/application"
 	resellergormstore "github.com/dujiao-next/internal/modules/reseller/infrastructure/gormstore"
+	seoguidehttp "github.com/dujiao-next/internal/modules/seoguide/transport/http"
 	settingsapp "github.com/dujiao-next/internal/modules/settings/application"
 	settingscontract "github.com/dujiao-next/internal/modules/settings/contract"
 	settingsstore "github.com/dujiao-next/internal/modules/settings/infrastructure/gormstore"
@@ -160,6 +161,7 @@ type Container struct {
 	CategoryService               *categoryapp.Service
 	SettingService                *settingsapp.Service
 	SitemapService                *sitemapapp.Service
+	SEOGuideHandler               *seoguidehttp.Handler
 	CartService                   *cartapp.Service
 	WalletService                 *walletapp.Service
 	OrderRefundService            *orderrefund.Service

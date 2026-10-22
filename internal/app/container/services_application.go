@@ -24,6 +24,11 @@ import (
 	orderriskapp "github.com/dujiao-next/internal/modules/orderrisk/application"
 	orderrisklimiter "github.com/dujiao-next/internal/modules/orderrisk/infrastructure/redislimiter"
 	promotionapp "github.com/dujiao-next/internal/modules/promotion/application"
+	seoguideapp "github.com/dujiao-next/internal/modules/seoguide/application"
+	seoguidebrandreader "github.com/dujiao-next/internal/modules/seoguide/infrastructure/brandreader"
+	seoguidecatalogreader "github.com/dujiao-next/internal/modules/seoguide/infrastructure/catalogreader"
+	seoguidepostreader "github.com/dujiao-next/internal/modules/seoguide/infrastructure/postreader"
+	seoguidehttp "github.com/dujiao-next/internal/modules/seoguide/transport/http"
 	sitemapapp "github.com/dujiao-next/internal/modules/sitemap/application"
 	sitemapcontract "github.com/dujiao-next/internal/modules/sitemap/contract"
 	sitemapcache "github.com/dujiao-next/internal/modules/sitemap/infrastructure/cacheadapter"
@@ -73,6 +78,23 @@ func (c *Container) initApplicationServices() {
 		panic(err)
 	}
 	c.SitemapService = sitemapService
+
+	// SEO 引导页：复用 catalog/content/settings 的现有仓储，不新增数据库访问
+	seoGuideSvc, err := seoguideapp.NewService(
+		seoguidecatalogreader.New(c.ProductRepo, c.CategoryRepo),
+		seoguidepostreader.New(c.ContentPostService),
+		seoguidebrandreader.New(c.SettingService),
+	)
+	if err != nil {
+		logger.Errorw("provider_init_seoguide_failed", "error", err)
+		panic(err)
+	}
+	seoGuideHandler, err := seoguidehttp.NewHandler(seoGuideSvc)
+	if err != nil {
+		logger.Errorw("provider_init_seoguide_handler_failed", "error", err)
+		panic(err)
+	}
+	c.SEOGuideHandler = seoGuideHandler
 	c.CartService = cartapp.NewService(c.CartRepo, c.ProductRepo, c.ProductSKURepo, c.PromotionRepo, c.SettingService)
 	c.WalletService = walletapp.NewService(walletapp.Options{
 		Repository: c.WalletRepo, Transactions: c.WalletRepo,

@@ -47,6 +47,7 @@ import (
 	notificationtransport "github.com/dujiao-next/internal/modules/notification/transport/http"
 	procurementtransport "github.com/dujiao-next/internal/modules/procurement/transport/http"
 	promotiontransport "github.com/dujiao-next/internal/modules/promotion/transport/http"
+	seoguidehttp "github.com/dujiao-next/internal/modules/seoguide/transport/http"
 	settingstransport "github.com/dujiao-next/internal/modules/settings/transport/http"
 	sitemapbrand "github.com/dujiao-next/internal/modules/sitemap/infrastructure/settingsbrand"
 	sitemaptransport "github.com/dujiao-next/internal/modules/sitemap/transport/http"
@@ -272,6 +273,9 @@ func SetupRouter(cfg *config.Config, c *container.Container) *gin.Engine {
 	// SEO 资源（动态生成）。
 	sitemaptransport.RegisterRoutes(r, sitemaptransport.NewHandler(c.SitemapService, sitemapbrand.New(c.SettingService)))
 
+	// SEO 静态引导页：服务端渲染真实内容与内链，供搜索引擎爬虫收录。
+	seoguidehttp.RegisterRoutes(r, c.SEOGuideHandler)
+
 	apiV1 := r.Group("/api/v1")
 	registerStorefrontRoutes(apiV1, cfg, c, publicContentHandler, publicCatalogHandler, publicCategoryHandler, userResellerHandler, userResellerProductSettingHandler, userResellerFinanceHandler, userResellerOrderHandler, userApiCredentialHandler, userAuditLogHandler, userGiftCardHandler, publicMemberLevelHandler, userMemberLevelHandler, userProfileHandler, userEmailHandler, userPasswordHandler, userUpgradeHandler, userVerifyHandler, userTelegramOIDCHandler, userTelegramHandler, userGoogleHandler, userLoginHandler, user2FAHandler, userInviteHandler, publicConfigHandler, userCartHandler, userOrderHandler, guestOrderHandler, orderPreviewHandler, orderCreateHandler, paymentLatestHandler, paymentWriteHandler, userWalletHandler, redisClient, loginRule, guestReadRule, guestWriteRule, guestLookupRule, giftCardRedeemRule)
 	registerUpstreamRoutes(apiV1, c, upstreamHandler, redisClient, upstreamAPIRule, callbackRule)
@@ -294,7 +298,7 @@ func SetupRouter(cfg *config.Config, c *container.Container) *gin.Engine {
 		if err := web.RegisterAdmin(r, cfg.Web.AdminPath, web.AdminFS()); err != nil {
 			log.Sugar().Fatalf("注册 admin SPA 失败: %v", err)
 		}
-		if err := web.RegisterUser(r, web.UserFS()); err != nil {
+		if err := web.RegisterUser(r, web.UserFS(), c.SEOGuideHandler); err != nil {
 			log.Sugar().Fatalf("注册 user SPA 失败: %v", err)
 		}
 	}

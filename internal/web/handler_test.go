@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -33,6 +34,8 @@ func TestValidateAdminPath(t *testing.T) {
 		{"reserved uploads", "/uploads", true, "reserved"},
 		{"reserved uploads prefix", "/uploads/x", true, "reserved"},
 		{"reserved health", "/health", true, "reserved"},
+		{"reserved guide", "/guide", true, "reserved"},
+		{"reserved guide prefix", "/guide/c/games", true, "reserved"},
 
 		{"valid nested", "/ops/console", false, ""},
 		{"valid underscores", "/dj_mgmt_7x9k2", false, ""},
@@ -221,7 +224,7 @@ func newUserFS() fstest.MapFS {
 func TestRegisterUser_ServesIndex(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	if err := RegisterUser(r, newUserFS()); err != nil {
+	if err := RegisterUser(r, newUserFS(), nil); err != nil {
 		t.Fatalf("RegisterUser: %v", err)
 	}
 
@@ -241,7 +244,7 @@ func TestRegisterUser_ServesIndex(t *testing.T) {
 func TestRegisterUser_ServesAsset(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	if err := RegisterUser(r, newUserFS()); err != nil {
+	if err := RegisterUser(r, newUserFS(), nil); err != nil {
 		t.Fatalf("RegisterUser: %v", err)
 	}
 
@@ -261,7 +264,7 @@ func TestRegisterUser_ServesAsset(t *testing.T) {
 func TestRegisterUser_HistoryFallback(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	if err := RegisterUser(r, newUserFS()); err != nil {
+	if err := RegisterUser(r, newUserFS(), nil); err != nil {
 		t.Fatalf("RegisterUser: %v", err)
 	}
 
@@ -278,12 +281,75 @@ func TestRegisterUser_HistoryFallback(t *testing.T) {
 	}
 }
 
+type fakeProductHeadInjector struct {
+	gotSlug, gotAcceptLanguage string
+	result                     []byte
+}
+
+func (f *fakeProductHeadInjector) InjectProductHead(_ context.Context, slug, acceptLanguage string, _ []byte) []byte {
+	f.gotSlug, f.gotAcceptLanguage = slug, acceptLanguage
+	return f.result
+}
+
+// TestRegisterUser_InjectsProductHeadForDetailRoute 验证商品详情页的
+// index.html fallback 会经过注入器，命中时返回注入后的 HTML 而不是原始 SPA 空壳。
+func TestRegisterUser_InjectsProductHeadForDetailRoute(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	injector := &fakeProductHeadInjector{result: []byte("<html><head><title>注入成功</title></head></html>")}
+	if err := RegisterUser(r, newUserFS(), injector); err != nil {
+		t.Fatalf("RegisterUser: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/products/steam-key", nil)
+	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d", w.Code)
+	}
+	body, _ := io.ReadAll(w.Body)
+	if !strings.Contains(string(body), "注入成功") {
+		t.Fatalf("did not use injected HTML: %s", body)
+	}
+	if injector.gotSlug != "steam-key" {
+		t.Fatalf("injector slug = %q", injector.gotSlug)
+	}
+	if injector.gotAcceptLanguage != "en-US,en;q=0.9" {
+		t.Fatalf("injector Accept-Language = %q", injector.gotAcceptLanguage)
+	}
+}
+
+// TestRegisterUser_FallsBackToIndexWhenInjectorReturnsNil 验证注入器判定商品
+// 不存在（返回 nil）时，照常回退到原始 index.html，交给 SPA 处理 404。
+func TestRegisterUser_FallsBackToIndexWhenInjectorReturnsNil(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	injector := &fakeProductHeadInjector{result: nil}
+	if err := RegisterUser(r, newUserFS(), injector); err != nil {
+		t.Fatalf("RegisterUser: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/products/missing-slug", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d", w.Code)
+	}
+	body, _ := io.ReadAll(w.Body)
+	if !strings.Contains(string(body), "user-spa") {
+		t.Fatalf("did not fallback to original index.html: %s", body)
+	}
+}
+
 // TestRegisterUser_ReservedPathsStay404 保证未命中的后端接口不会被 SPA 兜底成
 // 200 HTML —— 否则 API 客户端会拿 index.html 去解析 JSON。
 func TestRegisterUser_ReservedPathsStay404(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	if err := RegisterUser(r, newUserFS()); err != nil {
+	if err := RegisterUser(r, newUserFS(), nil); err != nil {
 		t.Fatalf("RegisterUser: %v", err)
 	}
 
@@ -313,7 +379,7 @@ func TestRegisterUser_ReservedPathsStay404(t *testing.T) {
 func TestRegisterUser_NonReservedLookalikeStillServesSPA(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	if err := RegisterUser(r, newUserFS()); err != nil {
+	if err := RegisterUser(r, newUserFS(), nil); err != nil {
 		t.Fatalf("RegisterUser: %v", err)
 	}
 
@@ -339,7 +405,7 @@ func TestRegisterUser_DoesNotShadowExistingRoutes(t *testing.T) {
 	r.GET("/api/v1/ping", func(c *gin.Context) {
 		c.String(http.StatusOK, "pong")
 	})
-	if err := RegisterUser(r, newUserFS()); err != nil {
+	if err := RegisterUser(r, newUserFS(), nil); err != nil {
 		t.Fatalf("RegisterUser: %v", err)
 	}
 
@@ -378,7 +444,7 @@ func TestCacheControlHeaders(t *testing.T) {
 	if err := RegisterAdmin(r, "/admin", newAdminFS("<html>admin-spa</html>")); err != nil {
 		t.Fatalf("RegisterAdmin: %v", err)
 	}
-	if err := RegisterUser(r, newUserFS()); err != nil {
+	if err := RegisterUser(r, newUserFS(), nil); err != nil {
 		t.Fatalf("RegisterUser: %v", err)
 	}
 

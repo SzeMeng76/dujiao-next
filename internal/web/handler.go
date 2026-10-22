@@ -2,6 +2,7 @@ package web
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -14,7 +15,10 @@ import (
 )
 
 // 保留路径，不能与 admin path 冲突或互为前缀。
-var reservedPaths = []string{"/api", "/uploads", "/health"}
+// /guide 是 SEO 静态引导页（见 internal/modules/seoguide），以显式路由注册，
+// 加入此列表是为了：admin_path 不能与它冲突；/guide 下未命中的子路径应 404
+// 而不是被 SPA 兜底成 index.html。
+var reservedPaths = []string{"/api", "/uploads", "/health", "/guide"}
 
 // isReservedPath 报告请求路径是否落在后端保留前缀之下。
 func isReservedPath(p string) bool {
@@ -24,6 +28,20 @@ func isReservedPath(p string) bool {
 		}
 	}
 	return false
+}
+
+// productDetailPath 匹配 user SPA 的商品详情页路由 /products/:slug（见
+// frontend/user/src/router/index.ts），用于在 SPA fallback 时识别该请求
+// 并注入 SEO head。slug 不含 '/'，与前端 router 的单段参数语义一致。
+var productDetailPath = regexp.MustCompile(`^/products/([^/]+)$`)
+
+// ProductHeadInjector 为商品详情页的 SPA index.html 注入 SEO head
+// （title/meta/canonical/OG/JSON-LD）。由 internal/modules/seoguide 实现，
+// 通过 contract 风格的最小接口解耦，避免 internal/web 直接依赖该模块的内部类型。
+type ProductHeadInjector interface {
+	// InjectProductHead 返回注入后的 HTML；商品不存在或不活跃时返回 nil，
+	// 调用方应回退到原始 index.html，交给 SPA 自行处理 404。
+	InjectProductHead(ctx context.Context, slug, acceptLanguage string, indexHTML []byte) []byte
 }
 
 // adminPathSegment 后台路径每一段允许的字符集。
@@ -48,7 +66,7 @@ var adminPathSegment = regexp.MustCompile(`^[A-Za-z0-9._~@-]+$`)
 //   - 不能为 "/"（会与 user SPA 兜底冲突）
 //   - 不能以 "/" 结尾
 //   - 每一段只能由字母、数字、'-'、'_' 组成（不允许 Gin 的 ':'、'*' 等路由元字符）
-//   - 不能等于、不能是、也不能拥有 "/api"、"/uploads"、"/health" 任一作为前缀
+//   - 不能等于、不能是、也不能拥有 "/api"、"/uploads"、"/health"、"/guide" 任一作为前缀
 func ValidateAdminPath(p string) error {
 	if !strings.HasPrefix(p, "/") {
 		return fmt.Errorf("web.admin_path must start with '/', got %q", p)
@@ -160,7 +178,11 @@ func RegisterAdmin(r *gin.Engine, prefix string, fsys fs.FS) error {
 //
 // 由于 NoRoute 在所有显式路由（API、uploads、health、admin）之后才匹配，
 // 这里不需要做路径前缀剥离；命中真实文件返回文件，否则 fallback 到 index.html。
-func RegisterUser(r *gin.Engine, fsys fs.FS) error {
+//
+// injector 可为 nil（不需要 SEO head 注入场景，如测试）；非 nil 时，命中
+// /products/:slug 的请求会在返回 index.html 前注入该商品的 SEO head
+// （title/meta/canonical/OG/JSON-LD），让不执行 JS 的爬虫也能读到真实内容。
+func RegisterUser(r *gin.Engine, fsys fs.FS, injector ProductHeadInjector) error {
 	if r == nil {
 		return errors.New("nil gin engine")
 	}
@@ -193,6 +215,16 @@ func RegisterUser(r *gin.Engine, fsys fs.FS) error {
 			serveAsset(c, fileServer, fp)
 			return
 		}
+
+		if injector != nil {
+			if m := productDetailPath.FindStringSubmatch(c.Request.URL.Path); m != nil {
+				if injected := injector.InjectProductHead(c.Request.Context(), m[1], c.GetHeader("Accept-Language"), indexCached); injected != nil {
+					serveIndex(c, injected)
+					return
+				}
+			}
+		}
+
 		serveIndex(c, indexCached)
 	})
 	return nil
