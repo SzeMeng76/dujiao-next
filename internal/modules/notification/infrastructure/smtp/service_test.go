@@ -541,3 +541,74 @@ func TestIsSMTPAlreadyClosedError(t *testing.T) {
 		})
 	}
 }
+
+func TestBuildOrderStatusContentFromTemplateUsesReplacedScene(t *testing.T) {
+	tmpl := settingsmessaging.DefaultOrderEmailTemplateSetting()
+	input := notificationcontract.OrderStatusEmailInput{
+		OrderNo:         "DJ-REPLACED-001",
+		Status:          "completed",
+		Amount:          money.FromDecimal(decimal.NewFromInt(10)),
+		Currency:        "CNY",
+		FulfillmentInfo: "NEW-SECRET-1",
+		Instructions:    "使用说明文本",
+		Replaced:        true,
+	}
+
+	subject, body := buildOrderStatusContentFromTemplate(input, i18n.LocaleZH, tmpl)
+
+	if !strings.Contains(subject, "卡密已更换") {
+		t.Fatalf("subject should use replaced scene, got: %s", subject)
+	}
+	if !strings.Contains(body, "NEW-SECRET-1") || !strings.Contains(body, "使用说明文本") {
+		t.Fatalf("body should carry new content and instructions, got: %s", body)
+	}
+	if strings.Count(body, "原卡密请勿再使用") != 1 {
+		t.Fatalf("replaced notice must appear exactly once, got: %s", body)
+	}
+
+	input.Replaced = false
+	normalSubject, _ := buildOrderStatusContentFromTemplate(input, i18n.LocaleZH, tmpl)
+	if strings.Contains(normalSubject, "卡密已更换") {
+		t.Fatalf("normal delivery must not use replaced scene, got: %s", normalSubject)
+	}
+}
+
+func TestBuildOrderStatusContentFromTemplateFallsBackWhenReplacedSceneEmpty(t *testing.T) {
+	tmpl := settingsmessaging.DefaultOrderEmailTemplateSetting()
+	tmpl.Templates.Replaced = settingsmessaging.OrderEmailSceneTemplate{}
+	input := notificationcontract.OrderStatusEmailInput{
+		OrderNo:         "DJ-REPLACED-002",
+		Status:          "completed",
+		Amount:          money.FromDecimal(decimal.NewFromInt(10)),
+		Currency:        "CNY",
+		FulfillmentInfo: "NEW-SECRET-2",
+		Replaced:        true,
+	}
+
+	_, body := buildOrderStatusContentFromTemplate(input, i18n.LocaleZH, tmpl)
+
+	if !strings.HasPrefix(body, "提示：管理员已为您更换卡密") {
+		t.Fatalf("fallback should prepend replaced tip, got: %s", body)
+	}
+	if !strings.Contains(body, "NEW-SECRET-2") {
+		t.Fatalf("fallback body should keep delivery content, got: %s", body)
+	}
+}
+
+func TestBuildOrderStatusContentDefaultPathPrependsReplacedTip(t *testing.T) {
+	input := notificationcontract.OrderStatusEmailInput{
+		OrderNo:         "DJ-REPLACED-003",
+		Status:          "completed",
+		Amount:          money.FromDecimal(decimal.NewFromInt(10)),
+		Currency:        "CNY",
+		FulfillmentInfo: "NEW-SECRET-3",
+		Replaced:        true,
+	}
+
+	_, body := buildOrderStatusContent(input, i18n.LocaleZH)
+	body = prependReplacedTip(normalizeLocale(i18n.LocaleZH), input, body)
+
+	if !strings.HasPrefix(body, "提示：管理员已为您更换卡密") || !strings.Contains(body, "NEW-SECRET-3") {
+		t.Fatalf("default path should prepend replaced tip, got: %s", body)
+	}
+}

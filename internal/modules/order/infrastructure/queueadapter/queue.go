@@ -40,3 +40,15 @@ func (q *Queue) EnqueueStatusEmail(orderID uint, status string) error {
 		Status:  strings.TrimSpace(status),
 	})
 }
+
+// EnqueueStatusEmailReplaced 入队“卡密已更换”的订单状态邮件（管理员替换已交付卡密后重新推送）。
+func (q *Queue) EnqueueStatusEmailReplaced(orderID uint, status string) error {
+	if q == nil || q.client == nil {
+		return nil
+	}
+	return q.client.EnqueueOrderStatusEmail(queue.OrderStatusEmailPayload{
+		OrderID:  orderID,
+		Status:   strings.TrimSpace(status),
+		Replaced: true,
+	})
+}

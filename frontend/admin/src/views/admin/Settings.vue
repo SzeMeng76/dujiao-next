@@ -318,6 +318,7 @@ const orderEmailTemplateData = reactive({
     paid: createOrderEmailSceneTemplate(),
     delivered: createOrderEmailSceneTemplate(),
     delivered_with_content: createOrderEmailSceneTemplate(),
+    replaced: createOrderEmailSceneTemplate(),
     refunded: createOrderEmailSceneTemplate(),
     partially_refunded: createOrderEmailSceneTemplate(),
     ticket_reply: createOrderEmailSceneTemplate(),

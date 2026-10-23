@@ -47,6 +47,7 @@ type OrderEmailTemplatesSetting struct {
 	Refunded             OrderEmailSceneTemplate `json:"refunded"`
 	PartiallyRefunded    OrderEmailSceneTemplate `json:"partially_refunded"`
 	TicketReply          OrderEmailSceneTemplate `json:"ticket_reply"`
+	Replaced             OrderEmailSceneTemplate `json:"replaced"`
 }
 
 // OrderEmailTemplateSetting 订单邮件模板配置
@@ -94,6 +95,7 @@ type OrderEmailTemplatesPatch struct {
 	Refunded             *OrderEmailSceneTemplatePatch `json:"refunded"`
 	PartiallyRefunded    *OrderEmailSceneTemplatePatch `json:"partially_refunded"`
 	TicketReply          *OrderEmailSceneTemplatePatch `json:"ticket_reply"`
+	Replaced             *OrderEmailSceneTemplatePatch `json:"replaced"`
 }
 
 // OrderEmailTemplateSettingPatch 订单邮件模板配置补丁
@@ -207,6 +209,20 @@ func DefaultOrderEmailTemplateSetting() OrderEmailTemplateSetting {
 					Body:    "Hello,\n\nYour ticket \"{{ticket_title}}\" (No. {{ticket_no}}) has received a new reply from support:\n\n{{reply_content}}\n\nPlease log in to {{site_name}} to view details and reply: {{site_url}}",
 				},
 			},
+			Replaced: OrderEmailSceneTemplate{
+				ZHCN: OrderEmailLocalizedTemplate{
+					Subject: "您的卡密已更换：订单 {{order_no}}",
+					Body:    "订单号：{{order_no}}\n状态：{{status}}\n金额：{{amount}} {{currency}}\n\n管理员已为您更换卡密，以下为最新交付内容，原卡密请勿再使用：\n{{fulfillment_info}}\n\n使用说明：\n{{instructions}}\n\n{{site_name}} 的网址：{{site_url}}",
+				},
+				ZHTW: OrderEmailLocalizedTemplate{
+					Subject: "您的卡密已更換：訂單 {{order_no}}",
+					Body:    "訂單號：{{order_no}}\n狀態：{{status}}\n金額：{{amount}} {{currency}}\n\n管理員已為您更換卡密，以下為最新交付內容，原卡密請勿再使用：\n{{fulfillment_info}}\n\n使用說明：\n{{instructions}}\n\n{{site_name}} 的網址：{{site_url}}",
+				},
+				ENUS: OrderEmailLocalizedTemplate{
+					Subject: "Your card secrets have been replaced: order {{order_no}}",
+					Body:    "Order No: {{order_no}}\nStatus: {{status}}\nAmount: {{amount}} {{currency}}\n\nThe administrator has replaced your card secrets. The delivery content below is the latest; please stop using the old ones:\n{{fulfillment_info}}\n\nUsage instructions:\n{{instructions}}\n\n{{site_name}}'s Site URL: {{site_url}}",
+				},
+			},
 		},
 		GuestTip: OrderEmailGuestTip{
 			ZHCN: "游客订单可使用下单邮箱与订单密码在网站查询订单详情。",
@@ -232,6 +248,7 @@ func NormalizeOrderEmailTemplateSetting(setting OrderEmailTemplateSetting) Order
 	setting.Templates.Refunded = normalizeOrderEmailSceneTemplate(setting.Templates.Refunded)
 	setting.Templates.PartiallyRefunded = normalizeOrderEmailSceneTemplate(setting.Templates.PartiallyRefunded)
 	setting.Templates.TicketReply = normalizeOrderEmailSceneTemplate(setting.Templates.TicketReply)
+	setting.Templates.Replaced = normalizeOrderEmailSceneTemplate(setting.Templates.Replaced)
 	setting.GuestTip.ZHCN = strings.TrimSpace(setting.GuestTip.ZHCN)
 	setting.GuestTip.ZHTW = strings.TrimSpace(setting.GuestTip.ZHTW)
 	setting.GuestTip.ENUS = strings.TrimSpace(setting.GuestTip.ENUS)
@@ -261,6 +278,7 @@ func ValidateOrderEmailTemplateSetting(setting OrderEmailTemplateSetting) error 
 		setting.Templates.Refunded,
 		setting.Templates.PartiallyRefunded,
 		setting.Templates.TicketReply,
+		setting.Templates.Replaced,
 	}
 	for _, scene := range scenes {
 		locales := []OrderEmailLocalizedTemplate{scene.ZHCN, scene.ZHTW, scene.ENUS}
@@ -287,6 +305,7 @@ func EncodeOrderEmailTemplateSetting(setting OrderEmailTemplateSetting) jsonmap.
 			"refunded":               orderEmailSceneTemplateToMap(normalized.Templates.Refunded),
 			"partially_refunded":     orderEmailSceneTemplateToMap(normalized.Templates.PartiallyRefunded),
 			"ticket_reply":           orderEmailSceneTemplateToMap(normalized.Templates.TicketReply),
+			"replaced":               orderEmailSceneTemplateToMap(normalized.Templates.Replaced),
 		},
 		"guest_tip": map[string]interface{}{
 			constants.LocaleZhCN: normalized.GuestTip.ZHCN,
@@ -347,6 +366,9 @@ func ApplyOrderEmailTemplateSettingPatch(current OrderEmailTemplateSetting, patc
 		}
 		if patch.Templates.TicketReply != nil {
 			applyOrderEmailSceneTemplatePatch(&next.Templates.TicketReply, patch.Templates.TicketReply)
+		}
+		if patch.Templates.Replaced != nil {
+			applyOrderEmailSceneTemplatePatch(&next.Templates.Replaced, patch.Templates.Replaced)
 		}
 	}
 	if patch.GuestTip != nil {
@@ -445,6 +467,9 @@ func DecodeOrderEmailTemplateSetting(raw jsonmap.JSON, fallback OrderEmailTempla
 		}
 		if sceneMap := settingsvalue.ToStringAnyMap(templatesMap["ticket_reply"]); sceneMap != nil {
 			next.Templates.TicketReply = orderEmailSceneTemplateFromMap(sceneMap, next.Templates.TicketReply)
+		}
+		if sceneMap := settingsvalue.ToStringAnyMap(templatesMap["replaced"]); sceneMap != nil {
+			next.Templates.Replaced = orderEmailSceneTemplateFromMap(sceneMap, next.Templates.Replaced)
 		}
 	}
 

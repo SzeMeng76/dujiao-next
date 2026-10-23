@@ -26,6 +26,7 @@ interface OrderEmailTemplateData {
     paid: OrderEmailSceneTemplate
     delivered: OrderEmailSceneTemplate
     delivered_with_content: OrderEmailSceneTemplate
+    replaced: OrderEmailSceneTemplate
     refunded: OrderEmailSceneTemplate
     partially_refunded: OrderEmailSceneTemplate
     ticket_reply: OrderEmailSceneTemplate
@@ -59,8 +60,8 @@ const createSceneTemplate = (): OrderEmailSceneTemplate => ({
 const deepCloneTemplate = (src: OrderEmailSceneTemplate): OrderEmailSceneTemplate => {
   const result = createSceneTemplate()
   ;(['zh-CN', 'zh-TW', 'en-US'] as const).forEach((lang) => {
-    result[lang].subject = src[lang]?.subject || ''
-    result[lang].body = src[lang]?.body || ''
+    result[lang].subject = src?.[lang]?.subject || ''
+    result[lang].body = src?.[lang]?.body || ''
   })
   return result
 }
@@ -71,6 +72,7 @@ const form = reactive({
     paid: createSceneTemplate(),
     delivered: createSceneTemplate(),
     delivered_with_content: createSceneTemplate(),
+    replaced: createSceneTemplate(),
     refunded: createSceneTemplate(),
     partially_refunded: createSceneTemplate(),
     ticket_reply: createSceneTemplate(),

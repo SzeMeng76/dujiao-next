@@ -36,6 +36,22 @@ type Service struct {
 
 type BotNotifier interface {
 	EnqueueOrderFulfilled(telegramUserID string, orderID uint) error
+	EnqueueOrderReplaced(telegramUserID string, orderID uint) error
+}
+
+// replacedStatusEmailQueue 是可选能力：支持入队“卡密已更换”标记的订单邮件队列。
+type replacedStatusEmailQueue interface {
+	EnqueueStatusEmailReplaced(orderID uint, status string) error
+}
+
+// replacedEmailQueue 把 EnqueueStatusEmail 改写为带“已更换”标记的版本，复用现有的收件人/开关资格判断。
+type replacedEmailQueue struct {
+	ordercontract.Queue
+	replaced replacedStatusEmailQueue
+}
+
+func (q replacedEmailQueue) EnqueueStatusEmail(orderID uint, status string) error {
+	return q.replaced.EnqueueStatusEmailReplaced(orderID, status)
 }
 
 type DownstreamCallbackEnqueuer interface {
@@ -723,7 +739,11 @@ func (s *Service) ReplaceSecrets(input ReplaceSecretsInput) (*fulfillmentdomain.
 		}
 	}
 	if s.orderQueue != nil {
-		if _, err := orderapp.EnqueueStatusEmailTaskIfEligible(s.orderStore, s.orderQueue, s.settingService, s.defaultEmailConfig, notifyOrderID, emailStatus); err != nil {
+		emailQueue := s.orderQueue
+		if replacedQueue, ok := s.orderQueue.(replacedStatusEmailQueue); ok {
+			emailQueue = replacedEmailQueue{Queue: s.orderQueue, replaced: replacedQueue}
+		}
+		if _, err := orderapp.EnqueueStatusEmailTaskIfEligible(s.orderStore, emailQueue, s.settingService, s.defaultEmailConfig, notifyOrderID, emailStatus); err != nil {
 			logger.Warnw("fulfillment_enqueue_status_email_failed",
 				"order_id", order.ID,
 				"target_order_id", notifyOrderID,
@@ -732,7 +752,7 @@ func (s *Service) ReplaceSecrets(input ReplaceSecretsInput) (*fulfillmentdomain.
 			)
 		}
 	}
-	go s.NotifyBotOrderFulfilled(order.UserID, notifyOrderID)
+	go s.notifyBotOrder(order.UserID, notifyOrderID, true)
 	if s.downstreamCallbackSvc != nil {
 		s.downstreamCallbackSvc.EnqueueCallback(input.OrderID)
 	}
@@ -741,6 +761,11 @@ func (s *Service) ReplaceSecrets(input ReplaceSecretsInput) (*fulfillmentdomain.
 
 // NotifyBotOrderFulfilled 查找用户 Telegram 绑定并入队通知任务。
 func (s *Service) NotifyBotOrderFulfilled(userID, orderID uint) {
+	s.notifyBotOrder(userID, orderID, false)
+}
+
+// notifyBotOrder 查找用户 Telegram 绑定并入队通知；replaced 为 true 时表示管理员替换卡密后的重新推送。
+func (s *Service) notifyBotOrder(userID, orderID uint, replaced bool) {
 	if s.botNotifier == nil || userID == 0 || s.userOAuthIdentityRepo == nil {
 		return
 	}
@@ -755,7 +780,14 @@ func (s *Service) NotifyBotOrderFulfilled(userID, orderID uint) {
 		return
 	}
 
-	if err := s.botNotifier.EnqueueOrderFulfilled(strings.TrimSpace(identity.ProviderUserID), orderID); err != nil {
+	telegramUserID := strings.TrimSpace(identity.ProviderUserID)
+	var enqueueErr error
+	if replaced {
+		enqueueErr = s.botNotifier.EnqueueOrderReplaced(telegramUserID, orderID)
+	} else {
+		enqueueErr = s.botNotifier.EnqueueOrderFulfilled(telegramUserID, orderID)
+	}
+	if err := enqueueErr; err != nil {
 		logger.Warnw("fulfillment_notify_bot_enqueue_failed",
 			"order_id", orderID, "user_id", userID, "error", err)
 	}

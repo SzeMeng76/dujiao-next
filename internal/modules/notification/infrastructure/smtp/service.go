@@ -76,6 +76,7 @@ func (s *Service) SendVerifyCode(toEmail, code, purpose, locale string, brand ma
 // SendOrderStatusEmail 发送订单状态通知
 func (s *Service) SendOrderStatusEmail(toEmail string, input notificationcontract.OrderStatusEmailInput, locale string) error {
 	subject, body := buildOrderStatusContent(input, locale)
+	body = prependReplacedTip(normalizeLocale(locale), input, body)
 	if input.AttachmentName != "" && input.AttachmentContent != "" {
 		return s.sendEmailWithAttachment(toEmail, subject, body, input.AttachmentName, input.AttachmentContent, input.MailBrand)
 	}
@@ -115,6 +116,16 @@ func buildOrderStatusContentFromTemplate(input notificationcontract.OrderStatusE
 		sceneTmpl = tmplSetting.Templates.PartiallyRefunded
 	default:
 		sceneTmpl = tmplSetting.Templates.Default
+	}
+
+	// 管理员替换卡密后的重新推送优先使用“卡密已更换”场景；该场景缺失时回退到原场景并在正文前加提示。
+	replacedScene := false
+	if input.Replaced {
+		candidate := settingsmessaging.ResolveOrderEmailLocaleTemplate(tmplSetting.Templates.Replaced, normalized)
+		if strings.TrimSpace(candidate.Subject) != "" && strings.TrimSpace(candidate.Body) != "" {
+			sceneTmpl = tmplSetting.Templates.Replaced
+			replacedScene = true
+		}
 	}
 
 	localeTmpl := settingsmessaging.ResolveOrderEmailLocaleTemplate(sceneTmpl, normalized)
@@ -166,6 +177,10 @@ func buildOrderStatusContentFromTemplate(input notificationcontract.OrderStatusE
 		if tip != "" {
 			body = body + "\n\n" + tip
 		}
+	}
+
+	if input.Replaced && !replacedScene {
+		body = prependReplacedTip(normalized, input, body)
 	}
 
 	return subject, body
@@ -429,6 +444,19 @@ func appendFulfillmentAttachmentTip(locale string, input notificationcontract.Or
 		return body
 	}
 	return body + "\n\n" + tip
+}
+
+// prependReplacedTip 管理员替换卡密后的重新推送：在正文开头提示卡密已更换，避免被误认为重复通知。
+func prependReplacedTip(locale string, input notificationcontract.OrderStatusEmailInput, body string) string {
+	if !input.Replaced {
+		return body
+	}
+	tipKey := "email.order_status.replaced_tip"
+	tip := i18n.T(locale, tipKey)
+	if tip == tipKey {
+		return body
+	}
+	return tip + "\n\n" + body
 }
 
 func appendGuestTip(locale string, input notificationcontract.OrderStatusEmailInput, body string) string {

@@ -39,6 +39,8 @@ type OrderStatusEmailInput struct {
 	AttachmentName    string
 	AttachmentContent string
 	MailBrand         mailbrand.Brand
+	// Replaced 为 true 时，邮件会提示用户卡密已被更换，避免被误认为重复通知。
+	Replaced bool
 }
 
 type DispatchQueue interface {

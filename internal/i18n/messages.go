@@ -369,6 +369,7 @@ var messages = map[string]map[string]string{
 		"email.order_status.body_delivered":              "订单号：%s\n状态：%s\n金额：%s %s\n\n交付内容：\n%s\n\n感谢您的购买。\n\n%s 的网址：%s",
 		"email.order_status.guest_tip":                   "游客订单可使用下单邮箱与订单密码在网站查询订单详情。",
 		"email.order_status.fulfillment_attachment_tip":  "交付内容较多，已作为附件发送，请查看邮件附件获取完整交付内容。",
+		"email.order_status.replaced_tip":                "提示：管理员已为您更换卡密，以下为最新交付内容，原卡密请勿再使用。",
 
 		// 通用校验规则
 		"validation.rule.required": "不能为空",
@@ -770,6 +771,7 @@ var messages = map[string]map[string]string{
 		"email.order_status.body_delivered":              "訂單號：%s\n狀態：%s\n金額：%s %s\n\n交付內容：\n%s\n\n感謝您的購買。\n\n%s 的網址：%s",
 		"email.order_status.guest_tip":                   "遊客訂單可使用下單信箱與訂單密碼在網站查詢訂單詳情。",
 		"email.order_status.fulfillment_attachment_tip":  "交付內容較多，已作為附件發送，請查看郵件附件獲取完整交付內容。",
+		"email.order_status.replaced_tip":                "提示：管理員已為您更換卡密，以下為最新交付內容，原卡密請勿再使用。",
 
 		// 通用校驗規則
 		"validation.rule.required": "不能為空",
@@ -1171,6 +1173,7 @@ var messages = map[string]map[string]string{
 		"email.order_status.body_delivered":              "Order No: %s\nStatus: %s\nAmount: %s %s\n\nDelivery content:\n%s\n\nThank you for your purchase.\n\n%s's Site URL: %s",
 		"email.order_status.guest_tip":                   "Guest orders can be queried on the site using the checkout email and order password.",
 		"email.order_status.fulfillment_attachment_tip":  "The delivery content is included as an attachment. Please check the email attachment for the full content.",
+		"email.order_status.replaced_tip":                "Notice: your card secrets have been replaced by the administrator. The delivery content below is the latest; please stop using the old ones.",
 
 		// Validation rules
 		"validation.rule.required": "is required",

@@ -50,6 +50,8 @@ type OrderStatusEmailPayload struct {
 	OrderID        uint   `json:"order_id"`
 	RefundRecordID uint   `json:"refund_record_id,omitempty"`
 	Status         string `json:"status"`
+	// Replaced 表示管理员替换了已交付的卡密，邮件需要提示用户这是更换后的内容。
+	Replaced bool `json:"replaced,omitempty"`
 }
 
 // OrderAutoFulfillPayload 自动交付任务载荷
@@ -232,6 +234,8 @@ type BotNotifyPayload struct {
 	RechargeNo     string `json:"recharge_no,omitempty"`
 	Amount         string `json:"amount,omitempty"`
 	Currency       string `json:"currency,omitempty"`
+	// Replaced 表示本次交付通知是管理员替换卡密后的重新推送。
+	Replaced bool `json:"replaced,omitempty"`
 }
 
 const (

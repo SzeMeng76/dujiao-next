@@ -152,6 +152,7 @@ func (c *Consumer) handleOrderStatusEmail(ctx context.Context, task *asynq.Task)
 		SiteURL:      emailBrand.SiteURL,
 		IsGuest:      order.UserID == 0,
 		MailBrand:    emailBrand,
+		Replaced:     payload.Replaced,
 	}
 	if fulfillmentdomain.ShouldAttachFulfillmentPayload(payloadText) {
 		// 交付内容过大，正文不放交付内容，以附件形式发送

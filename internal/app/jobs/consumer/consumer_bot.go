@@ -68,6 +68,10 @@ func (c *Consumer) handleBotNotify(_ context.Context, task *asynq.Task) error {
 			logger.Debugw("worker_bot_notify_skip_invalid", "event_type", payload.EventType, "order_id", payload.OrderID, "telegram_user_id", payload.TelegramUserID)
 			return nil
 		}
+		// 管理员替换卡密后的重新推送：多带一个标记，机器人据此换标题。旧版机器人会忽略该字段。
+		if payload.Replaced {
+			requestBody["replaced"] = true
+		}
 	case queue.BotNotifyEventWalletRechargeSucceeded:
 		if strings.TrimSpace(payload.RechargeNo) == "" {
 			logger.Debugw("worker_bot_notify_skip_invalid", "event_type", payload.EventType, "telegram_user_id", payload.TelegramUserID, "recharge_no", payload.RechargeNo)
