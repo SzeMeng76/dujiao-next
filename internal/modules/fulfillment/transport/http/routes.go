@@ -9,5 +9,6 @@ func RegisterAdminRoutes(authorized gin.IRoutes, handler *AdminHandler) {
 	}
 	authorized.GET("/orders/:id/fulfillment/download", handler.AdminDownloadFulfillment)
 	authorized.POST("/fulfillments", handler.AdminCreateFulfillment)
+	authorized.GET("/orders/:id/fulfillment/replace-candidates", handler.AdminListReplaceCandidates)
 	authorized.POST("/orders/:id/fulfillment/replace-secrets", handler.AdminReplaceFulfillmentSecrets)
 }

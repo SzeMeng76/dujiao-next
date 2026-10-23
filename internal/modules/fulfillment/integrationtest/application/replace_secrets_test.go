@@ -212,3 +212,74 @@ func TestReplaceSecretsRejectsUnknownSecretAndWrongStatus(t *testing.T) {
 		t.Fatalf("paid order want ErrOrderStatusInvalid got %v", err)
 	}
 }
+
+func TestListReplaceCandidatesReturnsDeliveredAndOldestStockFirst(t *testing.T) {
+	f := newReplaceSecretsFixture(t, constants.OrderStatusCompleted, "NEW-1", "NEW-2", "NEW-3")
+
+	got, err := f.svc.ListReplaceCandidates(f.order.ID)
+	if err != nil {
+		t.Fatalf("list candidates failed: %v", err)
+	}
+	if len(got.Delivered) != 2 || got.Delivered[0].Secret != "OLD-1" || got.Delivered[1].Secret != "OLD-2" {
+		t.Fatalf("unexpected delivered secrets: %+v", got.Delivered)
+	}
+	if len(got.Stock) != 3 || got.Stock[0].Secret != "NEW-1" || got.Stock[2].Secret != "NEW-3" {
+		t.Fatalf("stock must list oldest first: %+v", got.Stock)
+	}
+
+	paid := newReplaceSecretsFixture(t, constants.OrderStatusPaid, "NEW-1")
+	if _, err := paid.svc.ListReplaceCandidates(paid.order.ID); !errors.Is(err, ErrOrderStatusInvalid) {
+		t.Fatalf("paid order want ErrOrderStatusInvalid got %v", err)
+	}
+}
+
+func (f *replaceSecretsFixture) secretID(t *testing.T, text string) uint {
+	t.Helper()
+	return f.secretByText(t, text).ID
+}
+
+func TestReplaceSecretsWithExplicitPairsUsesChosenStock(t *testing.T) {
+	f := newReplaceSecretsFixture(t, constants.OrderStatusCompleted, "NEW-1", "NEW-2", "NEW-3")
+
+	// 管理员跳过最旧的 NEW-1，指定用 NEW-3 替换 OLD-2。
+	_, replaced, err := f.svc.ReplaceSecrets(ReplaceSecretsInput{
+		OrderID: f.order.ID,
+		AdminID: 9,
+		Pairs:   []SecretReplacement{{OldSecretID: f.secretID(t, "OLD-2"), NewSecretID: f.secretID(t, "NEW-3")}},
+	})
+	if err != nil {
+		t.Fatalf("replace with pairs failed: %v", err)
+	}
+	if replaced != 1 {
+		t.Fatalf("replaced want 1 got %d", replaced)
+	}
+	if got := f.currentPayload(t); got != "OLD-1\nNEW-3" {
+		t.Fatalf("payload want OLD-1\nNEW-3 got %q", got)
+	}
+	if row := f.secretByText(t, "NEW-3"); row.Status != cardsecretdomain.StatusUsed {
+		t.Fatalf("chosen stock must be used: %+v", row)
+	}
+	if row := f.secretByText(t, "NEW-1"); row.Status != cardsecretdomain.StatusAvailable {
+		t.Fatalf("unchosen stock must stay available: %+v", row)
+	}
+}
+
+func TestReplaceSecretsWithPairsRejectsInvalidPairs(t *testing.T) {
+	f := newReplaceSecretsFixture(t, constants.OrderStatusCompleted, "NEW-1", "NEW-2")
+	old1, old2 := f.secretID(t, "OLD-1"), f.secretID(t, "OLD-2")
+	new1 := f.secretID(t, "NEW-1")
+
+	cases := map[string][]SecretReplacement{
+		"stock id not available (already used)": {{OldSecretID: old1, NewSecretID: old2}},
+		"old id not in order":                   {{OldSecretID: new1, NewSecretID: f.secretID(t, "NEW-2")}},
+		"duplicate new id":                      {{OldSecretID: old1, NewSecretID: new1}, {OldSecretID: old2, NewSecretID: new1}},
+	}
+	for name, pairs := range cases {
+		if _, _, err := f.svc.ReplaceSecrets(ReplaceSecretsInput{OrderID: f.order.ID, AdminID: 9, Pairs: pairs}); !errors.Is(err, ErrFulfillmentInvalid) {
+			t.Fatalf("%s: want ErrFulfillmentInvalid got %v", name, err)
+		}
+	}
+	if got := f.currentPayload(t); got != "OLD-1\nOLD-2" {
+		t.Fatalf("payload must stay unchanged, got %q", got)
+	}
+}

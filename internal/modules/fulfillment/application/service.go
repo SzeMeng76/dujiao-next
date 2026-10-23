@@ -389,8 +389,124 @@ func (s *Service) CreateAuto(orderID uint) (*fulfillmentdomain.Fulfillment, erro
 type ReplaceSecretsInput struct {
 	OrderID uint
 	AdminID uint
-	Secrets []string // 要替换的旧卡密内容；为空表示替换该订单交付内容中的全部卡密
+	Secrets []string            // 要替换的旧卡密内容；为空表示替换该订单交付内容中的全部卡密
+	Pairs   []SecretReplacement // 指定「旧卡密ID → 库存新卡密ID」；非空时忽略 Secrets
 	Reason  string
+}
+
+// SecretReplacement 指定用库存中的哪条卡密替换订单里的哪条已交付卡密。
+type SecretReplacement struct {
+	OldSecretID uint
+	NewSecretID uint
+}
+
+// DeliveredSecret 订单当前交付内容中的一条卡密。
+type DeliveredSecret struct {
+	ID        uint
+	Secret    string
+	ProductID uint
+	SKUID     uint
+	UsedAt    *time.Time
+}
+
+// StockSecret 可用于替换的库存卡密。
+type StockSecret struct {
+	ID        uint
+	Secret    string
+	ProductID uint
+	SKUID     uint
+	CreatedAt time.Time
+}
+
+// ReplaceCandidates 替换卡密所需的候选数据：本单已交付卡密与同商品/SKU 的可用库存（最旧在前）。
+type ReplaceCandidates struct {
+	Delivered []DeliveredSecret
+	Stock     []StockSecret
+}
+
+const replaceCandidateStockLimit = 100
+
+// ListReplaceCandidates 列出订单已交付的卡密，以及同商品/SKU 下按添加时间从旧到新的可用库存。
+func (s *Service) ListReplaceCandidates(orderID uint) (*ReplaceCandidates, error) {
+	if orderID == 0 {
+		return nil, ErrFulfillmentInvalid
+	}
+	order, err := s.orderStore.GetByID(orderID)
+	if err != nil {
+		return nil, ErrOrderFetchFailed
+	}
+	if order == nil {
+		return nil, ErrOrderNotFound
+	}
+	if order.ParentID == nil && len(order.Children) > 0 {
+		return nil, ErrFulfillmentInvalid
+	}
+	if order.Status != constants.OrderStatusDelivered && order.Status != constants.OrderStatusCompleted {
+		return nil, ErrOrderStatusInvalid
+	}
+	result := &ReplaceCandidates{Delivered: []DeliveredSecret{}, Stock: []StockSecret{}}
+	err = s.orderStore.WithinTransaction(func(tx ordercontract.Transaction) error {
+		current, found, err := tx.Fulfillments().FindByOrderIDForUpdate(orderID)
+		if err != nil {
+			return err
+		}
+		if !found {
+			return ErrFulfillmentNotFound
+		}
+		if current.Type != constants.FulfillmentTypeAuto {
+			return ErrFulfillmentNotAuto
+		}
+		secretRepo := tx.CardSecrets()
+		usedRows, err := secretRepo.ListByOrderAndStatus(orderID, cardsecretdomain.StatusUsed)
+		if err != nil {
+			return err
+		}
+		matched := make(map[uint]bool)
+		seenGroup := make(map[string]bool)
+		var groupKeys [][2]uint
+		for _, line := range strings.Split(current.Payload, "\n") {
+			text := strings.TrimSpace(line)
+			if text == "" {
+				continue
+			}
+			for _, row := range usedRows {
+				if matched[row.ID] || strings.TrimSpace(row.Secret) != text {
+					continue
+				}
+				matched[row.ID] = true
+				result.Delivered = append(result.Delivered, DeliveredSecret{
+					ID: row.ID, Secret: row.Secret, ProductID: row.ProductID, SKUID: row.SKUID, UsedAt: row.UsedAt,
+				})
+				key := orderdomain.ItemKey(row.ProductID, row.SKUID)
+				if !seenGroup[key] {
+					seenGroup[key] = true
+					groupKeys = append(groupKeys, [2]uint{row.ProductID, row.SKUID})
+				}
+				break
+			}
+		}
+		for _, group := range groupKeys {
+			rows, err := secretRepo.ListAvailableByProduct(group[0], group[1], replaceCandidateStockLimit)
+			if err != nil {
+				return err
+			}
+			for _, row := range rows {
+				result.Stock = append(result.Stock, StockSecret{
+					ID: row.ID, Secret: row.Secret, ProductID: row.ProductID, SKUID: row.SKUID, CreatedAt: row.CreatedAt,
+				})
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrFulfillmentNotFound), errors.Is(err, ErrFulfillmentNotAuto):
+			return nil, err
+		default:
+			return nil, ErrOrderFetchFailed
+		}
+	}
+	return result, nil
 }
 
 // ReplaceSecrets 用库存中的可用卡密替换已交付订单里的指定卡密。
@@ -453,6 +569,8 @@ func (s *Service) ReplaceSecrets(input ReplaceSecretsInput) (*fulfillmentdomain.
 		}
 		var picks []pick
 		matched := make(map[uint]bool)
+		deliveredByID := make(map[uint]pick)
+		pairMode := len(input.Pairs) > 0
 		for idx, line := range lines {
 			text := strings.TrimSpace(line)
 			if text == "" {
@@ -463,6 +581,10 @@ func (s *Service) ReplaceSecrets(input ReplaceSecretsInput) (*fulfillmentdomain.
 					continue
 				}
 				matched[row.ID] = true
+				deliveredByID[row.ID] = pick{old: row, lineIdx: idx}
+				if pairMode {
+					break
+				}
 				if wantAll {
 					picks = append(picks, pick{old: row, lineIdx: idx})
 				} else if wanted[text] > 0 {
@@ -472,41 +594,81 @@ func (s *Service) ReplaceSecrets(input ReplaceSecretsInput) (*fulfillmentdomain.
 				break
 			}
 		}
-		for _, left := range wanted {
-			if left > 0 {
+
+		var replacements []cardsecretdomain.Secret
+		var newIDs []uint
+		if pairMode {
+			// 管理员指定「旧卡密 → 库存新卡密」：旧卡密必须是本单当前交付内容，新卡密必须仍可用且规格一致。
+			seenOld := make(map[uint]bool, len(input.Pairs))
+			seenNew := make(map[uint]bool, len(input.Pairs))
+			wantNewIDs := make([]uint, 0, len(input.Pairs))
+			for _, pair := range input.Pairs {
+				target, ok := deliveredByID[pair.OldSecretID]
+				if !ok || pair.NewSecretID == 0 || seenOld[pair.OldSecretID] || seenNew[pair.NewSecretID] {
+					return ErrFulfillmentInvalid
+				}
+				seenOld[pair.OldSecretID] = true
+				seenNew[pair.NewSecretID] = true
+				picks = append(picks, target)
+				wantNewIDs = append(wantNewIDs, pair.NewSecretID)
+			}
+			rows, err := secretRepo.ListByIDs(wantNewIDs)
+			if err != nil {
+				return err
+			}
+			byID := make(map[uint]cardsecretdomain.Secret, len(rows))
+			for _, row := range rows {
+				byID[row.ID] = row
+			}
+			for i, id := range wantNewIDs {
+				row, ok := byID[id]
+				if !ok || row.Status != cardsecretdomain.StatusAvailable ||
+					row.ProductID != picks[i].old.ProductID || row.SKUID != picks[i].old.SKUID {
+					return ErrFulfillmentInvalid
+				}
+				replacements = append(replacements, row)
+				newIDs = append(newIDs, id)
+			}
+		} else {
+			for _, left := range wanted {
+				if left > 0 {
+					return ErrFulfillmentInvalid
+				}
+			}
+			if len(picks) == 0 {
 				return ErrFulfillmentInvalid
+			}
+
+			// 按商品/SKU 分组，从可用库存里取同规格的新卡密（最旧在前）。
+			groups := make(map[string][]int)
+			var groupOrder []string
+			for i, p := range picks {
+				key := orderdomain.ItemKey(p.old.ProductID, p.old.SKUID)
+				if _, ok := groups[key]; !ok {
+					groupOrder = append(groupOrder, key)
+				}
+				groups[key] = append(groups[key], i)
+			}
+			replacements = make([]cardsecretdomain.Secret, len(picks))
+			newIDs = make([]uint, 0, len(picks))
+			for _, key := range groupOrder {
+				idxs := groups[key]
+				first := picks[idxs[0]].old
+				rows, err := secretRepo.ListAvailableByProductForUpdate(first.ProductID, first.SKUID, len(idxs))
+				if err != nil {
+					return err
+				}
+				if len(rows) < len(idxs) {
+					return ErrCardSecretInsufficient
+				}
+				for n, pickIdx := range idxs {
+					replacements[pickIdx] = rows[n]
+					newIDs = append(newIDs, rows[n].ID)
+				}
 			}
 		}
 		if len(picks) == 0 {
 			return ErrFulfillmentInvalid
-		}
-
-		// 按商品/SKU 分组，从可用库存里取同规格的新卡密。
-		groups := make(map[string][]int)
-		var groupOrder []string
-		for i, p := range picks {
-			key := orderdomain.ItemKey(p.old.ProductID, p.old.SKUID)
-			if _, ok := groups[key]; !ok {
-				groupOrder = append(groupOrder, key)
-			}
-			groups[key] = append(groups[key], i)
-		}
-		replacements := make([]cardsecretdomain.Secret, len(picks))
-		newIDs := make([]uint, 0, len(picks))
-		for _, key := range groupOrder {
-			idxs := groups[key]
-			first := picks[idxs[0]].old
-			rows, err := secretRepo.ListAvailableByProductForUpdate(first.ProductID, first.SKUID, len(idxs))
-			if err != nil {
-				return err
-			}
-			if len(rows) < len(idxs) {
-				return ErrCardSecretInsufficient
-			}
-			for n, pickIdx := range idxs {
-				replacements[pickIdx] = rows[n]
-				newIDs = append(newIDs, rows[n].ID)
-			}
 		}
 		affected, err := secretRepo.MarkUsed(newIDs, input.OrderID, now)
 		if err != nil {

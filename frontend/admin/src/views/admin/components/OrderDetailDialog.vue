@@ -4,11 +4,11 @@ import { useI18n } from 'vue-i18n'
 import { Package } from 'lucide-vue-next'
 import { adminAPI } from '@/api/admin'
 import type { AdminOrder, AdminOrderItem, AdminFulfillment, AdminProcurementOrder, AdminPayment } from '@/api/types'
+import type { AdminDeliveredSecret, AdminStockSecret } from '@/api/admin'
 import IdCell from '@/components/IdCell.vue'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Card, CardContent } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -72,8 +72,13 @@ const manualConfirmForm = reactive({
 })
 const replaceTargetId = ref<number | null>(null)
 const replaceSubmitting = ref(false)
+const replaceLoading = ref(false)
 const replaceError = ref('')
 const replaceSuccess = ref('')
+const replaceDelivered = ref<AdminDeliveredSecret[]>([])
+const replaceStock = ref<AdminStockSecret[]>([])
+const replaceSelectedDelivered = ref<number[]>([])
+const replaceSelectedStock = ref<number[]>([])
 const replaceForm = reactive({
   secrets: '',
   reason: '',
@@ -540,10 +545,13 @@ const resetManualConfirmForm = () => {
   manualConfirmError.value = ''
   manualConfirmSuccess.value = ''
   replaceTargetId.value = null
-  replaceForm.secrets = ''
   replaceForm.reason = ''
   replaceError.value = ''
   replaceSuccess.value = ''
+  replaceDelivered.value = []
+  replaceStock.value = []
+  replaceSelectedDelivered.value = []
+  replaceSelectedStock.value = []
 }
 
 // 已交付（或已完成）订单中，自动发货的交付记录才允许替换卡密。
@@ -553,18 +561,67 @@ const canReplaceSecrets = (order: AdminOrder | null) => {
   return order.status === 'delivered' || order.status === 'completed'
 }
 
-const openReplaceSecrets = (orderId: number) => {
+const openReplaceSecrets = async (orderId: number) => {
   replaceTargetId.value = orderId
-  replaceForm.secrets = ''
   replaceForm.reason = ''
+  replaceDelivered.value = []
+  replaceStock.value = []
+  replaceSelectedDelivered.value = []
+  replaceSelectedStock.value = []
   replaceError.value = ''
   replaceSuccess.value = ''
+  replaceLoading.value = true
+  try {
+    const res: any = await adminAPI.getReplaceCandidates(orderId)
+    const data = res?.data?.data ?? res?.data
+    replaceDelivered.value = Array.isArray(data?.delivered) ? data.delivered : []
+    replaceStock.value = Array.isArray(data?.stock) ? data.stock : []
+  } catch (err: any) {
+    replaceError.value = err?.message || t('admin.orders.replaceSecretsFailed')
+  } finally {
+    replaceLoading.value = false
+  }
+}
+
+const toggleReplaceDelivered = (id: number, checked: boolean) => {
+  const next = new Set(replaceSelectedDelivered.value)
+  if (checked) next.add(id)
+  else next.delete(id)
+  replaceSelectedDelivered.value = [...next]
+}
+
+const toggleReplaceStock = (id: number, checked: boolean) => {
+  const next = new Set(replaceSelectedStock.value)
+  if (checked) next.add(id)
+  else next.delete(id)
+  replaceSelectedStock.value = [...next]
+}
+
+// 库存按添加时间从旧到新排列，取前 N 条正好替换已勾选的 N 条。
+const pickOldestStock = () => {
+  replaceSelectedStock.value = replaceStock.value
+    .slice(0, replaceSelectedDelivered.value.length)
+    .map((item) => item.id)
 }
 
 const submitReplaceSecrets = async () => {
   if (!selectedOrder.value || replaceTargetId.value == null) return
   replaceError.value = ''
   replaceSuccess.value = ''
+  const oldIDs = replaceSelectedDelivered.value
+  const newIDs = replaceSelectedStock.value
+  if (oldIDs.length === 0) {
+    replaceError.value = t('admin.orders.replaceSecretsNeedDelivered')
+    return
+  }
+  if (newIDs.length !== oldIDs.length) {
+    replaceError.value = t('admin.orders.replaceSecretsCountMismatch')
+    return
+  }
+  const pairs = oldIDs.map((oldID, index) => ({
+    old_secret_id: oldID,
+    new_secret_id: newIDs[index] as number,
+  }))
   const confirmed = await confirmAction({
     title: t('admin.orders.replaceSecretsOpen'),
     description: t('admin.orders.replaceSecretsPrompt'),
@@ -572,22 +629,18 @@ const submitReplaceSecrets = async () => {
   })
   if (!confirmed) return
 
-  const secrets = replaceForm.secrets
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line !== '')
   replaceSubmitting.value = true
   try {
     const res: any = await adminAPI.replaceFulfillmentSecrets(replaceTargetId.value, {
-      secrets: secrets.length ? secrets : undefined,
+      pairs,
       reason: replaceForm.reason.trim() || undefined,
     })
-    const count = res?.data?.replaced ?? res?.replaced ?? secrets.length
+    const count = res?.data?.data?.replaced ?? res?.data?.replaced ?? pairs.length
     replaceSuccess.value = t('admin.orders.replaceSecretsSuccess', { count })
-    replaceForm.secrets = ''
     replaceForm.reason = ''
     await fetchOrderDetail(Number(selectedOrder.value.id))
     emit('refresh')
+    await openReplaceSecrets(Number(selectedOrder.value.id))
   } catch (err: any) {
     replaceError.value = err?.message || t('admin.orders.replaceSecretsFailed')
   } finally {
@@ -1199,16 +1252,74 @@ watch(
           </div>
 
           <div v-if="replaceTargetId != null" class="rounded-xl border border-border bg-muted/20 p-4">
-            <h3 class="mb-2 text-sm font-semibold text-foreground">{{ t('admin.orders.replaceSecretsOpen') }}</h3>
+            <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <h3 class="text-sm font-semibold text-foreground">{{ t('admin.orders.replaceSecretsOpen') }}</h3>
+              <Button size="xs" variant="outline" :disabled="replaceSubmitting" @click="replaceTargetId = null">
+                {{ t('admin.common.cancel') }}
+              </Button>
+            </div>
             <p class="mb-3 text-xs text-muted-foreground">{{ t('admin.orders.replaceSecretsHint') }}</p>
-            <form class="space-y-3" @submit.prevent="submitReplaceSecrets">
-              <Textarea
-                v-model="replaceForm.secrets"
-                rows="4"
-                class="min-w-0 font-mono text-xs"
-                :placeholder="t('admin.orders.replaceSecretsListPlaceholder')"
-                :disabled="replaceSubmitting"
-              />
+            <div v-if="replaceLoading" class="h-20 rounded-lg border border-border bg-background animate-pulse"></div>
+            <form v-else class="space-y-3" @submit.prevent="submitReplaceSecrets">
+              <div class="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                <div class="min-w-0 rounded-lg border border-border bg-background p-3">
+                  <div class="mb-2 text-xs font-medium text-foreground">
+                    {{ t('admin.orders.replaceDeliveredTitle', { count: replaceDelivered.length }) }}
+                  </div>
+                  <div v-if="replaceDelivered.length" class="max-h-56 space-y-1 overflow-y-auto">
+                    <label
+                      v-for="item in replaceDelivered"
+                      :key="`delivered-${item.id}`"
+                      class="flex cursor-pointer items-start gap-2 rounded px-1 py-1 hover:bg-muted/60"
+                    >
+                      <Checkbox
+                        class="mt-0.5"
+                        :model-value="replaceSelectedDelivered.includes(item.id)"
+                        :disabled="replaceSubmitting"
+                        @update:model-value="(checked) => toggleReplaceDelivered(item.id, checked === true)"
+                      />
+                      <span class="min-w-0 flex-1 break-all font-mono text-xs text-foreground">{{ item.secret }}</span>
+                    </label>
+                  </div>
+                  <div v-else class="text-xs text-muted-foreground">{{ t('admin.orders.replaceDeliveredEmpty') }}</div>
+                </div>
+                <div class="min-w-0 rounded-lg border border-border bg-background p-3">
+                  <div class="mb-2 flex items-center justify-between gap-2">
+                    <span class="text-xs font-medium text-foreground">
+                      {{ t('admin.orders.replaceStockTitle', { count: replaceStock.length }) }}
+                    </span>
+                    <Button
+                      type="button"
+                      size="xs"
+                      variant="outline"
+                      :disabled="replaceSubmitting || replaceSelectedDelivered.length === 0 || replaceStock.length === 0"
+                      @click="pickOldestStock"
+                    >
+                      {{ t('admin.orders.replacePickOldest') }}
+                    </Button>
+                  </div>
+                  <div v-if="replaceStock.length" class="max-h-56 space-y-1 overflow-y-auto">
+                    <label
+                      v-for="item in replaceStock"
+                      :key="`stock-${item.id}`"
+                      class="flex cursor-pointer items-start gap-2 rounded px-1 py-1 hover:bg-muted/60"
+                    >
+                      <Checkbox
+                        class="mt-0.5"
+                        :model-value="replaceSelectedStock.includes(item.id)"
+                        :disabled="replaceSubmitting"
+                        @update:model-value="(checked) => toggleReplaceStock(item.id, checked === true)"
+                      />
+                      <span class="min-w-0 flex-1 break-all font-mono text-xs text-foreground">{{ item.secret }}</span>
+                      <span class="shrink-0 text-xs text-muted-foreground">{{ formatDate(item.created_at) }}</span>
+                    </label>
+                  </div>
+                  <div v-else class="text-xs text-muted-foreground">{{ t('admin.orders.replaceStockEmpty') }}</div>
+                </div>
+              </div>
+              <div class="text-xs text-muted-foreground">
+                {{ t('admin.orders.replaceSelectedCount', { delivered: replaceSelectedDelivered.length, stock: replaceSelectedStock.length }) }}
+              </div>
               <div class="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
                 <Input
                   v-model="replaceForm.reason"

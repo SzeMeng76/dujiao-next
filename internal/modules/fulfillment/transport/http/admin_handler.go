@@ -3,6 +3,7 @@ package fulfillmenthttp
 import (
 	"errors"
 	"strings"
+	"time"
 
 	fulfillmentdomain "github.com/dujiao-next/internal/modules/fulfillment/domain"
 	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
@@ -31,12 +32,44 @@ type ReplaceSecretsInput struct {
 	OrderID uint
 	AdminID uint
 	Secrets []string
+	Pairs   []SecretPair
 	Reason  string
+}
+
+// SecretPair 指定用库存中的哪条卡密替换订单里的哪条已交付卡密。
+type SecretPair struct {
+	OldSecretID uint
+	NewSecretID uint
+}
+
+// DeliveredSecretView 订单当前交付内容中的一条卡密。
+type DeliveredSecretView struct {
+	ID        uint       `json:"id"`
+	Secret    string     `json:"secret"`
+	ProductID uint       `json:"product_id"`
+	SKUID     uint       `json:"sku_id"`
+	UsedAt    *time.Time `json:"used_at,omitempty"`
+}
+
+// StockSecretView 可用于替换的库存卡密。
+type StockSecretView struct {
+	ID        uint      `json:"id"`
+	Secret    string    `json:"secret"`
+	ProductID uint      `json:"product_id"`
+	SKUID     uint      `json:"sku_id"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// ReplaceCandidatesView 替换卡密候选数据。
+type ReplaceCandidatesView struct {
+	Delivered []DeliveredSecretView `json:"delivered"`
+	Stock     []StockSecretView     `json:"stock"`
 }
 
 // SecretReplacer 管理端替换卡密端口，返回更新后的交付记录与替换数量。
 type SecretReplacer interface {
 	ReplaceSecrets(input ReplaceSecretsInput) (*fulfillmentdomain.Fulfillment, int, error)
+	ListReplaceCandidates(orderID uint) (*ReplaceCandidatesView, error)
 }
 
 // CreateManualInput 创建人工交付输入。
@@ -72,8 +105,49 @@ func (h *AdminHandler) WithSecretReplacer(replacer SecretReplacer) *AdminHandler
 
 // AdminReplaceSecretsRequest 替换卡密请求，secrets 为空表示替换该订单的全部卡密。
 type AdminReplaceSecretsRequest struct {
-	Secrets []string `json:"secrets"`
-	Reason  string   `json:"reason" binding:"max=500"`
+	Secrets []string                  `json:"secrets"`
+	Pairs   []AdminReplaceSecretsPair `json:"pairs"`
+	Reason  string                    `json:"reason" binding:"max=500"`
+}
+
+// AdminReplaceSecretsPair 旧卡密 ID 与库存新卡密 ID 的配对；非空时优先于 secrets。
+type AdminReplaceSecretsPair struct {
+	OldSecretID uint `json:"old_secret_id"`
+	NewSecretID uint `json:"new_secret_id"`
+}
+
+// AdminListReplaceCandidates 管理端查询可替换的已交付卡密与同规格库存（最旧在前）。
+func (h *AdminHandler) AdminListReplaceCandidates(c *gin.Context) {
+	if h.replacer == nil {
+		ginutil.RespondError(c, response.CodeInternal, "error.fulfillment_update_failed", nil)
+		return
+	}
+	orderID, err := ginutil.ParseParamUint(c, "id")
+	if err != nil {
+		ginutil.RespondError(c, response.CodeBadRequest, "error.order_item_invalid", nil)
+		return
+	}
+	candidates, err := h.replacer.ListReplaceCandidates(orderID)
+	if err != nil {
+		respondReplaceError(c, err)
+		return
+	}
+	response.Success(c, candidates)
+}
+
+func respondReplaceError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, ErrOrderNotFound), errors.Is(err, ErrFulfillmentNotFound):
+		ginutil.RespondError(c, response.CodeNotFound, "error.fulfillment_not_found", nil)
+	case errors.Is(err, ErrOrderStatusInvalid):
+		ginutil.RespondError(c, response.CodeBadRequest, "error.order_status_invalid", nil)
+	case errors.Is(err, ErrFulfillmentInvalid), errors.Is(err, ErrFulfillmentNotAuto):
+		ginutil.RespondError(c, response.CodeBadRequest, "error.fulfillment_invalid", nil)
+	case errors.Is(err, ErrCardSecretInsufficient):
+		ginutil.RespondError(c, response.CodeBadRequest, "error.card_secret_insufficient", nil)
+	default:
+		ginutil.RespondError(c, response.CodeInternal, "error.fulfillment_update_failed", err)
+	}
 }
 
 // AdminReplaceFulfillmentSecrets 管理端替换已交付订单的卡密并重新推送。
@@ -96,25 +170,19 @@ func (h *AdminHandler) AdminReplaceFulfillmentSecrets(c *gin.Context) {
 		ginutil.RespondBindError(c, err)
 		return
 	}
+	pairs := make([]SecretPair, 0, len(req.Pairs))
+	for _, pair := range req.Pairs {
+		pairs = append(pairs, SecretPair{OldSecretID: pair.OldSecretID, NewSecretID: pair.NewSecretID})
+	}
 	fulfillment, replaced, err := h.replacer.ReplaceSecrets(ReplaceSecretsInput{
 		OrderID: orderID,
 		AdminID: adminID,
 		Secrets: req.Secrets,
+		Pairs:   pairs,
 		Reason:  req.Reason,
 	})
 	if err != nil {
-		switch {
-		case errors.Is(err, ErrOrderNotFound), errors.Is(err, ErrFulfillmentNotFound):
-			ginutil.RespondError(c, response.CodeNotFound, "error.fulfillment_not_found", nil)
-		case errors.Is(err, ErrOrderStatusInvalid):
-			ginutil.RespondError(c, response.CodeBadRequest, "error.order_status_invalid", nil)
-		case errors.Is(err, ErrFulfillmentInvalid), errors.Is(err, ErrFulfillmentNotAuto):
-			ginutil.RespondError(c, response.CodeBadRequest, "error.fulfillment_invalid", nil)
-		case errors.Is(err, ErrCardSecretInsufficient):
-			ginutil.RespondError(c, response.CodeBadRequest, "error.card_secret_insufficient", nil)
-		default:
-			ginutil.RespondError(c, response.CodeInternal, "error.fulfillment_update_failed", err)
-		}
+		respondReplaceError(c, err)
 		return
 	}
 	fulfillment.TruncatePayload(fulfillmentdomain.PayloadMaxPreviewLines)
