@@ -6,7 +6,8 @@ import { notifyError, notifySuccess } from '@/utils/notify'
 export type LocalizedRecord = Record<string, string>
 
 /**
- * 异步翻译：提交任务后轮询结果，避免长文本超时
+ * 异步翻译：每个字段单独提交一个 job 并行处理，避免长文本超时。
+ * 每个字段翻译完成后立即写回，不必等所有字段完成。
  */
 export function useAutoTranslate() {
   const { t } = useI18n()
@@ -22,42 +23,48 @@ export function useAutoTranslate() {
       return false
     }
 
-    const payload: Record<string, string> = {}
-    sourceEntries.forEach(([key, text]) => {
-      payload[key] = text
-    })
-
     translating.value = true
-    try {
-      // 提交异步翻译任务
-      const submitRes = await adminAPI.submitTranslationJob(payload)
-      const jobId = submitRes.data?.data?.job_id
+    let anySuccess = false
+    let anyFail = false
 
-      if (!jobId) {
-        throw new Error('Failed to submit translation job')
+    try {
+      // 每个字段单独提交一个 job，并行执行
+      await Promise.all(
+        sourceEntries.map(async ([key, text]) => {
+          try {
+            const submitRes = await adminAPI.submitTranslationJob({ [key]: text })
+            const jobId = submitRes.data?.data?.job_id
+            if (!jobId) throw new Error('Failed to submit translation job')
+
+            const result = await pollTranslationJob(jobId)
+            const translated = result[key]
+            const target = fields[key]
+
+            if (translated && target) {
+              if (typeof translated['zh-TW'] === 'string' && translated['zh-TW'] !== '') {
+                target['zh-TW'] = translated['zh-TW']
+              }
+              if (typeof translated['en-US'] === 'string' && translated['en-US'] !== '') {
+                target['en-US'] = translated['en-US']
+              }
+              anySuccess = true
+            }
+          } catch (err: any) {
+            console.error(`translate field [${key}] failed:`, err?.message)
+            anyFail = true
+          }
+        })
+      )
+
+      if (anySuccess && !anyFail) {
+        notifySuccess(t('common.translate.success'))
+      } else if (anySuccess && anyFail) {
+        notifySuccess(t('common.translate.partialSuccess', '部分字段翻译成功'))
+      } else {
+        notifyError(t('common.translate.failed'))
       }
 
-      // 轮询任务状态
-      const result = await pollTranslationJob(jobId)
-
-      // 将结果写回原字段
-      sourceEntries.forEach(([key]) => {
-        const translated = result[key]
-        const target = fields[key]
-        if (!translated || !target) return
-        if (typeof translated['zh-TW'] === 'string' && translated['zh-TW'] !== '') {
-          target['zh-TW'] = translated['zh-TW']
-        }
-        if (typeof translated['en-US'] === 'string' && translated['en-US'] !== '') {
-          target['en-US'] = translated['en-US']
-        }
-      })
-
-      notifySuccess(t('common.translate.success'))
-      return true
-    } catch (err: any) {
-      notifyError(err?.message || t('common.translate.failed'))
-      return false
+      return anySuccess
     } finally {
       translating.value = false
     }
@@ -65,10 +72,10 @@ export function useAutoTranslate() {
 
   const pollTranslationJob = async (
     jobId: string,
-    maxWaitTime = 300000
+    maxWaitTime = 1200000
   ): Promise<Record<string, Record<string, string>>> => {
     const startTime = Date.now()
-    const pollInterval = 2000
+    const pollInterval = 5000
 
     while (Date.now() - startTime < maxWaitTime) {
       const statusRes = await adminAPI.getTranslationJobStatus(jobId)
@@ -82,7 +89,6 @@ export function useAutoTranslate() {
         throw new Error(job.error || 'Translation job failed')
       }
 
-      // 仍在处理中，等待后继续
       await new Promise((resolve) => setTimeout(resolve, pollInterval))
     }
 
