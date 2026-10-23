@@ -26,6 +26,20 @@ func (a fulfillmentManualCreatorAdapter) CreateManual(input fulfillmenttransport
 	return res, mapFulfillmentTransportError(err)
 }
 
+type fulfillmentSecretReplacerAdapter struct {
+	svc *fulfillmentapp.Service
+}
+
+func (a fulfillmentSecretReplacerAdapter) ReplaceSecrets(input fulfillmenttransport.ReplaceSecretsInput) (*fulfillmentdomain.Fulfillment, int, error) {
+	res, replaced, err := a.svc.ReplaceSecrets(fulfillmentapp.ReplaceSecretsInput{
+		OrderID: input.OrderID,
+		AdminID: input.AdminID,
+		Secrets: input.Secrets,
+		Reason:  input.Reason,
+	})
+	return res, replaced, mapFulfillmentTransportError(err)
+}
+
 type fulfillmentAdminOrderAdapter struct {
 	orders *orderapp.OrderService
 }
@@ -47,6 +61,10 @@ func mapFulfillmentTransportError(err error) error {
 		{fulfillmentapp.ErrFulfillmentInvalid, fulfillmenttransport.ErrFulfillmentInvalid},
 		{fulfillmentapp.ErrOrderStatusInvalid, fulfillmenttransport.ErrOrderStatusInvalid},
 		{fulfillmentapp.ErrOrderNotFound, fulfillmenttransport.ErrOrderNotFound},
+		{fulfillmentapp.ErrFulfillmentNotFound, fulfillmenttransport.ErrFulfillmentNotFound},
+		{fulfillmentapp.ErrFulfillmentNotAuto, fulfillmenttransport.ErrFulfillmentNotAuto},
+		{fulfillmentapp.ErrFulfillmentUpdateFailed, fulfillmenttransport.ErrFulfillmentUpdateFailed},
+		{fulfillmentapp.ErrCardSecretInsufficient, fulfillmenttransport.ErrCardSecretInsufficient},
 	} {
 		if errors.Is(err, mapping.source) {
 			return fmt.Errorf("%w: %v", mapping.target, err)

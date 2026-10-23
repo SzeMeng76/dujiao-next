@@ -19,7 +19,25 @@ var (
 	ErrFulfillmentInvalid = errors.New("fulfillment invalid")
 	ErrOrderStatusInvalid = errors.New("order status invalid")
 	ErrOrderNotFound      = errors.New("order not found")
+
+	ErrFulfillmentNotFound     = errors.New("fulfillment not found")
+	ErrFulfillmentNotAuto      = errors.New("fulfillment not auto")
+	ErrFulfillmentUpdateFailed = errors.New("fulfillment update failed")
+	ErrCardSecretInsufficient  = errors.New("card secret insufficient")
 )
+
+// ReplaceSecretsInput 替换已交付订单卡密输入。
+type ReplaceSecretsInput struct {
+	OrderID uint
+	AdminID uint
+	Secrets []string
+	Reason  string
+}
+
+// SecretReplacer 管理端替换卡密端口，返回更新后的交付记录与替换数量。
+type SecretReplacer interface {
+	ReplaceSecrets(input ReplaceSecretsInput) (*fulfillmentdomain.Fulfillment, int, error)
+}
 
 // CreateManualInput 创建人工交付输入。
 type CreateManualInput struct {
@@ -41,8 +59,66 @@ type AdminOrderReader interface {
 
 // AdminHandler 处理后台交付相关 HTTP 请求。
 type AdminHandler struct {
-	creator ManualCreator
-	orders  AdminOrderReader
+	creator  ManualCreator
+	orders   AdminOrderReader
+	replacer SecretReplacer
+}
+
+// WithSecretReplacer 注入替换卡密能力；未注入时对应接口返回内部错误。
+func (h *AdminHandler) WithSecretReplacer(replacer SecretReplacer) *AdminHandler {
+	h.replacer = replacer
+	return h
+}
+
+// AdminReplaceSecretsRequest 替换卡密请求，secrets 为空表示替换该订单的全部卡密。
+type AdminReplaceSecretsRequest struct {
+	Secrets []string `json:"secrets"`
+	Reason  string   `json:"reason" binding:"max=500"`
+}
+
+// AdminReplaceFulfillmentSecrets 管理端替换已交付订单的卡密并重新推送。
+func (h *AdminHandler) AdminReplaceFulfillmentSecrets(c *gin.Context) {
+	if h.replacer == nil {
+		ginutil.RespondError(c, response.CodeInternal, "error.fulfillment_update_failed", nil)
+		return
+	}
+	adminID, ok := ginutil.GetAdminID(c)
+	if !ok {
+		return
+	}
+	orderID, err := ginutil.ParseParamUint(c, "id")
+	if err != nil {
+		ginutil.RespondError(c, response.CodeBadRequest, "error.order_item_invalid", nil)
+		return
+	}
+	var req AdminReplaceSecretsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		ginutil.RespondBindError(c, err)
+		return
+	}
+	fulfillment, replaced, err := h.replacer.ReplaceSecrets(ReplaceSecretsInput{
+		OrderID: orderID,
+		AdminID: adminID,
+		Secrets: req.Secrets,
+		Reason:  req.Reason,
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrOrderNotFound), errors.Is(err, ErrFulfillmentNotFound):
+			ginutil.RespondError(c, response.CodeNotFound, "error.fulfillment_not_found", nil)
+		case errors.Is(err, ErrOrderStatusInvalid):
+			ginutil.RespondError(c, response.CodeBadRequest, "error.order_status_invalid", nil)
+		case errors.Is(err, ErrFulfillmentInvalid), errors.Is(err, ErrFulfillmentNotAuto):
+			ginutil.RespondError(c, response.CodeBadRequest, "error.fulfillment_invalid", nil)
+		case errors.Is(err, ErrCardSecretInsufficient):
+			ginutil.RespondError(c, response.CodeBadRequest, "error.card_secret_insufficient", nil)
+		default:
+			ginutil.RespondError(c, response.CodeInternal, "error.fulfillment_update_failed", err)
+		}
+		return
+	}
+	fulfillment.TruncatePayload(fulfillmentdomain.PayloadMaxPreviewLines)
+	response.Success(c, gin.H{"fulfillment": fulfillment, "replaced": replaced})
 }
 
 func NewAdminHandler(creator ManualCreator, orders AdminOrderReader) *AdminHandler {

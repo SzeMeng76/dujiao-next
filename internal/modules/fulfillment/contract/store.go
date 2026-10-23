@@ -1,10 +1,15 @@
 package contract
 
-import fulfillmentdomain "github.com/dujiao-next/internal/modules/fulfillment/domain"
+import (
+	"time"
+
+	fulfillmentdomain "github.com/dujiao-next/internal/modules/fulfillment/domain"
+)
 
 // Store 是交付记录持久化端口。
 type Store interface {
 	Create(fulfillment *fulfillmentdomain.Fulfillment) error
+	UpdatePayload(id uint, payload string, updatedAt time.Time) error
 	GetByOrderID(orderID uint) (*fulfillmentdomain.Fulfillment, error)
 	FindByOrderIDForUpdate(orderID uint) (*fulfillmentdomain.Fulfillment, bool, error)
 }

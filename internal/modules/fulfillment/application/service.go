@@ -385,6 +385,198 @@ func (s *Service) CreateAuto(orderID uint) (*fulfillmentdomain.Fulfillment, erro
 	return fulfillment, nil
 }
 
+// ReplaceSecretsInput 管理员替换已交付订单中有问题的自动发货卡密。
+type ReplaceSecretsInput struct {
+	OrderID uint
+	AdminID uint
+	Secrets []string // 要替换的旧卡密内容；为空表示替换该订单交付内容中的全部卡密
+	Reason  string
+}
+
+// ReplaceSecrets 用库存中的可用卡密替换已交付订单里的指定卡密。
+//
+// 旧卡密保持 used 状态并保留 order_id，不会被重新售出，也作为替换的追溯依据；
+// 新卡密从同商品/SKU 的可用库存中取，库存不足时整体回滚。事务提交后重发订单邮件、
+// Telegram 通知，并触发下游回调，让用户拿到新的交付内容。
+func (s *Service) ReplaceSecrets(input ReplaceSecretsInput) (*fulfillmentdomain.Fulfillment, int, error) {
+	if input.OrderID == 0 || input.AdminID == 0 {
+		return nil, 0, ErrFulfillmentInvalid
+	}
+	order, err := s.orderStore.GetByID(input.OrderID)
+	if err != nil {
+		return nil, 0, ErrOrderFetchFailed
+	}
+	if order == nil {
+		return nil, 0, ErrOrderNotFound
+	}
+	if order.ParentID == nil && len(order.Children) > 0 {
+		return nil, 0, ErrFulfillmentInvalid
+	}
+	if order.Status != constants.OrderStatusDelivered && order.Status != constants.OrderStatusCompleted {
+		return nil, 0, ErrOrderStatusInvalid
+	}
+
+	wanted := make(map[string]int)
+	for _, raw := range input.Secrets {
+		if text := strings.TrimSpace(raw); text != "" {
+			wanted[text]++
+		}
+	}
+	wantAll := len(wanted) == 0
+
+	now := time.Now()
+	var updated *fulfillmentdomain.Fulfillment
+	replaced := 0
+	err = s.orderStore.WithinTransaction(func(tx ordercontract.Transaction) error {
+		current, found, err := tx.Fulfillments().FindByOrderIDForUpdate(input.OrderID)
+		if err != nil {
+			return err
+		}
+		if !found {
+			return ErrFulfillmentNotFound
+		}
+		if current.Type != constants.FulfillmentTypeAuto {
+			return ErrFulfillmentNotAuto
+		}
+
+		secretRepo := tx.CardSecrets()
+		usedRows, err := secretRepo.ListByOrderAndStatus(input.OrderID, cardsecretdomain.StatusUsed)
+		if err != nil {
+			return err
+		}
+
+		// 把交付内容的每一行对应回卡密记录，一行只对应一条记录。
+		lines := strings.Split(current.Payload, "\n")
+		type pick struct {
+			old     cardsecretdomain.Secret
+			lineIdx int
+		}
+		var picks []pick
+		matched := make(map[uint]bool)
+		for idx, line := range lines {
+			text := strings.TrimSpace(line)
+			if text == "" {
+				continue
+			}
+			for _, row := range usedRows {
+				if matched[row.ID] || strings.TrimSpace(row.Secret) != text {
+					continue
+				}
+				matched[row.ID] = true
+				if wantAll {
+					picks = append(picks, pick{old: row, lineIdx: idx})
+				} else if wanted[text] > 0 {
+					wanted[text]--
+					picks = append(picks, pick{old: row, lineIdx: idx})
+				}
+				break
+			}
+		}
+		for _, left := range wanted {
+			if left > 0 {
+				return ErrFulfillmentInvalid
+			}
+		}
+		if len(picks) == 0 {
+			return ErrFulfillmentInvalid
+		}
+
+		// 按商品/SKU 分组，从可用库存里取同规格的新卡密。
+		groups := make(map[string][]int)
+		var groupOrder []string
+		for i, p := range picks {
+			key := orderdomain.ItemKey(p.old.ProductID, p.old.SKUID)
+			if _, ok := groups[key]; !ok {
+				groupOrder = append(groupOrder, key)
+			}
+			groups[key] = append(groups[key], i)
+		}
+		replacements := make([]cardsecretdomain.Secret, len(picks))
+		newIDs := make([]uint, 0, len(picks))
+		for _, key := range groupOrder {
+			idxs := groups[key]
+			first := picks[idxs[0]].old
+			rows, err := secretRepo.ListAvailableByProductForUpdate(first.ProductID, first.SKUID, len(idxs))
+			if err != nil {
+				return err
+			}
+			if len(rows) < len(idxs) {
+				return ErrCardSecretInsufficient
+			}
+			for n, pickIdx := range idxs {
+				replacements[pickIdx] = rows[n]
+				newIDs = append(newIDs, rows[n].ID)
+			}
+		}
+		affected, err := secretRepo.MarkUsed(newIDs, input.OrderID, now)
+		if err != nil {
+			return err
+		}
+		if int(affected) != len(newIDs) {
+			return ErrCardSecretInsufficient
+		}
+
+		oldIDs := make([]uint, 0, len(picks))
+		for i, p := range picks {
+			lines[p.lineIdx] = replacements[i].Secret
+			oldIDs = append(oldIDs, p.old.ID)
+		}
+		payload := strings.Join(lines, "\n")
+		if err := tx.Fulfillments().UpdatePayload(current.ID, payload, now); err != nil {
+			return ErrFulfillmentUpdateFailed
+		}
+		current.Payload = payload
+		current.UpdatedAt = now
+		updated = current
+		replaced = len(picks)
+		logger.Infow("fulfillment_secrets_replaced",
+			"order_id", input.OrderID,
+			"admin_id", input.AdminID,
+			"reason", strings.TrimSpace(input.Reason),
+			"old_secret_ids", oldIDs,
+			"new_secret_ids", newIDs,
+		)
+		return nil
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrFulfillmentNotFound),
+			errors.Is(err, ErrFulfillmentNotAuto),
+			errors.Is(err, ErrFulfillmentInvalid),
+			errors.Is(err, ErrCardSecretInsufficient),
+			errors.Is(err, ErrFulfillmentUpdateFailed):
+			return nil, 0, err
+		default:
+			return nil, 0, ErrFulfillmentUpdateFailed
+		}
+	}
+
+	// 提交后重新推送：邮件带上新的交付内容，Telegram 与下游站点同步通知。
+	notifyOrderID := input.OrderID
+	emailStatus := order.Status
+	if order.ParentID != nil {
+		notifyOrderID = *order.ParentID
+		if parent, parentErr := s.orderStore.GetByID(*order.ParentID); parentErr == nil && parent != nil {
+			emailStatus = parent.Status
+		}
+	}
+	if s.orderQueue != nil {
+		if _, err := orderapp.EnqueueStatusEmailTaskIfEligible(s.orderStore, s.orderQueue, s.settingService, s.defaultEmailConfig, notifyOrderID, emailStatus); err != nil {
+			logger.Warnw("fulfillment_enqueue_status_email_failed",
+				"order_id", order.ID,
+				"target_order_id", notifyOrderID,
+				"status", emailStatus,
+				"error", err,
+			)
+		}
+	}
+	go s.NotifyBotOrderFulfilled(order.UserID, notifyOrderID)
+	if s.downstreamCallbackSvc != nil {
+		s.downstreamCallbackSvc.EnqueueCallback(input.OrderID)
+	}
+	return updated, replaced, nil
+}
+
 // NotifyBotOrderFulfilled 查找用户 Telegram 绑定并入队通知任务。
 func (s *Service) NotifyBotOrderFulfilled(userID, orderID uint) {
 	if s.botNotifier == nil || userID == 0 || s.userOAuthIdentityRepo == nil {

@@ -2,6 +2,7 @@ package gormstore
 
 import (
 	"errors"
+	"time"
 
 	fulfillmentcontract "github.com/dujiao-next/internal/modules/fulfillment/contract"
 	fulfillmentdomain "github.com/dujiao-next/internal/modules/fulfillment/domain"
@@ -20,6 +21,13 @@ func New(db *gorm.DB) *Store { return &Store{db: db} }
 // Create 创建交付记录
 func (r *Store) Create(fulfillment *fulfillmentdomain.Fulfillment) error {
 	return r.db.Create(fulfillment).Error
+}
+
+// UpdatePayload 更新交付内容(例如管理员替换有问题的卡密)。
+func (r *Store) UpdatePayload(id uint, payload string, updatedAt time.Time) error {
+	return r.db.Model(&fulfillmentdomain.Fulfillment{}).
+		Where("deleted_at IS NULL AND id = ?", id).
+		Updates(map[string]interface{}{"payload": payload, "updated_at": updatedAt}).Error
 }
 
 // GetByOrderID 根据订单 ID 获取交付记录(不存在返回 nil, nil),不加锁。

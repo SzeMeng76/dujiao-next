@@ -8,6 +8,7 @@ import IdCell from '@/components/IdCell.vue'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Card, CardContent } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -68,6 +69,14 @@ const manualConfirmSuccess = ref('')
 const manualConfirmForm = reactive({
   providerRef: '',
   remark: '',
+})
+const replaceTargetId = ref<number | null>(null)
+const replaceSubmitting = ref(false)
+const replaceError = ref('')
+const replaceSuccess = ref('')
+const replaceForm = reactive({
+  secrets: '',
+  reason: '',
 })
 
 
@@ -530,6 +539,60 @@ const resetManualConfirmForm = () => {
   manualConfirmForm.remark = ''
   manualConfirmError.value = ''
   manualConfirmSuccess.value = ''
+  replaceTargetId.value = null
+  replaceForm.secrets = ''
+  replaceForm.reason = ''
+  replaceError.value = ''
+  replaceSuccess.value = ''
+}
+
+// 已交付（或已完成）订单中，自动发货的交付记录才允许替换卡密。
+const canReplaceSecrets = (order: AdminOrder | null) => {
+  if (!order || !order.fulfillment) return false
+  if (order.fulfillment.type !== 'auto') return false
+  return order.status === 'delivered' || order.status === 'completed'
+}
+
+const openReplaceSecrets = (orderId: number) => {
+  replaceTargetId.value = orderId
+  replaceForm.secrets = ''
+  replaceForm.reason = ''
+  replaceError.value = ''
+  replaceSuccess.value = ''
+}
+
+const submitReplaceSecrets = async () => {
+  if (!selectedOrder.value || replaceTargetId.value == null) return
+  replaceError.value = ''
+  replaceSuccess.value = ''
+  const confirmed = await confirmAction({
+    title: t('admin.orders.replaceSecretsOpen'),
+    description: t('admin.orders.replaceSecretsPrompt'),
+    variant: 'destructive',
+  })
+  if (!confirmed) return
+
+  const secrets = replaceForm.secrets
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line !== '')
+  replaceSubmitting.value = true
+  try {
+    const res: any = await adminAPI.replaceFulfillmentSecrets(replaceTargetId.value, {
+      secrets: secrets.length ? secrets : undefined,
+      reason: replaceForm.reason.trim() || undefined,
+    })
+    const count = res?.data?.replaced ?? res?.replaced ?? secrets.length
+    replaceSuccess.value = t('admin.orders.replaceSecretsSuccess', { count })
+    replaceForm.secrets = ''
+    replaceForm.reason = ''
+    await fetchOrderDetail(Number(selectedOrder.value.id))
+    emit('refresh')
+  } catch (err: any) {
+    replaceError.value = err?.message || t('admin.orders.replaceSecretsFailed')
+  } finally {
+    replaceSubmitting.value = false
+  }
 }
 
 // 仅未支付的父订单（待支付，或已被超时取消）才允许人工确认支付。
@@ -1072,7 +1135,12 @@ watch(
                   <div v-else class="text-xs text-muted-foreground">{{ t('orderDetail.noItems') }}</div>
                 </div>
                 <div class="mt-4">
-                  <h4 class="text-xs font-semibold text-muted-foreground mb-2">{{ t('orderDetail.childFulfillmentTitle') }}</h4>
+                  <div class="mb-2 flex items-center justify-between">
+                    <h4 class="text-xs font-semibold text-muted-foreground">{{ t('orderDetail.childFulfillmentTitle') }}</h4>
+                    <Button v-if="canReplaceSecrets(child)" size="xs" variant="outline" @click="openReplaceSecrets(child.id)">
+                      {{ t('admin.orders.replaceSecretsOpen') }}
+                    </Button>
+                  </div>
                   <div v-if="child.fulfillment">
                     <div class="text-xs text-muted-foreground">{{ t('admin.orders.detailFulfillmentType') }}：{{ fulfillmentTypeLabel(child.fulfillment.type) }}</div>
                     <div class="text-xs text-muted-foreground">{{ t('admin.orders.detailFulfillmentStatus') }}：{{ fulfillmentStatusLabel(child.fulfillment.status) }}</div>
@@ -1104,9 +1172,14 @@ watch(
           <div v-if="selectedOrder.fulfillment" class="rounded-xl border border-border bg-muted/20 p-4">
             <div class="flex items-center justify-between mb-3">
               <h3 class="text-sm font-semibold text-foreground">{{ t('admin.orders.detailFulfillmentTitle') }}</h3>
-              <Button v-if="isFulfillmentTruncated(selectedOrder.fulfillment)" size="xs" variant="outline" :disabled="fulfillmentDownloading" @click="handleDownloadFulfillment(selectedOrder.id, selectedOrder.order_no)">
-                {{ fulfillmentDownloading ? t('admin.orders.fulfillmentDownloading') : t('admin.orders.fulfillmentDownload') }}
-              </Button>
+              <div class="flex items-center gap-2">
+                <Button v-if="canReplaceSecrets(selectedOrder)" size="xs" variant="outline" @click="openReplaceSecrets(selectedOrder.id)">
+                  {{ t('admin.orders.replaceSecretsOpen') }}
+                </Button>
+                <Button v-if="isFulfillmentTruncated(selectedOrder.fulfillment)" size="xs" variant="outline" :disabled="fulfillmentDownloading" @click="handleDownloadFulfillment(selectedOrder.id, selectedOrder.order_no)">
+                  {{ fulfillmentDownloading ? t('admin.orders.fulfillmentDownloading') : t('admin.orders.fulfillmentDownload') }}
+                </Button>
+              </div>
             </div>
             <div class="text-sm text-muted-foreground">{{ t('admin.orders.detailFulfillmentType') }}：{{ fulfillmentTypeLabel(selectedOrder.fulfillment.type) }}</div>
             <div class="text-sm text-muted-foreground">{{ t('admin.orders.detailFulfillmentStatus') }}：{{ fulfillmentStatusLabel(selectedOrder.fulfillment.status) }}</div>
@@ -1122,6 +1195,37 @@ watch(
             </div>
             <div v-else class="mt-3 rounded-lg border border-border bg-background p-3 text-xs text-muted-foreground whitespace-pre-wrap break-all">
               {{ selectedOrder.fulfillment.payload }}
+            </div>
+          </div>
+
+          <div v-if="replaceTargetId != null" class="rounded-xl border border-border bg-muted/20 p-4">
+            <h3 class="mb-2 text-sm font-semibold text-foreground">{{ t('admin.orders.replaceSecretsOpen') }}</h3>
+            <p class="mb-3 text-xs text-muted-foreground">{{ t('admin.orders.replaceSecretsHint') }}</p>
+            <form class="space-y-3" @submit.prevent="submitReplaceSecrets">
+              <Textarea
+                v-model="replaceForm.secrets"
+                rows="4"
+                class="min-w-0 font-mono text-xs"
+                :placeholder="t('admin.orders.replaceSecretsListPlaceholder')"
+                :disabled="replaceSubmitting"
+              />
+              <div class="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
+                <Input
+                  v-model="replaceForm.reason"
+                  class="min-w-0"
+                  :placeholder="t('admin.orders.replaceSecretsReasonPlaceholder')"
+                  :disabled="replaceSubmitting"
+                />
+                <Button class="w-full md:w-auto" type="submit" :disabled="replaceSubmitting">
+                  {{ replaceSubmitting ? t('admin.orders.replaceSecretsSubmitting') : t('admin.orders.replaceSecretsSubmit') }}
+                </Button>
+              </div>
+            </form>
+            <div v-if="replaceError" class="mt-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+              {{ replaceError }}
+            </div>
+            <div v-if="replaceSuccess" class="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
+              {{ replaceSuccess }}
             </div>
           </div>
 

@@ -211,6 +211,11 @@ export interface AdminManualRefundPayload {
   payment_fee_refunded?: boolean
 }
 
+export interface AdminReplaceSecretsPayload {
+  secrets?: string[]
+  reason?: string
+}
+
 export interface AdminManualConfirmPaymentPayload {
   payment_id?: number
   provider_ref?: string
@@ -550,6 +555,8 @@ export const adminAPI = {
     api.post(`/admin/orders/${id}/refund-to-wallet`, data),
   manualRefundOrder: (id: number, data: AdminManualRefundPayload) =>
     api.post(`/admin/orders/${id}/manual-refund`, data),
+  replaceFulfillmentSecrets: (id: number, data: AdminReplaceSecretsPayload) =>
+    api.post(`/admin/orders/${id}/fulfillment/replace-secrets`, data),
   manualConfirmOrderPayment: (id: number, data: AdminManualConfirmPaymentPayload) =>
     api.post(`/admin/orders/${id}/manual-confirm-payment`, data),
   getOrderRefunds: (params?: Record<string, unknown>) => api.get('/admin/order-refunds', { params }),
