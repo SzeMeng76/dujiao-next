@@ -570,6 +570,11 @@ const openReplaceSecrets = async (orderId: number) => {
   replaceSelectedStock.value = []
   replaceError.value = ''
   replaceSuccess.value = ''
+  await loadReplaceCandidates(orderId)
+}
+
+// 加载某个子订单（或单订单）的候选卡密；不清除成功/错误提示，供替换成功后刷新使用。
+const loadReplaceCandidates = async (orderId: number) => {
   replaceLoading.value = true
   try {
     const res: any = await adminAPI.getReplaceCandidates(orderId)
@@ -630,17 +635,23 @@ const submitReplaceSecrets = async () => {
   if (!confirmed) return
 
   replaceSubmitting.value = true
+  const targetId = replaceTargetId.value
+  const parentId = Number(selectedOrder.value.id)
   try {
-    const res: any = await adminAPI.replaceFulfillmentSecrets(replaceTargetId.value, {
+    const res: any = await adminAPI.replaceFulfillmentSecrets(targetId, {
       pairs,
       reason: replaceForm.reason.trim() || undefined,
     })
     const count = res?.data?.data?.replaced ?? res?.data?.replaced ?? pairs.length
-    replaceSuccess.value = t('admin.orders.replaceSecretsSuccess', { count })
+    replaceSelectedDelivered.value = []
+    replaceSelectedStock.value = []
     replaceForm.reason = ''
-    await fetchOrderDetail(Number(selectedOrder.value.id))
+    await fetchOrderDetail(parentId)
     emit('refresh')
-    await openReplaceSecrets(Number(selectedOrder.value.id))
+    // 候选列表必须用被替换的订单（可能是子订单）重新加载，而不是当前打开的父订单。
+    replaceTargetId.value = targetId
+    await loadReplaceCandidates(targetId)
+    replaceSuccess.value = t('admin.orders.replaceSecretsSuccess', { count })
   } catch (err: any) {
     replaceError.value = err?.message || t('admin.orders.replaceSecretsFailed')
   } finally {
