@@ -15,6 +15,7 @@ import (
 	"time"
 
 	siteconnectiondomain "github.com/dujiao-next/internal/modules/siteconnection/domain"
+	"github.com/dujiao-next/internal/logger"
 	"github.com/dujiao-next/internal/shared/jsonmap"
 )
 
@@ -73,13 +74,15 @@ type acgGroup struct {
 //
 // 注意 stock 在真实接口里是字符串（如 "1848"），price / user_price 是数字。
 type acgChild struct {
-	ID        json.RawMessage `json:"id"`
-	Code      json.RawMessage `json:"code"`
-	Name      string          `json:"name"`
-	Stock     json.RawMessage `json:"stock"`
-	Inventory json.RawMessage `json:"inventory"`
-	UserPrice *float64        `json:"user_price"`
-	Price     *float64        `json:"price"`
+	ID          json.RawMessage `json:"id"`
+	Code        json.RawMessage `json:"code"`
+	Name        string          `json:"name"`
+	Description string          `json:"description"`
+	Cover       string          `json:"cover"`
+	Stock       json.RawMessage `json:"stock"`
+	Inventory   json.RawMessage `json:"inventory"`
+	UserPrice   *float64        `json:"user_price"`
+	Price       *float64        `json:"price"`
 }
 
 // acgStockValue 解析库存；接口可能返回数字或字符串，-1 表示无限。
@@ -254,11 +257,22 @@ func (a *ACGAdapter) ListProducts(ctx context.Context, opts ListProductsOpts) (*
 
 		price := item.child.priceValue()
 		stock := item.child.stockValue()
+
+		var images []string
+		if cover := strings.TrimSpace(item.child.Cover); cover != "" {
+			if !strings.HasPrefix(cover, "http") {
+				cover = strings.TrimRight(a.baseURL, "/") + cover
+			}
+			images = []string{cover}
+		}
+
 		products = append(products, UpstreamProduct{
 			ID:              item.productID,
 			Code:            code,
 			Slug:            "acg-" + code,
 			Title:           jsonmap.JSON{"zh-CN": strings.TrimSpace(item.child.Name)},
+			Description:     jsonmap.JSON{"zh-CN": item.child.Description},
+			Images:          images,
 			PriceAmount:     price,
 			Currency:        "CNY",
 			FulfillmentType: "auto",
@@ -296,9 +310,11 @@ func (a *ACGAdapter) GetProduct(ctx context.Context, productID uint) (*UpstreamP
 	}
 
 	var out struct {
-		Code  json.RawMessage `json:"code"`
-		Name  string          `json:"name"`
-		Stock *int            `json:"stock"`
+		Code        json.RawMessage `json:"code"`
+		Name        string          `json:"name"`
+		Description string          `json:"description"`
+		Cover       string          `json:"cover"`
+		Stock       json.RawMessage `json:"stock"`
 	}
 	if err := a.post(ctx, "/shared/commodity/item", map[string]interface{}{"code": code}, &out); err != nil {
 		var ue *upstreamHTTPError
@@ -309,11 +325,22 @@ func (a *ACGAdapter) GetProduct(ctx context.Context, productID uint) (*UpstreamP
 	}
 
 	price, stock := a.quote(ctx, code)
+
+	var images []string
+	if cover := strings.TrimSpace(out.Cover); cover != "" {
+		if !strings.HasPrefix(cover, "http") {
+			cover = strings.TrimRight(a.baseURL, "/") + cover
+		}
+		images = []string{cover}
+	}
+
 	return &UpstreamProduct{
 		ID:              productID,
 		Code:            code,
 		Slug:            "acg-" + code,
 		Title:           jsonmap.JSON{"zh-CN": strings.TrimSpace(out.Name)},
+		Description:     jsonmap.JSON{"zh-CN": out.Description},
+		Images:          images,
 		PriceAmount:     price,
 		Currency:        "CNY",
 		FulfillmentType: "auto",
@@ -507,7 +534,9 @@ func (a *ACGAdapter) post(ctx context.Context, path string, data map[string]inte
 	// sign 也在 acgFormPairs 之外单独补上（它被跳过，因为不参与签名）。
 	form.Set("sign", payload["sign"].(string))
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, a.baseURL+path, strings.NewReader(form.Encode()))
+	targetURL := a.baseURL + path
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, strings.NewReader(form.Encode()))
 	if err != nil {
 		return fmt.Errorf("acg create request: %w", err)
 	}
@@ -515,7 +544,8 @@ func (a *ACGAdapter) post(ctx context.Context, path string, data map[string]inte
 
 	resp, err := a.client.Do(req)
 	if err != nil {
-		return fmt.Errorf("acg send request: %w", err)
+		logger.Warnw("acg_request_error", "url", targetURL, "error", err.Error())
+		return fmt.Errorf("acg send request to %s: %w", targetURL, err)
 	}
 	defer resp.Body.Close()
 
@@ -525,17 +555,24 @@ func (a *ACGAdapter) post(ctx context.Context, path string, data map[string]inte
 	}
 
 	if resp.StatusCode != http.StatusOK {
+		logger.Warnw("acg_request_error",
+			"url", targetURL, "status", resp.StatusCode,
+			"content_type", resp.Header.Get("Content-Type"),
+			"body", truncateText(string(body), 300))
 		return &upstreamHTTPError{
 			Status:  resp.StatusCode,
 			Code:    fmt.Sprintf("acg_http_%d", resp.StatusCode),
-			Message: truncateText(string(body), 200),
+			Message: truncateText(fmt.Sprintf("%s returned HTTP %d: %s", targetURL, resp.StatusCode, string(body)), 300),
 			Body:    string(body),
 		}
 	}
 
 	var reply acgReply
 	if err := json.Unmarshal(body, &reply); err != nil {
-		return fmt.Errorf("acg unmarshal response: %w", err)
+		logger.Warnw("acg_response_not_json",
+			"url", targetURL, "content_type", resp.Header.Get("Content-Type"),
+			"body", truncateText(string(body), 300))
+		return fmt.Errorf("acg unmarshal response from %s: %w", targetURL, err)
 	}
 	if reply.Code != http.StatusOK {
 		return &upstreamHTTPError{
