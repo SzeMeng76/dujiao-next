@@ -70,22 +70,42 @@ type acgGroup struct {
 
 // acgChild 是分组下的共享商品。共享目录接口会直接返回售价与库存，
 // 因此导入时不逐项询价；下单前的实时核价由 procurement 的提交阶段负责。
+//
+// 注意 stock 在真实接口里是字符串（如 "1848"），price / user_price 是数字。
 type acgChild struct {
 	ID        json.RawMessage `json:"id"`
 	Code      json.RawMessage `json:"code"`
 	Name      string          `json:"name"`
-	Stock     *int            `json:"stock"`
-	Inventory *int            `json:"inventory"`
+	Stock     json.RawMessage `json:"stock"`
+	Inventory json.RawMessage `json:"inventory"`
 	UserPrice *float64        `json:"user_price"`
 	Price     *float64        `json:"price"`
 }
 
-func (c acgChild) stockValue() int {
-	if c.Stock != nil {
-		return *c.Stock
+// acgStockValue 解析库存；接口可能返回数字或字符串，-1 表示无限。
+func acgStockValue(raw json.RawMessage) int {
+	text := acgRawString(raw)
+	if text == "" {
+		return -1
 	}
-	if c.Inventory != nil {
-		return *c.Inventory
+	value, err := strconv.Atoi(text)
+	if err != nil {
+		// 可能是小数形式，取整数部分。
+		asFloat, floatErr := strconv.ParseFloat(text, 64)
+		if floatErr != nil {
+			return -1
+		}
+		value = int(asFloat)
+	}
+	return value
+}
+
+func (c acgChild) stockValue() int {
+	if stock := acgStockValue(c.Stock); stock != -1 || acgRawString(c.Stock) != "" {
+		return stock
+	}
+	if stock := acgStockValue(c.Inventory); stock != -1 || acgRawString(c.Inventory) != "" {
+		return stock
 	}
 	return -1
 }
@@ -414,16 +434,6 @@ func (a *ACGAdapter) rememberCode(id uint, code string) {
 }
 
 func (a *ACGAdapter) lookupCode(id uint) (string, bool) {
-	// 数字 code 可以直接反推，不依赖缓存。
-	if id > 0 {
-		candidate := strconv.FormatUint(uint64(id), 10)
-		a.mu.RLock()
-		_, cached := a.codeCache[id]
-		a.mu.RUnlock()
-		if !cached && acgIDForCode(candidate) == id {
-			return candidate, true
-		}
-	}
 	a.mu.RLock()
 	code, ok := a.codeCache[id]
 	a.mu.RUnlock()
@@ -439,30 +449,34 @@ func (a *ACGAdapter) listGroups(ctx context.Context) ([]acgGroup, error) {
 }
 
 // quote 返回商品的实付价与库存；失败时返回 0 价与 0 库存，由调用方按不可售处理。
+//
+// 真实响应：valuation 返回 {"price":"0.40","currency_code":"CNY"}，
+// stock 返回 {"stock":"1848"}，两者都是字符串。
 func (a *ACGAdapter) quote(ctx context.Context, code string) (string, int) {
 	var valuation struct {
-		Price    any    `json:"price"`
-		Currency string `json:"currency"`
+		Price    json.RawMessage `json:"price"`
+		Currency string          `json:"currency_code"`
 	}
+	// race 为空时不参与签名，因此直接不传。
 	if err := a.post(ctx, "/shared/commodity/valuation", map[string]interface{}{
-		"code": code, "num": "1", "race": "", "card_id": "0",
+		"code": code, "num": "1", "card_id": "0",
 	}, &valuation); err != nil {
 		return "0.00", 0
 	}
 
 	var stockOut struct {
-		Stock *int `json:"stock"`
+		Stock json.RawMessage `json:"stock"`
 	}
 	stock := 0
-	if err := a.post(ctx, "/shared/commodity/stock", map[string]interface{}{"code": code}, &stockOut); err == nil && stockOut.Stock != nil {
-		stock = *stockOut.Stock // -1 表示无限
+	if err := a.post(ctx, "/shared/commodity/stock", map[string]interface{}{"code": code}, &stockOut); err == nil {
+		if parsed := acgStockValue(stockOut.Stock); parsed != -1 {
+			stock = parsed
+		}
 	}
 
-	price := "0.00"
-	if raw, ok := valuation.Price.(float64); ok {
-		price = strconv.FormatFloat(raw, 'f', 2, 64)
-	} else if text := strings.TrimSpace(fmt.Sprintf("%v", valuation.Price)); text != "" && text != "<nil>" {
-		price = text
+	price := acgRawString(valuation.Price)
+	if price == "" {
+		price = "0.00"
 	}
 	return price, stock
 }
