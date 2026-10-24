@@ -73,8 +73,12 @@ func (s *Service) SubmitToUpstream(procurementOrderID uint) error {
 	}
 
 	// 构建上游请求
+	// sku_code 来自下单时写入的 SKU 快照；只有以字符串标识商品的上游
+	// （如异次元 shared_code）会用到它，其它协议留空即可。
+	upstreamSKUCode, _ := item.SKUSnapshot["sku_code"].(string)
 	req := procurementcontract.CreateOrderRequest{
 		SKUID:             upstreamSKUID,
+		SKUCode:           strings.TrimSpace(upstreamSKUCode),
 		Quantity:          item.Quantity,
 		DownstreamOrderNo: localOrder.OrderNo,
 		TraceID:           procOrder.TraceID,

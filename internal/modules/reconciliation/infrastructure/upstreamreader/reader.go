@@ -45,8 +45,15 @@ func (r *Reader) Open(connectionID uint) (reconciliationcontract.UpstreamOrderRe
 	return &session{adapter: adapter}, nil
 }
 
-func (s *session) Get(ctx context.Context, upstreamOrderID uint) (*reconciliationcontract.UpstreamOrder, error) {
-	detail, err := s.adapter.GetOrder(ctx, upstreamOrderID)
+func (s *session) Get(ctx context.Context, upstreamOrderID uint, upstreamOrderNo string) (*reconciliationcontract.UpstreamOrder, error) {
+	var detail *upstream.UpstreamOrderDetail
+	var err error
+	// 以字符串订单号标识订单的协议（如异次元）必须走 orderNo。
+	if byNo, ok := s.adapter.(upstream.OrderNoAdapter); ok && upstreamOrderNo != "" {
+		detail, err = byNo.GetOrderByNo(ctx, upstreamOrderNo)
+	} else {
+		detail, err = s.adapter.GetOrder(ctx, upstreamOrderID)
+	}
 	if err != nil {
 		return nil, err
 	}

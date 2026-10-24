@@ -53,7 +53,7 @@ func (s *session) RetryIntervals() string { return s.connection.RetryIntervals }
 
 func (s *session) CreateOrder(ctx context.Context, request procurementcontract.CreateOrderRequest) (*procurementcontract.CreateOrderResult, error) {
 	result, err := s.adapter.CreateOrder(ctx, upstream.CreateUpstreamOrderReq{
-		SKUID: request.SKUID, Quantity: request.Quantity, ManualFormData: request.ManualFormData,
+		SKUID: request.SKUID, SKUCode: request.SKUCode, Quantity: request.Quantity, ManualFormData: request.ManualFormData,
 		DownstreamOrderNo: request.DownstreamOrderNo, TraceID: request.TraceID, CallbackURL: request.CallbackURL,
 	})
 	if err != nil {
@@ -66,8 +66,15 @@ func (s *session) CreateOrder(ctx context.Context, request procurementcontract.C
 	}, nil
 }
 
-func (s *session) GetOrder(ctx context.Context, orderID uint) (*procurementcontract.UpstreamOrder, error) {
-	detail, err := s.adapter.GetOrder(ctx, orderID)
+func (s *session) GetOrder(ctx context.Context, orderID uint, orderNo string) (*procurementcontract.UpstreamOrder, error) {
+	var detail *upstream.UpstreamOrderDetail
+	var err error
+	// 以字符串订单号标识订单的协议（如异次元）必须走 orderNo。
+	if byNo, ok := s.adapter.(upstream.OrderNoAdapter); ok && orderNo != "" {
+		detail, err = byNo.GetOrderByNo(ctx, orderNo)
+	} else {
+		detail, err = s.adapter.GetOrder(ctx, orderID)
+	}
 	if err != nil {
 		return nil, err
 	}

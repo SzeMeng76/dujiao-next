@@ -29,6 +29,7 @@ type Fulfillment struct {
 
 type CreateOrderRequest struct {
 	SKUID             uint
+	SKUCode           string // 上游原始字符串标识，仅字符串标识的上游使用
 	Quantity          int
 	ManualFormData    jsonmap.JSON
 	DownstreamOrderNo string
@@ -63,7 +64,9 @@ type UpstreamConnection interface {
 	RetryMax() int
 	RetryIntervals() string
 	CreateOrder(ctx context.Context, request CreateOrderRequest) (*CreateOrderResult, error)
-	GetOrder(ctx context.Context, orderID uint) (*UpstreamOrder, error)
+	// GetOrder 按上游订单查询。orderNo 用于以字符串标识订单的上游（如异次元共享 API），
+	// 数字标识的协议可以忽略该参数。
+	GetOrder(ctx context.Context, orderID uint, orderNo string) (*UpstreamOrder, error)
 	CancelOrder(ctx context.Context, orderID uint) error
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/dujiao-next/internal/constants"
 	"github.com/dujiao-next/internal/logger"
@@ -28,11 +29,13 @@ func (s *Service) execute(ctx context.Context, job *reconciliationdomain.Job) er
 	skippedCount, errorCount := 0, 0
 	for index := range orders {
 		order := &orders[index]
-		if order.UpstreamOrderID == 0 {
+		// 以字符串订单号标识订单的上游（如异次元）没有数字 UpstreamOrderID，
+		// 只要有 UpstreamOrderNo 也应参与对账。
+		if order.UpstreamOrderID == 0 && strings.TrimSpace(order.UpstreamOrderNo) == "" {
 			skippedCount++
 			continue
 		}
-		detail, err := upstreamOrders.Get(ctx, order.UpstreamOrderID)
+		detail, err := upstreamOrders.Get(ctx, order.UpstreamOrderID, order.UpstreamOrderNo)
 		if err != nil {
 			logger.Warnw("reconciliation_get_upstream_order_failed", "job_id", job.ID,
 				"procurement_id", order.ID, "upstream_order_id", order.UpstreamOrderID, "error", err)

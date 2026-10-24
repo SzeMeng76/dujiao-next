@@ -400,9 +400,11 @@ onMounted(() => {
                   <SelectValue :placeholder="t('siteConnections.form.protocolPlaceholder')" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="dujiao-next">dujiao-next</SelectItem>
+                  <SelectItem value="dujiao-next">{{ t('siteConnections.form.protocolDujiaoNext') }}</SelectItem>
+                  <SelectItem value="acg">{{ t('siteConnections.form.protocolAcg') }}</SelectItem>
                 </SelectContent>
               </Select>
+              <p v-if="form.protocol === 'acg'" class="text-xs text-muted-foreground mt-1">{{ t('siteConnections.form.acgCredentialHint') }}</p>
             </div>
             <div>
               <label class="mb-1.5 block text-xs font-medium text-muted-foreground">{{ t('siteConnections.form.callbackUrl') }}</label>

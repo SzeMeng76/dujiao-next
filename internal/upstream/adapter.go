@@ -56,6 +56,7 @@ type ProductListResult struct {
 // UpstreamProduct 上游商品信息
 type UpstreamProduct struct {
 	ID               uint                              `json:"id"`
+	Code             string                            `json:"code,omitempty"` // 上游原始字符串标识（如异次元 shared_code），仅部分协议使用
 	Slug             string                            `json:"slug"`
 	SeoMeta          jsonmap.JSON                      `json:"seo_meta"`
 	Title            jsonmap.JSON                      `json:"title"`
@@ -95,6 +96,7 @@ type CategoryListResult struct {
 // UpstreamSKU 上游 SKU 信息
 type UpstreamSKU struct {
 	ID            uint         `json:"id"`
+	Code          string       `json:"code,omitempty"` // 上游原始字符串标识（如异次元 shared_code），仅部分协议使用
 	SKUCode       string       `json:"sku_code"`
 	SpecValues    jsonmap.JSON `json:"spec_values"`
 	PriceAmount   string       `json:"price_amount"`
@@ -108,6 +110,7 @@ type UpstreamSKU struct {
 // CreateUpstreamOrderReq 创建上游采购单请求
 type CreateUpstreamOrderReq struct {
 	SKUID             uint         `json:"sku_id"`
+	SKUCode           string       `json:"sku_code,omitempty"` // 上游原始字符串标识（如异次元 shared_code），仅部分协议使用
 	Quantity          int          `json:"quantity"`
 	ManualFormData    jsonmap.JSON `json:"manual_form_data,omitempty"`
 	DownstreamOrderNo string       `json:"downstream_order_no"`
@@ -176,11 +179,19 @@ type Adapter interface {
 	DownloadImage(ctx context.Context, imageURL string) (localPath string, err error)
 }
 
+// OrderNoAdapter 由以字符串订单号标识订单的协议实现（如异次元共享 API）。
+// 调用方在 orderID 无法定位订单时改用它。
+type OrderNoAdapter interface {
+	GetOrderByNo(ctx context.Context, orderNo string) (*UpstreamOrderDetail, error)
+}
+
 // NewAdapter 根据协议类型创建适配器
 func NewAdapter(conn *siteconnectiondomain.Connection, uploadsDir string) (Adapter, error) {
 	switch conn.Protocol {
 	case constants.ConnectionProtocolDujiaoNext:
 		return NewDujiaoNextAdapter(conn, uploadsDir), nil
+	case constants.ConnectionProtocolACG:
+		return NewACGAdapter(conn), nil
 	default:
 		return nil, fmt.Errorf("unsupported protocol: %s", conn.Protocol)
 	}

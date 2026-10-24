@@ -30,7 +30,9 @@ type UpstreamOrderProvider interface {
 }
 
 type UpstreamOrderReader interface {
-	Get(ctx context.Context, upstreamOrderID uint) (*UpstreamOrder, error)
+	// Get 按上游订单查询。orderNo 用于以字符串标识订单的上游（如异次元共享 API），
+	// 数字标识的协议可以忽略该参数。
+	Get(ctx context.Context, upstreamOrderID uint, upstreamOrderNo string) (*UpstreamOrder, error)
 }
 
 type Enqueuer interface {

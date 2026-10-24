@@ -461,6 +461,8 @@ const (
 // 对接协议类型常量
 const (
 	ConnectionProtocolDujiaoNext = "dujiao-next"
+	// ConnectionProtocolACG 表示上游是异次元（ACG-Faka）共享店铺
+	ConnectionProtocolACG = "acg"
 )
 
 // API 凭证状态常量
