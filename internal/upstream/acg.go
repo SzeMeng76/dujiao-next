@@ -45,10 +45,25 @@ type ACGAdapter struct {
 // NewACGAdapter 创建异次元适配器。
 func NewACGAdapter(conn *siteconnectiondomain.Connection) *ACGAdapter {
 	return &ACGAdapter{
-		baseURL:   strings.TrimRight(conn.BaseURL, "/"),
-		appID:     conn.ApiKey,
-		appKey:    conn.ApiSecret,
-		client:    &http.Client{Timeout: 30 * time.Second},
+		baseURL: strings.TrimRight(conn.BaseURL, "/"),
+		appID:   conn.ApiKey,
+		appKey:  conn.ApiSecret,
+		client: &http.Client{
+			Timeout: 30 * time.Second,
+			// 不跟随重定向：异次元的共享 API 在异常时会 3xx 跳到网页路由，
+			// 跟随过去只会拿到 HTML 错误页，掩盖真实状态码。
+			CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+			// 固定 HTTP/1.1：部分异次元站点的 WAF 对 HTTP/2 请求返回错误页，
+			// 而 curl / wget 默认走 HTTP/1.1，行为与它们对齐。
+			Transport: &http.Transport{
+				ForceAttemptHTTP2:   false,
+				MaxIdleConns:        16,
+				IdleConnTimeout:     90 * time.Second,
+				TLSHandshakeTimeout: 15 * time.Second,
+			},
+		},
 		codeCache: make(map[uint]string),
 	}
 }
