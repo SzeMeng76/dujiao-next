@@ -1,6 +1,10 @@
 package upstream
 
-import "testing"
+import (
+	"strings"
+	"testing"
+	"unicode/utf8"
+)
 
 func TestACGSignStableOrder(t *testing.T) {
 	// 键顺序不影响签名结果。
@@ -79,5 +83,20 @@ func TestACGIDForCodeNumericAndHashed(t *testing.T) {
 	}
 	if acgIDForCode("other-code") == first {
 		t.Fatalf("different codes should not collide in this sample")
+	}
+}
+
+func TestTruncateTextKeepsValidUTF8(t *testing.T) {
+	// 中文错误信息被截断后必须仍是合法 UTF-8，否则 PostgreSQL 拒绝写入（SQLSTATE 22021）。
+	text := strings.Repeat("商品不存在", 20)
+	for limit := 1; limit <= 40; limit++ {
+		got := truncateText(text, limit)
+		if !utf8.ValidString(got) {
+			t.Fatalf("limit %d produced invalid UTF-8: %q", limit, got)
+		}
+	}
+	// 未超长时原样返回。
+	if got := truncateText("库存不足", 100); got != "库存不足" {
+		t.Fatalf("short input should be unchanged, got %q", got)
 	}
 }

@@ -591,9 +591,16 @@ func (a *ACGAdapter) post(ctx context.Context, path string, data map[string]inte
 	return nil
 }
 
+// truncateText 按字符边界截断，避免把多字节 UTF-8 字符截成半个。
+// 截断后的内容会写入 PostgreSQL，非法 UTF-8 会导致整个更新失败（SQLSTATE 22021）。
 func truncateText(value string, limit int) string {
 	if len(value) <= limit {
 		return value
 	}
-	return value[:limit]
+	// 从 limit 处向前回退，直到落在完整的 UTF-8 字符起点上。
+	cut := limit
+	for cut > 0 && cut < len(value) && (value[cut]&0xC0) == 0x80 {
+		cut--
+	}
+	return value[:cut]
 }
