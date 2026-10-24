@@ -573,6 +573,9 @@ func (a *ACGAdapter) post(ctx context.Context, path string, data map[string]inte
 		logger.Warnw("acg_request_error",
 			"url", targetURL, "status", resp.StatusCode,
 			"content_type", resp.Header.Get("Content-Type"),
+			"server", resp.Header.Get("Server"),
+			"cf_ray", resp.Header.Get("Cf-Ray"),
+			"request_body", form.Encode(),
 			"body", truncateText(string(body), 300))
 		return &upstreamHTTPError{
 			Status:  resp.StatusCode,
