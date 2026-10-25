@@ -107,7 +107,13 @@ func (h *Handler) handleEpayCallback(c *gin.Context) bool {
 
 	updated, err := h.service.HandleSyncCallback(channel, form, nil)
 	if err != nil {
-		log.Warnw("epay_callback_handle_failed", "payment_id", payment.ID, "channel_id", channel.ID, "out_trade_no", outTradeNo, "error", err)
+		log.Warnw("epay_callback_handle_failed", "payment_id", payment.ID, "channel_id", channel.ID, "out_trade_no", outTradeNo,
+			"user_agent", c.Request.UserAgent(), "has_sign", strings.TrimSpace(getFirstValue(form, "sign")) != "", "error", err)
+		// 完全没带 sign 的请求多为链接预览爬虫或被截断的链接，不是伪造尝试（伪造会带一个错误的 sign），只记日志不告警。
+		if strings.TrimSpace(getFirstValue(form, "sign")) == "" {
+			c.String(http.StatusOK, constants.EpayCallbackFail)
+			return true
+		}
 		h.enqueuePaymentExceptionAlert(c, jsonmap.JSON{
 			"alert_type": "epay_callback_handle_failed", "alert_level": "error",
 			"payment_id": fmt.Sprintf("%d", payment.ID), "out_trade_no": outTradeNo,

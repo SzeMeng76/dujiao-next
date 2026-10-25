@@ -233,6 +233,7 @@ func TestUpdatePaymentChannelPreservesRedactedSecrets(t *testing.T) {
 
 func TestMergePaymentChannelConfigExplicitNullClearsSecret(t *testing.T) {
 	merged := mergePaymentChannelConfig(
+		"dujiaopay",
 		jsonmap.JSON{
 			"api_base_url":   "https://old.example",
 			"api_secret":     "api-secret-value",

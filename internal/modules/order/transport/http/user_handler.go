@@ -404,7 +404,22 @@ func enrichOrderWithRefundRecords(refunds RefundRecordDirectory, order *orderdom
 	}
 }
 
+// fulfillmentDownloadableStatuses 允许下载交付内容的订单状态。
+// 待支付、已取消、已全额退款的订单不应再能取到卡密。
+var fulfillmentDownloadableStatuses = map[string]struct{}{
+	constants.OrderStatusPaid:               {},
+	constants.OrderStatusFulfilling:         {},
+	constants.OrderStatusPartiallyDelivered: {},
+	constants.OrderStatusPartiallyRefunded:  {},
+	constants.OrderStatusDelivered:          {},
+	constants.OrderStatusCompleted:          {},
+}
+
 func respondFulfillmentDownload(c *gin.Context, order *orderdomain.Order) {
+	if _, ok := fulfillmentDownloadableStatuses[order.Status]; !ok {
+		ginutil.RespondError(c, response.CodeForbidden, "error.order_status_invalid", nil)
+		return
+	}
 	payload := collectFulfillmentPayload(order)
 	if payload == "" {
 		ginutil.RespondError(c, response.CodeNotFound, "error.fulfillment_not_found", nil)

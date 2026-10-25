@@ -26,6 +26,7 @@ import (
 
 	"github.com/dujiao-next/internal/constants"
 	captchaapp "github.com/dujiao-next/internal/modules/captcha/application"
+	captchacontract "github.com/dujiao-next/internal/modules/captcha/contract"
 	captchahttp "github.com/dujiao-next/internal/modules/captcha/transport/http"
 	couponcontract "github.com/dujiao-next/internal/modules/coupon/contract"
 	ordertransport "github.com/dujiao-next/internal/modules/order/transport/http"
@@ -374,8 +375,9 @@ type orderGuestLookupCaptchaAdapter struct {
 }
 
 func (a orderGuestLookupCaptchaAdapter) VerifyGuestLookupOrder(payload captchahttp.CaptchaPayloadRequest, clientIP string) error {
-	if a.captcha == nil {
-		return nil
+	// 纯订单号查单不校验邮箱/密码，只能靠验证码防枚举。验证码未真正生效时拒绝，而不是放行。
+	if a.captcha == nil || !a.captcha.IsSceneEffective(constants.CaptchaSceneGuestLookupOrder) {
+		return captchacontract.ErrRequired
 	}
 	return mapOrderTransportError(a.captcha.Verify(constants.CaptchaSceneGuestLookupOrder, payload.ToCaptchaPayload(), clientIP))
 }

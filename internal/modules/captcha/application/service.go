@@ -111,6 +111,16 @@ func (s *Service) GenerateImageChallenge() (*contract.ImageChallenge, error) {
 	}, nil
 }
 
+// IsSceneEffective 判断指定场景的验证码是否真正生效：场景开关已开且已选择验证码提供方。
+// 用于"没有验证码就不能开放"的接口（例如纯订单号查单），避免 Verify 在场景未开时直接放行。
+func (s *Service) IsSceneEffective(scene string) bool {
+	setting, err := s.getSetting()
+	if err != nil {
+		return false
+	}
+	return setting.IsSceneEnabled(scene) && setting.Provider != constants.CaptchaProviderNone
+}
+
 // Verify 按场景校验验证码
 func (s *Service) Verify(scene string, payload contract.VerifyPayload, clientIP string) error {
 	setting, err := s.getSetting()

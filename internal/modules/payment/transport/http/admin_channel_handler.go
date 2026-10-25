@@ -25,13 +25,22 @@ var sensitivePaymentConfigKeys = map[string]struct{}{
 	"api_v3_key":           {},
 	"auth_token":           {},
 	"client_secret":        {},
+	"credential_code":      {},
 	"merchant_key":         {},
 	"merchant_private_key": {},
 	"merchant_token":       {},
 	"notify_secret":        {},
+	"payment_api_key":      {},
 	"private_key":          {},
 	"secret_key":           {},
 	"webhook_secret":       {},
+}
+
+// providerSensitivePaymentConfigKeys 只对特定 provider 生效的敏感字段。
+// 同名字段在其他网关里可能只是非机密的选项（例如 epusdt 的 token 是币种选择），
+// 不能进全局名单。
+var providerSensitivePaymentConfigKeys = map[string]map[string]struct{}{
+	"nihaopay": {"token": {}},
 }
 
 // AdminChannelListFilter 后台支付渠道列表过滤条件。
@@ -231,7 +240,7 @@ func (h *AdminChannelHandler) UpdatePaymentChannel(c *gin.Context) {
 		channel.PaymentTypes = req.PaymentTypes
 	}
 	if req.ConfigJSON != nil {
-		channel.ConfigJSON = mergePaymentChannelConfig(channel.ConfigJSON, req.ConfigJSON)
+		channel.ConfigJSON = mergePaymentChannelConfig(channel.ProviderType, channel.ConfigJSON, req.ConfigJSON)
 	}
 	if req.IsActive != nil {
 		channel.IsActive = *req.IsActive
@@ -365,8 +374,13 @@ func (h *AdminChannelHandler) GetPaymentChannels(c *gin.Context) {
 	response.SuccessWithPage(c, redacted, pagination)
 }
 
-func isSensitivePaymentConfigKey(key string) bool {
-	_, ok := sensitivePaymentConfigKeys[strings.ToLower(strings.TrimSpace(key))]
+func isSensitivePaymentConfigKey(providerType, key string) bool {
+	normalizedKey := strings.ToLower(strings.TrimSpace(key))
+	if _, ok := sensitivePaymentConfigKeys[normalizedKey]; ok {
+		return true
+	}
+	scoped := providerSensitivePaymentConfigKeys[strings.ToLower(strings.TrimSpace(providerType))]
+	_, ok := scoped[normalizedKey]
 	return ok
 }
 
@@ -380,7 +394,7 @@ func redactPaymentChannel(channel *paymentdomain.PaymentChannel) *paymentdomain.
 	}
 	redacted.ConfigJSON = make(jsonmap.JSON, len(channel.ConfigJSON))
 	for key, value := range channel.ConfigJSON {
-		if isSensitivePaymentConfigKey(key) {
+		if isSensitivePaymentConfigKey(channel.ProviderType, key) {
 			if strings.TrimSpace(asConfigString(value)) != "" {
 				redacted.ConfigJSON[key] = redactedPaymentConfigValue
 			}
@@ -391,11 +405,11 @@ func redactPaymentChannel(channel *paymentdomain.PaymentChannel) *paymentdomain.
 	return &redacted
 }
 
-func mergePaymentChannelConfig(existing jsonmap.JSON, incoming map[string]interface{}) jsonmap.JSON {
+func mergePaymentChannelConfig(providerType string, existing jsonmap.JSON, incoming map[string]interface{}) jsonmap.JSON {
 	merged := make(jsonmap.JSON, len(incoming)+len(existing))
 	explicitlyCleared := make(map[string]struct{})
 	for key, value := range incoming {
-		if isSensitivePaymentConfigKey(key) {
+		if isSensitivePaymentConfigKey(providerType, key) {
 			if value == nil {
 				explicitlyCleared[key] = struct{}{}
 				continue
@@ -411,7 +425,7 @@ func mergePaymentChannelConfig(existing jsonmap.JSON, incoming map[string]interf
 		merged[key] = value
 	}
 	for key, value := range existing {
-		if !isSensitivePaymentConfigKey(key) {
+		if !isSensitivePaymentConfigKey(providerType, key) {
 			continue
 		}
 		if _, cleared := explicitlyCleared[key]; cleared {
