@@ -174,6 +174,8 @@ export interface AdminOrder {
   promotion_id?: number
   affiliate_profile_id?: number
   affiliate_code?: string
+  reseller_id?: number
+  reseller_domain?: string
   client_ip?: string
   expires_at?: string
   paid_at?: string

@@ -386,6 +386,24 @@ watch(
                   <Copy class="h-3 w-3" />
                 </button>
               </div>
+              <div class="mt-1 flex flex-wrap items-center gap-1.5">
+                <span
+                  v-if="order.reseller_id"
+                  class="inline-flex items-center rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[11px] font-medium text-violet-700"
+                  :title="order.reseller_domain || ''"
+                >
+                  {{ t('admin.orders.sourceReseller') }} R#{{ order.reseller_id }}
+                </span>
+                <span
+                  v-else
+                  class="inline-flex items-center rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
+                >
+                  {{ t('admin.orders.sourceMain') }}
+                </span>
+                <span v-if="order.reseller_id && order.reseller_domain" class="break-all text-[11px] text-muted-foreground">
+                  {{ order.reseller_domain }}
+                </span>
+              </div>
             </TableCell>
             <TableCell class="min-w-[140px] px-4 py-3">
               <div v-if="order.items && order.items.length > 0" class="space-y-1">
