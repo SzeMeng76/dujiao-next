@@ -147,13 +147,15 @@ func (h *Handler) GetProducts(c *gin.Context) {
 	page, pageSize := ginutil.ParsePaginationWithBounds(c, "page", "page_size", 5, 20)
 	exact := c.DefaultQuery("exact", "") == "1"
 
+	search := strings.TrimSpace(c.Query("search"))
+
 	var products []productdomain.Product
 	var total int64
 	var err error
 	if exact {
 		products, total, err = h.ProductService.ListPublicExact(categoryID, page, pageSize)
 	} else {
-		products, total, err = h.ProductService.ListPublic(categoryID, "", page, pageSize)
+		products, total, err = h.ProductService.ListPublic(categoryID, search, page, pageSize)
 	}
 	if err != nil {
 		logger.Errorw("channel_catalog_list_products", "error", err)
