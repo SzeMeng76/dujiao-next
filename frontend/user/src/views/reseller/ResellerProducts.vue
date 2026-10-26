@@ -130,13 +130,16 @@ const isActiveVerifiedDomain = (domain: ResellerDomainData) =>
 
 const profile = computed(() => snapshot.value?.profile || null)
 
-const markupInput = ref('')
+const markupInput = ref<string | number>('')
 const savingMarkup = ref(false)
 const markupAlert = ref<PageAlert | null>(null)
 const panelKey = ref(0)
 
+// <input type="number"> 上 v-model 会把值转成 number，统一先转字符串再处理。
+const normalizedMarkupInput = computed(() => String(markupInput.value ?? '').trim())
+
 const markupDirty = computed(() => {
-  const next = markupInput.value.trim()
+  const next = normalizedMarkupInput.value
   if (next === '') return false
   return Number(next) !== Number(profile.value?.default_markup_percent || 0)
 })
@@ -150,7 +153,7 @@ watch(
 )
 
 const saveDefaultMarkup = async () => {
-  const next = markupInput.value.trim()
+  const next = normalizedMarkupInput.value
   if (!next || savingMarkup.value) return
   savingMarkup.value = true
   markupAlert.value = null
