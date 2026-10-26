@@ -65,9 +65,9 @@ type profileReasonRequest struct {
 type profileUpdateRequest struct {
 	// DefaultMarkupPercent 为 nil（字段缺省）表示不修改，保持分销商自己设置的值。
 	DefaultMarkupPercent *string `json:"default_markup_percent"`
-	MaxMarkupPercent     string `json:"max_markup_percent"`
-	SettlementStatus     string `json:"settlement_status"`
-	Reason               string `json:"reason"`
+	MaxMarkupPercent     string  `json:"max_markup_percent"`
+	SettlementStatus     string  `json:"settlement_status"`
+	Reason               string  `json:"reason"`
 }
 
 type systemDomainRequest struct {
