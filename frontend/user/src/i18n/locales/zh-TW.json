@@ -1519,7 +1519,12 @@
       "focusDescription": "先處理高轉化商品，再逐步細化 SKU 價格和隱藏規則。",
       "cards": {
         "defaultMarkup": "預設加價",
-        "defaultMarkupDescription": "未單獨配置商品時，系統會使用預設加價比例生成分銷價。",
+        "defaultMarkupDescription": "未單獨配置商品時，系統會使用預設加價比例生成分銷價，可自行調整，不能超過最高加價。",
+        "defaultMarkupInputLabel": "預設加價比例",
+        "defaultMarkupSave": "儲存",
+        "defaultMarkupSaving": "儲存中...",
+        "defaultMarkupSaveSuccess": "預設加價已更新",
+        "defaultMarkupSaveFailed": "預設加價儲存失敗，請檢查輸入後重試",
         "maxMarkup": "最高加價",
         "maxMarkupDescription": "封頂為 0 表示不限制；超過後台上限的價格配置會被拒絕儲存。",
         "storefront": "分銷站",

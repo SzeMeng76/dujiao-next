@@ -26,6 +26,8 @@ var userManagementErrorRules = []mappedError{
 	{target: resellermodule.ErrDomainMainHostNotAllowed, code: response.CodeBadRequest, key: "error.reseller_domain_main_host_not_allowed"},
 	{target: resellermodule.ErrDomainConflict, code: response.CodeBadRequest, key: "error.reseller_domain_conflict"},
 	{target: resellermodule.ErrSiteConfigInvalid, code: response.CodeBadRequest, key: "error.reseller_site_config_invalid"},
+	{target: resellermodule.ErrMarkupExceeded, code: response.CodeBadRequest, key: "error.reseller_markup_exceeded"},
+	{target: resellermodule.ErrPriceBelowBase, code: response.CodeBadRequest, key: "error.reseller_price_invalid"},
 }
 
 func respondUserManagementError(c *gin.Context, err error, fallbackKey string) {

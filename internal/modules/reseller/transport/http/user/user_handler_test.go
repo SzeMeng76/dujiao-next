@@ -17,7 +17,9 @@ import (
 	uploadcontract "github.com/dujiao-next/internal/modules/upload/contract"
 	"github.com/dujiao-next/internal/platform/http/response"
 
+	"github.com/dujiao-next/internal/shared/money"
 	"github.com/gin-gonic/gin"
+	"github.com/shopspring/decimal"
 )
 
 type managementStub struct {
@@ -39,6 +41,13 @@ func (s managementStub) ApplyUserReseller(userID uint, input resellermodule.Rese
 		return s.profile, nil
 	}
 	return &resellerdomain.Profile{UserID: userID, Status: resellerdomain.ProfileStatusPendingReview, ApplyReason: input.Reason}, nil
+}
+
+func (s managementStub) UpdateUserDefaultMarkup(userID uint, defaultMarkup decimal.Decimal) (*resellerdomain.Profile, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	return &resellerdomain.Profile{UserID: userID, Status: resellerdomain.ProfileStatusActive, DefaultMarkupPercent: money.FromDecimal(defaultMarkup)}, nil
 }
 
 func (s managementStub) SubmitUserCustomDomain(userID uint, rawDomain string) (*resellerdomain.Domain, error) {
@@ -100,6 +109,47 @@ func TestUserHandlerApplyAndSnapshot(t *testing.T) {
 	}
 	if !strings.Contains(recorder.Body.String(), `"pending_review"`) {
 		t.Fatalf("unexpected snapshot body: %s", recorder.Body.String())
+	}
+}
+
+func TestUserHandlerUpdateDefaultMarkup(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := NewUserHandler(managementStub{}, siteConfigStub{}, uploadStub{})
+	c, recorder := newUserHandlerTestContext(http.MethodPut, "/api/v1/user/reseller/default-markup", []byte(`{"default_markup_percent":"8.5"}`), 7)
+	h.UpdateDefaultMarkup(c)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Body.String(), `"default_markup_percent":"8.50"`) {
+		t.Fatalf("unexpected body: %s", recorder.Body.String())
+	}
+
+	c, recorder = newUserHandlerTestContext(http.MethodPut, "/api/v1/user/reseller/default-markup", []byte(`{"default_markup_percent":"abc"}`), 7)
+	h.UpdateDefaultMarkup(c)
+	assertEnvelopeStatus(t, recorder, response.CodeBadRequest)
+}
+
+func TestUserHandlerUpdateDefaultMarkupMapsMarkupExceeded(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := NewUserHandler(managementStub{err: resellercontract.ErrMarkupExceeded}, siteConfigStub{}, uploadStub{})
+	c, recorder := newUserHandlerTestContext(http.MethodPut, "/api/v1/user/reseller/default-markup", []byte(`{"default_markup_percent":"99"}`), 7)
+	h.UpdateDefaultMarkup(c)
+	assertEnvelopeStatus(t, recorder, response.CodeBadRequest)
+	if !strings.Contains(recorder.Body.String(), "加价") && !strings.Contains(strings.ToLower(recorder.Body.String()), "markup") {
+		t.Fatalf("expected markup exceeded message, got %s", recorder.Body.String())
+	}
+}
+
+func assertEnvelopeStatus(t *testing.T, recorder *httptest.ResponseRecorder, want int) {
+	t.Helper()
+	var resp struct {
+		StatusCode int `json:"status_code"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response failed: %v", err)
+	}
+	if resp.StatusCode != want {
+		t.Fatalf("expected status_code=%d, got %d body=%s", want, resp.StatusCode, recorder.Body.String())
 	}
 }
 

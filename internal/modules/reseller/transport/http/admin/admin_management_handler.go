@@ -63,7 +63,8 @@ type profileReasonRequest struct {
 }
 
 type profileUpdateRequest struct {
-	DefaultMarkupPercent string `json:"default_markup_percent"`
+	// DefaultMarkupPercent 为 nil（字段缺省）表示不修改，保持分销商自己设置的值。
+	DefaultMarkupPercent *string `json:"default_markup_percent"`
 	MaxMarkupPercent     string `json:"max_markup_percent"`
 	SettlementStatus     string `json:"settlement_status"`
 	Reason               string `json:"reason"`
@@ -182,10 +183,14 @@ func (h *AdminManagementHandler) UpdateProfile(c *gin.Context) {
 		ginutil.RespondBindError(c, err)
 		return
 	}
-	defaultMarkup, err := parseOptionalDecimal(req.DefaultMarkupPercent)
-	if err != nil {
-		ginutil.RespondError(c, response.CodeBadRequest, "error.bad_request", nil)
-		return
+	var defaultMarkup *decimal.Decimal
+	if req.DefaultMarkupPercent != nil {
+		parsed, err := parseOptionalDecimal(*req.DefaultMarkupPercent)
+		if err != nil {
+			ginutil.RespondError(c, response.CodeBadRequest, "error.bad_request", nil)
+			return
+		}
+		defaultMarkup = &parsed
 	}
 	maxMarkup, err := parseOptionalDecimal(req.MaxMarkupPercent)
 	if err != nil {

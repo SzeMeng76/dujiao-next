@@ -1519,7 +1519,12 @@
       "focusDescription": "Start with high-converting products, then refine SKU pricing and visibility rules.",
       "cards": {
         "defaultMarkup": "Default markup",
-        "defaultMarkupDescription": "Products without individual rules use the default markup to generate reseller prices.",
+        "defaultMarkupDescription": "Products without individual rules use the default markup to generate reseller prices. You can adjust it, up to the max markup.",
+        "defaultMarkupInputLabel": "Default markup percent",
+        "defaultMarkupSave": "Save",
+        "defaultMarkupSaving": "Saving...",
+        "defaultMarkupSaveSuccess": "Default markup updated",
+        "defaultMarkupSaveFailed": "Failed to save default markup, please check your input and try again",
         "maxMarkup": "Max markup",
         "maxMarkupDescription": "A cap of 0 means unlimited; pricing above the admin limit will be rejected.",
         "storefront": "Storefront",

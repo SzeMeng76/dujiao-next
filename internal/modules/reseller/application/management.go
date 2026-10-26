@@ -32,7 +32,8 @@ type ResellerApproveInput struct {
 }
 
 type ResellerProfileUpdateInput struct {
-	DefaultMarkupPercent decimal.Decimal
+	// DefaultMarkupPercent 为 nil 时保持库中当前值，避免后台用过期表单覆盖分销商自己调整过的默认加价。
+	DefaultMarkupPercent *decimal.Decimal
 	MaxMarkupPercent     decimal.Decimal
 	SettlementStatus     string
 	Reason               string
@@ -277,7 +278,11 @@ func (s *ManagementService) UpdateProfileOperationalConfig(adminID, profileID ui
 	if s == nil || s.store == nil || adminID == 0 || profileID == 0 {
 		return nil, productcontract.ErrNotFound
 	}
-	if err := validateResellerProfileMarkup(input.DefaultMarkupPercent, input.MaxMarkupPercent); err != nil {
+	if input.DefaultMarkupPercent != nil {
+		if err := validateResellerProfileMarkup(*input.DefaultMarkupPercent, input.MaxMarkupPercent); err != nil {
+			return nil, err
+		}
+	} else if err := validateResellerProfileMarkup(decimal.Zero, input.MaxMarkupPercent); err != nil {
 		return nil, err
 	}
 	settlementStatus := strings.TrimSpace(input.SettlementStatus)
@@ -294,7 +299,12 @@ func (s *ManagementService) UpdateProfileOperationalConfig(adminID, profileID ui
 			return productcontract.ErrNotFound
 		}
 		now := time.Now()
-		profile.DefaultMarkupPercent = money.FromDecimal(input.DefaultMarkupPercent)
+		if input.DefaultMarkupPercent != nil {
+			profile.DefaultMarkupPercent = money.FromDecimal(*input.DefaultMarkupPercent)
+		} else if err := validateResellerProfileMarkup(profile.DefaultMarkupPercent.Decimal, input.MaxMarkupPercent); err != nil {
+			// 未提交默认加价时沿用库中当前值，但新的封顶不能低于它。
+			return err
+		}
 		profile.MaxMarkupPercent = money.FromDecimal(input.MaxMarkupPercent)
 		if settlementStatus != "" {
 			profile.SettlementStatus = settlementStatus
@@ -314,6 +324,55 @@ func (s *ManagementService) UpdateProfileOperationalConfig(adminID, profileID ui
 		return nil, productcontract.ErrNotFound
 	}
 	return s.store.GetProfileByID(profileID)
+}
+
+// maxResellerMarkupPercent 对应 decimal(10,2) 列可容纳的最大值，防止未设上限时写库溢出。
+var maxResellerMarkupPercent = decimal.RequireFromString("99999999.99")
+
+// UpdateUserDefaultMarkup 允许已启用的分销商调整自己的全局默认加价。
+// 只更新 DefaultMarkupPercent，不触碰审核人、审核时间等管理员字段；
+// 管理员设置的 MaxMarkupPercent 仍然是上限。
+func (s *ManagementService) UpdateUserDefaultMarkup(userID uint, defaultMarkup decimal.Decimal) (*resellerdomain.Profile, error) {
+	if s == nil || s.store == nil || userID == 0 {
+		return nil, productcontract.ErrNotFound
+	}
+	defaultMarkup = defaultMarkup.Round(2)
+	if defaultMarkup.LessThan(decimal.Zero) {
+		return nil, resellercontract.ErrPriceBelowBase
+	}
+	if defaultMarkup.GreaterThan(maxResellerMarkupPercent) {
+		return nil, resellercontract.ErrMarkupExceeded
+	}
+	var updated *resellerdomain.Profile
+	err := s.store.WithinManagementTransaction(func(repoTx resellercontract.ManagementStore) error {
+		profile, err := repoTx.GetProfileByUserID(userID)
+		if err != nil {
+			return err
+		}
+		if profile == nil {
+			return resellercontract.ErrNotOpened
+		}
+		if profile.Status != resellerdomain.ProfileStatusActive {
+			return resellercontract.ErrProfileInactive
+		}
+		maxMarkup := profile.MaxMarkupPercent.Decimal
+		if maxMarkup.GreaterThan(decimal.Zero) && defaultMarkup.GreaterThan(maxMarkup) {
+			return resellercontract.ErrMarkupExceeded
+		}
+		profile.DefaultMarkupPercent = money.FromDecimal(defaultMarkup)
+		if err := repoTx.UpdateProfile(profile); err != nil {
+			return err
+		}
+		updated = profile
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if updated == nil {
+		return nil, productcontract.ErrNotFound
+	}
+	return s.store.GetProfileByID(updated.ID)
 }
 
 func (s *ManagementService) SubmitUserCustomDomain(userID uint, rawDomain string) (*resellerdomain.Domain, error) {

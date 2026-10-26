@@ -148,8 +148,9 @@ func TestResellerManagementRejectsDefaultMarkupAboveMaxMarkup(t *testing.T) {
 	if err != nil {
 		t.Fatalf("approve valid profile failed: %v", err)
 	}
+	overDefault := decimal.NewFromInt(40)
 	_, err = svc.UpdateProfileOperationalConfig(9, approved.Profile.ID, ResellerProfileUpdateInput{
-		DefaultMarkupPercent: decimal.NewFromInt(40),
+		DefaultMarkupPercent: &overDefault,
 		MaxMarkupPercent:     decimal.NewFromInt(30),
 		SettlementStatus:     resellerdomain.SettlementStatusNormal,
 	})
@@ -204,6 +205,140 @@ func TestResellerManagementSubmitCustomDomainRequiresActiveProfile(t *testing.T)
 	_, err := svc.SubmitUserCustomDomain(user.ID, "shop.customer.example")
 	if !errors.Is(err, ErrResellerProfileInactive) {
 		t.Fatalf("expected ErrResellerProfileInactive, got %v", err)
+	}
+}
+
+func TestResellerManagementUserUpdatesOwnDefaultMarkup(t *testing.T) {
+	db := openResellerManagementServiceTestDB(t)
+	user := seedResellerManagementUser(t, db, "self-markup@example.test")
+	svc := newResellerManagementServiceForTest(db)
+	profile, err := svc.ApplyUserReseller(user.ID, ResellerApplyInput{Reason: "approve me"})
+	if err != nil {
+		t.Fatalf("apply failed: %v", err)
+	}
+
+	// 未审核通过前不允许自助改价。
+	if _, err := svc.UpdateUserDefaultMarkup(user.ID, decimal.NewFromInt(8)); !errors.Is(err, ErrResellerProfileInactive) {
+		t.Fatalf("expected ErrResellerProfileInactive before approval, got %v", err)
+	}
+
+	if _, err := svc.ApproveProfile(context.Background(), 9, profile.ID, ResellerApproveInput{
+		DefaultMarkupPercent: decimal.NewFromInt(5),
+		MaxMarkupPercent:     decimal.NewFromInt(20),
+	}); err != nil {
+		t.Fatalf("approve failed: %v", err)
+	}
+
+	updated, err := svc.UpdateUserDefaultMarkup(user.ID, decimal.RequireFromString("12.345"))
+	if err != nil {
+		t.Fatalf("UpdateUserDefaultMarkup failed: %v", err)
+	}
+	if !updated.DefaultMarkupPercent.Decimal.Equal(decimal.RequireFromString("12.35")) {
+		t.Fatalf("expected default markup 12.35, got %s", updated.DefaultMarkupPercent.String())
+	}
+	if !updated.MaxMarkupPercent.Decimal.Equal(decimal.NewFromInt(20)) {
+		t.Fatalf("max markup must stay untouched, got %s", updated.MaxMarkupPercent.String())
+	}
+	if updated.ReviewedBy == nil || *updated.ReviewedBy != 9 {
+		t.Fatalf("reviewer fields must stay untouched, got %+v", updated.ReviewedBy)
+	}
+
+	// 超过管理员设置的上限。
+	if _, err := svc.UpdateUserDefaultMarkup(user.ID, decimal.NewFromInt(25)); !errors.Is(err, ErrResellerMarkupExceeded) {
+		t.Fatalf("expected ErrResellerMarkupExceeded, got %v", err)
+	}
+	// 负数加价会低于底价。
+	if _, err := svc.UpdateUserDefaultMarkup(user.ID, decimal.NewFromInt(-1)); !errors.Is(err, ErrResellerPriceBelowBase) {
+		t.Fatalf("expected ErrResellerPriceBelowBase, got %v", err)
+	}
+	// 失败的请求不能改动已保存的值。
+	var stored resellerdomain.Profile
+	if err := db.First(&stored, profile.ID).Error; err != nil {
+		t.Fatalf("reload profile failed: %v", err)
+	}
+	if !stored.DefaultMarkupPercent.Decimal.Equal(decimal.RequireFromString("12.35")) {
+		t.Fatalf("rejected updates must not persist, got %s", stored.DefaultMarkupPercent.String())
+	}
+}
+
+func TestResellerManagementUserDefaultMarkupUnlimitedWhenMaxIsZero(t *testing.T) {
+	db := openResellerManagementServiceTestDB(t)
+	user := seedResellerManagementUser(t, db, "self-markup-unlimited@example.test")
+	svc := newResellerManagementServiceForTest(db)
+	profile, err := svc.ApplyUserReseller(user.ID, ResellerApplyInput{Reason: "approve me"})
+	if err != nil {
+		t.Fatalf("apply failed: %v", err)
+	}
+	if _, err := svc.ApproveProfile(context.Background(), 9, profile.ID, ResellerApproveInput{}); err != nil {
+		t.Fatalf("approve failed: %v", err)
+	}
+	updated, err := svc.UpdateUserDefaultMarkup(user.ID, decimal.NewFromInt(80))
+	if err != nil {
+		t.Fatalf("UpdateUserDefaultMarkup failed: %v", err)
+	}
+	if !updated.DefaultMarkupPercent.Decimal.Equal(decimal.NewFromInt(80)) {
+		t.Fatalf("expected 80, got %s", updated.DefaultMarkupPercent.String())
+	}
+}
+
+func TestResellerManagementAdminUpdateKeepsResellerDefaultMarkupWhenOmitted(t *testing.T) {
+	db := openResellerManagementServiceTestDB(t)
+	user := seedResellerManagementUser(t, db, "admin-keeps-markup@example.test")
+	svc := newResellerManagementServiceForTest(db)
+	profile, err := svc.ApplyUserReseller(user.ID, ResellerApplyInput{Reason: "approve me"})
+	if err != nil {
+		t.Fatalf("apply failed: %v", err)
+	}
+	if _, err := svc.ApproveProfile(context.Background(), 9, profile.ID, ResellerApproveInput{
+		DefaultMarkupPercent: decimal.NewFromInt(5),
+		MaxMarkupPercent:     decimal.NewFromInt(30),
+	}); err != nil {
+		t.Fatalf("approve failed: %v", err)
+	}
+	if _, err := svc.UpdateUserDefaultMarkup(user.ID, decimal.NewFromInt(15)); err != nil {
+		t.Fatalf("reseller update failed: %v", err)
+	}
+
+	// 管理员未提交默认加价：保留分销商自己设置的 15，其他字段照常更新。
+	updated, err := svc.UpdateProfileOperationalConfig(9, profile.ID, ResellerProfileUpdateInput{
+		MaxMarkupPercent: decimal.NewFromInt(40),
+		SettlementStatus: resellerdomain.SettlementStatusFrozen,
+	})
+	if err != nil {
+		t.Fatalf("admin update failed: %v", err)
+	}
+	if !updated.DefaultMarkupPercent.Decimal.Equal(decimal.NewFromInt(15)) {
+		t.Fatalf("omitted default markup must keep reseller value 15, got %s", updated.DefaultMarkupPercent.String())
+	}
+	if !updated.MaxMarkupPercent.Decimal.Equal(decimal.NewFromInt(40)) || updated.SettlementStatus != resellerdomain.SettlementStatusFrozen {
+		t.Fatalf("other fields must still be updated, got %+v", updated)
+	}
+
+	// 新封顶低于库中现有默认加价时必须拒绝，且不落库。
+	if _, err := svc.UpdateProfileOperationalConfig(9, profile.ID, ResellerProfileUpdateInput{
+		MaxMarkupPercent: decimal.NewFromInt(10),
+	}); !errors.Is(err, ErrResellerProfileStatusInvalid) {
+		t.Fatalf("expected ErrResellerProfileStatusInvalid when cap is below stored default, got %v", err)
+	}
+	var stored resellerdomain.Profile
+	if err := db.First(&stored, profile.ID).Error; err != nil {
+		t.Fatalf("reload profile failed: %v", err)
+	}
+	if !stored.MaxMarkupPercent.Decimal.Equal(decimal.NewFromInt(40)) {
+		t.Fatalf("rejected update must not persist, got max %s", stored.MaxMarkupPercent.String())
+	}
+
+	// 显式提交默认加价时仍然覆盖。
+	explicit := decimal.NewFromInt(7)
+	updated, err = svc.UpdateProfileOperationalConfig(9, profile.ID, ResellerProfileUpdateInput{
+		DefaultMarkupPercent: &explicit,
+		MaxMarkupPercent:     decimal.NewFromInt(40),
+	})
+	if err != nil {
+		t.Fatalf("explicit admin update failed: %v", err)
+	}
+	if !updated.DefaultMarkupPercent.Decimal.Equal(decimal.NewFromInt(7)) {
+		t.Fatalf("explicit default markup must overwrite, got %s", updated.DefaultMarkupPercent.String())
 	}
 }
 

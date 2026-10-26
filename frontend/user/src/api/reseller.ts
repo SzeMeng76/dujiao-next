@@ -2,6 +2,7 @@ import { userApi } from './client'
 import type {
     ResellerApplyPayload,
     ResellerCustomDomainPayload,
+    ResellerDefaultMarkupPayload,
     ResellerOrderListParams,
     ResellerOrderStatsParams,
     ResellerProductSettingUpdatePayload,
@@ -12,6 +13,7 @@ import type {
 export const resellerAPI = {
     managementProfile: () => userApi.get('/reseller/profile'),
     apply: (data: ResellerApplyPayload) => userApi.post('/reseller/apply', data),
+    updateDefaultMarkup: (data: ResellerDefaultMarkupPayload) => userApi.put('/reseller/default-markup', data),
     domains: () => userApi.get('/reseller/domains'),
     submitDomain: (data: ResellerCustomDomainPayload) => userApi.post('/reseller/domains', data),
     siteConfig: () => userApi.get('/reseller/site-config'),

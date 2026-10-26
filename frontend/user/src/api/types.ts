@@ -242,6 +242,10 @@ export interface ResellerApplyPayload {
     reason?: string
 }
 
+export interface ResellerDefaultMarkupPayload {
+    default_markup_percent: string
+}
+
 export interface ResellerCustomDomainPayload {
     domain: string
 }

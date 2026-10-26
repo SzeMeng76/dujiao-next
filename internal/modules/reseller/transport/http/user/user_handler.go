@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"mime/multipart"
+	"strings"
 
 	resellerdomain "github.com/dujiao-next/internal/modules/reseller/domain"
 
@@ -15,12 +16,14 @@ import (
 	"github.com/dujiao-next/internal/platform/http/response"
 
 	"github.com/gin-gonic/gin"
+	"github.com/shopspring/decimal"
 )
 
 type ManagementService interface {
 	GetUserManagementSnapshot(userID uint) (*resellerdomain.Profile, []resellerdomain.Domain, bool, error)
 	ApplyUserReseller(userID uint, input resellermodule.ResellerApplyInput) (*resellerdomain.Profile, error)
 	SubmitUserCustomDomain(userID uint, rawDomain string) (*resellerdomain.Domain, error)
+	UpdateUserDefaultMarkup(userID uint, defaultMarkup decimal.Decimal) (*resellerdomain.Profile, error)
 }
 
 type SiteConfigService interface {
@@ -47,6 +50,10 @@ func NewUserHandler(management ManagementService, siteConfig SiteConfigService, 
 
 type applyRequest struct {
 	Reason string `json:"reason"`
+}
+
+type defaultMarkupRequest struct {
+	DefaultMarkupPercent string `json:"default_markup_percent" binding:"required"`
 }
 
 type customDomainRequest struct {
@@ -103,6 +110,30 @@ func (h *UserHandler) ApplyProfile(c *gin.Context) {
 		return
 	}
 	profile, err := h.management.ApplyUserReseller(uid, resellermodule.ResellerApplyInput{Reason: req.Reason})
+	if err != nil {
+		respondUserManagementError(c, err, "error.save_failed")
+		return
+	}
+	response.Success(c, dto.NewResellerManagementProfileResp(profile))
+}
+
+// UpdateDefaultMarkup 更新当前分销商自己的全局默认加价。
+func (h *UserHandler) UpdateDefaultMarkup(c *gin.Context) {
+	uid, ok := ginutil.GetUserID(c)
+	if !ok {
+		return
+	}
+	var req defaultMarkupRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		ginutil.RespondBindError(c, err)
+		return
+	}
+	markup, err := decimal.NewFromString(strings.TrimSpace(req.DefaultMarkupPercent))
+	if err != nil {
+		ginutil.RespondError(c, response.CodeBadRequest, "error.bad_request", nil)
+		return
+	}
+	profile, err := h.management.UpdateUserDefaultMarkup(uid, markup)
 	if err != nil {
 		respondUserManagementError(c, err, "error.save_failed")
 		return

@@ -10,6 +10,7 @@ func RegisterUserConsoleRoutes(console gin.IRoutes, handler *UserHandler) {
 	}
 	console.GET("/profile", handler.GetManagementSnapshot)
 	console.POST("/apply", handler.ApplyProfile)
+	console.PUT("/default-markup", handler.UpdateDefaultMarkup)
 	console.GET("/domains", handler.ListDomains)
 	console.POST("/domains", handler.SubmitCustomDomain)
 	console.GET("/site-config", handler.GetSiteConfig)

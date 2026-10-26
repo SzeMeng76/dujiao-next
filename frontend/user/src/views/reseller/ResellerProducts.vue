@@ -20,12 +20,35 @@
       </template>
     </ResellerSectionHeader>
 
+    <Alert
+      v-if="markupAlert"
+      :variant="pageAlertVariant(markupAlert.level)"
+      :class="pageAlertToneClass(markupAlert.level)"
+    >
+      <AlertDescription>{{ markupAlert.message }}</AlertDescription>
+    </Alert>
+
     <div class="grid gap-4 md:grid-cols-3">
       <Card class="p-5">
         <div class="flex items-center justify-between gap-3">
           <div>
             <p class="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{{ t('resellerConsole.products.cards.defaultMarkup') }}</p>
-            <div class="mt-2 font-mono text-2xl font-black text-foreground">{{ profile?.default_markup_percent || '0.00' }}%</div>
+            <form class="mt-2 flex items-center gap-2" @submit.prevent="saveDefaultMarkup">
+              <Input
+                v-model="markupInput"
+                type="number"
+                inputmode="decimal"
+                min="0"
+                step="0.01"
+                class="h-9 w-28 font-mono"
+                :aria-label="t('resellerConsole.products.cards.defaultMarkupInputLabel')"
+                :disabled="savingMarkup || !profile"
+              />
+              <span class="font-mono text-sm font-bold text-foreground">%</span>
+              <Button type="submit" size="sm" :disabled="savingMarkup || !markupDirty">
+                {{ savingMarkup ? t('resellerConsole.products.cards.defaultMarkupSaving') : t('resellerConsole.products.cards.defaultMarkupSave') }}
+              </Button>
+            </form>
           </div>
           <span class="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
             <Percent class="h-5 w-5" />
@@ -75,17 +98,21 @@
       </div>
     </Card>
 
-    <ResellerProductSettingsPanel :embedded="true" />
+    <ResellerProductSettingsPanel :key="panelKey" :embedded="true" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ExternalLink, Gauge, Globe, Percent, ShoppingBag, SlidersHorizontal, Tag, ToggleLeft } from 'lucide-vue-next'
 import type { ResellerDomainData } from '../../api/types'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { resellerAPI } from '../../api'
+import { pageAlertToneClass, pageAlertVariant, type PageAlert } from '../../utils/alerts'
 import ResellerSectionHeader from '../../components/reseller-console/ResellerSectionHeader.vue'
 import ResellerProductSettingsPanel from '../personal/ResellerProductSettingsPanel.vue'
 import { useResellerProfile } from '../../composables/reseller/useResellerProfile'
@@ -102,6 +129,44 @@ const isActiveVerifiedDomain = (domain: ResellerDomainData) =>
   domain.verification_status === RESELLER_DOMAIN_VERIFICATION_VERIFIED
 
 const profile = computed(() => snapshot.value?.profile || null)
+
+const markupInput = ref('')
+const savingMarkup = ref(false)
+const markupAlert = ref<PageAlert | null>(null)
+const panelKey = ref(0)
+
+const markupDirty = computed(() => {
+  const next = markupInput.value.trim()
+  if (next === '') return false
+  return Number(next) !== Number(profile.value?.default_markup_percent || 0)
+})
+
+watch(
+  () => profile.value?.default_markup_percent,
+  (value) => {
+    markupInput.value = value ?? '0.00'
+  },
+  { immediate: true },
+)
+
+const saveDefaultMarkup = async () => {
+  const next = markupInput.value.trim()
+  if (!next || savingMarkup.value) return
+  savingMarkup.value = true
+  markupAlert.value = null
+  try {
+    await resellerAPI.updateDefaultMarkup({ default_markup_percent: next })
+    await load()
+    // 默认加价变化会影响未单独配置商品的生效价，重新挂载商品列表以刷新展示。
+    panelKey.value += 1
+    markupAlert.value = { level: 'success', message: t('resellerConsole.products.cards.defaultMarkupSaveSuccess') }
+  } catch (err) {
+    const message = err instanceof Error && err.message ? err.message : t('resellerConsole.products.cards.defaultMarkupSaveFailed')
+    markupAlert.value = { level: 'error', message }
+  } finally {
+    savingMarkup.value = false
+  }
+}
 const primaryDomain = computed(() => {
   const domains = snapshot.value?.domains || []
   const activeDomains = domains.filter(isActiveVerifiedDomain)

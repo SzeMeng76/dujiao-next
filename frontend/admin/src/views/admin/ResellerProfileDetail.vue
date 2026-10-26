@@ -114,7 +114,10 @@ const submitEditProfile = async () => {
   saving.value = true
   try {
     await adminAPI.updateResellerProfile(profile.value.id, {
-      default_markup_percent: editForm.defaultMarkup.trim() || '0.00',
+      // 仅在管理员实际修改时提交，避免用过期表单覆盖分销商自己调整过的默认加价。
+      default_markup_percent: Number(editForm.defaultMarkup.trim() || '0') !== Number(profile.value.default_markup_percent || 0)
+        ? editForm.defaultMarkup.trim() || '0.00'
+        : undefined,
       max_markup_percent: editForm.maxMarkup.trim() || '0.00',
       settlement_status: editForm.settlementStatus,
       reason: editForm.reason.trim() || undefined,
