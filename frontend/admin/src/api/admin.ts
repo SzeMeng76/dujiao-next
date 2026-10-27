@@ -243,7 +243,7 @@ export interface AdminReplaceCandidates {
   stock: AdminStockSecret[]
 }
 export interface AdminManualConfirmPaymentPayload {
-  payment_id?: number
+  payment_id: number
   provider_ref?: string
   remark?: string
 }
