@@ -435,6 +435,8 @@ const messages = {
         categoryImportSuccess: '分类导入完成：成功 {success}/{total}',
         categoryImportPartial: '分类导入部分完成：成功 {success}/{total}',
         selectCategoryFirst: '请选择本地分类或勾选自动创建',
+        selectCategoryRequired: '请选择本地分类',
+        uncategorizedNeedsLocalCategory: '未分类商品无法自动创建分类，请关闭自动创建并选择本地分类',
       },
       filter: {
         allConnections: '全部连接',
@@ -5210,6 +5212,8 @@ const messages = {
         categoryImportSuccess: '分類匯入完成：成功 {success}/{total}',
         categoryImportPartial: '分類匯入部分完成：成功 {success}/{total}',
         selectCategoryFirst: '請選擇本地分類或勾選自動建立',
+        selectCategoryRequired: '請選擇本地分類',
+        uncategorizedNeedsLocalCategory: '未分類商品無法自動建立分類，請關閉自動建立並選擇本地分類',
       },
       filter: {
         allConnections: '全部連接',
@@ -9986,6 +9990,8 @@ const messages = {
         categoryImportSuccess: 'Category import complete: {success}/{total} succeeded',
         categoryImportPartial: 'Category import partial: {success}/{total} succeeded',
         selectCategoryFirst: 'Please select a local category or enable auto-create',
+        selectCategoryRequired: 'Please select a local category',
+        uncategorizedNeedsLocalCategory: 'Uncategorized products cannot auto-create a category. Turn off auto-create and select a local category',
       },
       filter: {
         allConnections: 'All Connections',

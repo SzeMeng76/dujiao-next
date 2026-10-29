@@ -114,6 +114,11 @@ func (s *Service) importUpstreamProduct(connectionID uint, upstreamProductID uin
 		}
 		categoryID = category.ID
 	}
+	// 自动创建分类依赖上游分类；上游商品本身没有分类时无法推断，
+	// 若继续导入会得到无分类（无法上架）的商品，所以让这一条失败并提示手动指定。
+	if autoCreateCategory && categoryID == 0 && upProduct.CategoryID == 0 {
+		return nil, mappingcontract.ErrUpstreamProductNoCategory
+	}
 	if err := productdomain.ValidateCategoryAssignment(s.categories, categoryID, 0, productcontract.ErrProductCategoryInvalid); err != nil {
 		return nil, err
 	}
