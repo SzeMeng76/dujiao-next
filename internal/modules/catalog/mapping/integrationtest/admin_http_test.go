@@ -30,6 +30,7 @@ import (
 	"github.com/dujiao-next/internal/upstream"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
 
@@ -442,4 +443,66 @@ func TestBatchImportByCategoryUncategorizedGroup(t *testing.T) {
 			t.Fatalf("expected category %d, got %d", local.ID, p.CategoryID)
 		}
 	})
+}
+
+func TestBatchImportUsesCategoryMarkupWithParentInheritance(t *testing.T) {
+	h, db, connID, cleanup := setupAdminHandlerTest(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/v1/upstream/categories":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"ok": true,
+				"categories": []upstream.UpstreamCategory{
+					{ID: 9, Slug: "parent", Name: jsonmap.JSON{"zh-CN": "父"}},
+					{ID: 10, ParentID: 9, Slug: "child", Name: jsonmap.JSON{"zh-CN": "子"}},
+				},
+			})
+		case "/api/v1/upstream/products/101":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"ok": true,
+				"product": upstream.UpstreamProduct{
+					ID: 101, CategoryID: 10, Title: jsonmap.JSON{"zh-CN": "商品"},
+					PriceAmount: "10.00", Currency: "CNY", FulfillmentType: constants.FulfillmentTypeAuto, IsActive: true,
+					SKUs: []upstream.UpstreamSKU{{ID: 201, SKUCode: "SKU-A", SpecValues: jsonmap.JSON{"name": "A"}, PriceAmount: "10.00", IsActive: true}},
+				},
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	})
+	defer cleanup()
+
+	// 连接默认加价 10%，父分类 9 单独设置 50%；商品在子分类 10 下，应继承父分类的 50%。
+	if err := db.Model(&siteconnectiondomain.Connection{}).Where("id = ?", connID).Updates(map[string]interface{}{
+		"price_markup_percent": 10,
+		"category_markups":     jsonmap.JSON{"9": float64(50)},
+	}).Error; err != nil {
+		t.Fatalf("update connection failed: %v", err)
+	}
+
+	body := fmt.Sprintf(`{"connection_id":%d,"upstream_product_ids":[101],"auto_create_category":true}`, connID)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/product-mappings/batch-import", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = req
+	h.BatchImportUpstreamProducts(c)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", w.Code, w.Body.String())
+	}
+
+	var sku productdomain.ProductSKU
+	if err := db.First(&sku).Error; err != nil {
+		t.Fatalf("load sku failed: %v", err)
+	}
+	if !sku.PriceAmount.Decimal.Equal(decimal.RequireFromString("15")) {
+		t.Fatalf("expected inherited 50%% markup => 15.00, got %s", sku.PriceAmount.Decimal.String())
+	}
+	var mapping mappingdomain.Mapping
+	if err := db.First(&mapping).Error; err != nil {
+		t.Fatalf("load mapping failed: %v", err)
+	}
+	if mapping.UpstreamCategoryID != 10 {
+		t.Fatalf("expected mapping upstream category 10, got %d", mapping.UpstreamCategoryID)
+	}
 }
