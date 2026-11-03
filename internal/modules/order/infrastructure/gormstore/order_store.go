@@ -475,6 +475,9 @@ func (r *Store) ListAdmin(filter ordercontract.ListFilter) ([]orderdomain.Order,
 	if filter.GuestEmail != "" {
 		query = query.Where("guest_email = ?", filter.GuestEmail)
 	}
+	if clientIP := strings.TrimSpace(filter.ClientIP); clientIP != "" {
+		query = query.Where("client_ip LIKE ?", "%"+clientIP+"%")
+	}
 	if keyword := strings.TrimSpace(filter.ProductKeyword); keyword != "" {
 		like := "%" + keyword + "%"
 		cond1, argCount1 := gormutil.BuildLocalizedLikeCondition(r.db, nil, []string{"oi.title_json"})

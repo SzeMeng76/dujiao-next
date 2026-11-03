@@ -51,6 +51,7 @@ func (a orderAdminQueryAdapter) ListOrdersForAdmin(filter ordertransport.OrderLi
 		Status:         filter.Status,
 		OrderNo:        filter.OrderNo,
 		GuestEmail:     filter.GuestEmail,
+		ClientIP:       filter.ClientIP,
 		ProductKeyword: filter.ProductKeyword,
 		CreatedFrom:    filter.CreatedFrom,
 		CreatedTo:      filter.CreatedTo,

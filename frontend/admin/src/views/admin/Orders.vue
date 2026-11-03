@@ -37,6 +37,7 @@ const pagination = ref({
 const filters = reactive({
   orderNo: '',
   guestEmail: '',
+  clientIP: '',
   createdFrom: '',
   createdTo: '',
   status: '',
@@ -101,6 +102,7 @@ const fetchOrders = async (page = 1, options: ListFetchOptions = {}) => {
       user_keyword: filters.userKeyword || undefined,
       order_no: filters.orderNo || undefined,
       guest_email: filters.guestEmail || undefined,
+      client_ip: filters.clientIP || undefined,
       product_keyword: filters.productKeyword || undefined,
       created_from: toRFC3339(filters.createdFrom),
       created_to: toRFC3339(filters.createdTo),
@@ -288,6 +290,9 @@ watch(
         </div>
         <div class="w-full md:w-48">
           <Input v-model="filters.guestEmail" :placeholder="t('admin.orders.filterGuestEmail')" @update:modelValue="debouncedSearch" />
+        </div>
+        <div class="w-full md:w-48">
+          <Input v-model="filters.clientIP" :placeholder="t('admin.orders.filterClientIP')" @update:modelValue="debouncedSearch" />
         </div>
         <div class="w-full md:w-48">
           <Input v-model="filters.productKeyword" :placeholder="t('admin.orders.filterProductKeyword')" @update:modelValue="debouncedSearch" />

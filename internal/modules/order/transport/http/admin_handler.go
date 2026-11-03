@@ -38,6 +38,7 @@ type OrderListFilter struct {
 	Status         string
 	OrderNo        string
 	GuestEmail     string
+	ClientIP       string
 	ProductKeyword string
 	CreatedFrom    *time.Time
 	CreatedTo      *time.Time
@@ -142,6 +143,7 @@ func (h *AdminHandler) AdminListOrders(c *gin.Context) {
 	userKeyword := strings.TrimSpace(c.Query("user_keyword"))
 	orderNo := strings.TrimSpace(c.Query("order_no"))
 	guestEmail := strings.TrimSpace(c.Query("guest_email"))
+	clientIP := strings.TrimSpace(c.Query("client_ip"))
 
 	createdFrom, createdTo, err := ginutil.ParseQueryTimeRange(c, "created_from", "created_to")
 	if err != nil {
@@ -163,6 +165,7 @@ func (h *AdminHandler) AdminListOrders(c *gin.Context) {
 		Status:         status,
 		OrderNo:        orderNo,
 		GuestEmail:     guestEmail,
+		ClientIP:       clientIP,
 		ProductKeyword: productKeyword,
 		CreatedFrom:    createdFrom,
 		CreatedTo:      createdTo,

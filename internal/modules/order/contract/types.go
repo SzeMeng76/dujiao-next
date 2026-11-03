@@ -11,6 +11,7 @@ type ListFilter struct {
 	Status         string
 	OrderNo        string
 	GuestEmail     string
+	ClientIP       string
 	ProductKeyword string
 	CreatedFrom    *time.Time
 	CreatedTo      *time.Time
