@@ -32,6 +32,7 @@ import (
 	"github.com/dujiao-next/internal/logger"
 	apicredentialtransport "github.com/dujiao-next/internal/modules/apicredential/transport/http"
 	auditlogtransport "github.com/dujiao-next/internal/modules/auditlog/transport/http"
+	errorlogtransport "github.com/dujiao-next/internal/modules/errorlog/transport/http"
 	captchahttp "github.com/dujiao-next/internal/modules/captcha/transport/http"
 	cardsecrettransport "github.com/dujiao-next/internal/modules/cardsecret/transport/http"
 	carttransport "github.com/dujiao-next/internal/modules/cart/transport/http"
@@ -142,6 +143,7 @@ func SetupRouter(cfg *config.Config, c *container.Container) *gin.Engine {
 	adminApiCredentialHandler := apicredentialtransport.NewAdminHandler(c.ApiCredentialService)
 	userApiCredentialHandler := apicredentialtransport.NewUserHandler(c.ApiCredentialService)
 	adminAuditLogHandler := auditlogtransport.NewAdminHandler(c.AuthzAuditService, c.UserLoginLogService)
+	adminErrorLogHandler := errorlogtransport.NewAdminHandler(c.ErrorLogService)
 	adminCardSecretHandler := cardsecrettransport.NewAdminHandler(c.CardSecretService)
 	adminCatalogCategoryHandler := categoryhttp.NewAdminCategoryHandler(c.CategoryService)
 	adminCatalogProductHandler := producthttp.NewAdminProductHandler(
@@ -253,6 +255,10 @@ func SetupRouter(cfg *config.Config, c *container.Container) *gin.Engine {
 
 	// middleware.RequestIDMiddleware 必须前置于 middleware.RecoveryMiddleware：panic 日志与响应都依赖 request_id。
 	r.Use(middleware.RequestIDMiddleware())
+	// ErrorLogMiddleware 必须在 RecoveryMiddleware 之前：panic 会穿过 c.Next() 帧向上抛，
+	// 若本中间件在 Recovery 之后，其 c.Next() 之后的代码根本不会执行（panic 被 Recovery
+	// 在下游捕获后正常返回，本中间件才能读到那个 500）。顺序反了就会漏掉所有 panic。
+	r.Use(middleware.ErrorLogMiddleware(c.ErrorLogService))
 	r.Use(middleware.RecoveryMiddleware())
 	r.Use(middleware.LoggerMiddleware(log))
 	r.Use(middleware.CORSMiddleware(cfg.CORS))
@@ -286,7 +292,7 @@ func SetupRouter(cfg *config.Config, c *container.Container) *gin.Engine {
 	registerUpstreamRoutes(apiV1, c, upstreamHandler, redisClient, upstreamAPIRule, callbackRule)
 	registerChannelRoutes(apiV1, c, channelHandler, channelMemberLevelHandler, channelGiftCardHandler, channelAffiliateHandler, channelTelegramBotHandler, channelWalletHandler, redisClient, channelAPIRule)
 	registerPaymentCallbackRoutes(apiV1, paymentCallbackHandler, paymentWebhookHandler, paymentWriteHandler, paymentEpayRedirectHandler, redisClient, callbackRule)
-	registerAdminRoutes(r, apiV1, cfg, c, adminLoginHandler, admin2FAHandler, adminUser2FAHandler, adminUserHandler, adminAuthzHandler, adminFulfillmentHandler, adminOrderHandler, adminOrderRefundHandler, adminContentHandler, adminDashboardHandler, adminMemberLevelHandler, adminApiCredentialHandler, adminAuditLogHandler, adminCardSecretHandler, adminCatalogCategoryHandler, adminCatalogProductHandler, adminCatalogProductMappingHandler, adminCouponHandler, adminGiftCardHandler, adminPromotionHandler, adminNotificationHandler, adminProcurementHandler, adminResellerManagementHandler, adminResellerProfileDetailHandler, adminResellerSiteConfigHandler, adminResellerProductSettingHandler, adminResellerOperationsHandler, adminResellerFinanceHandler, adminSettingsHandler, adminWalletHandler, adminPaymentHandler, adminPaymentChannelHandler, redisClient, adminLoginRule)
+	registerAdminRoutes(r, apiV1, cfg, c, adminLoginHandler, admin2FAHandler, adminUser2FAHandler, adminUserHandler, adminAuthzHandler, adminFulfillmentHandler, adminOrderHandler, adminOrderRefundHandler, adminContentHandler, adminDashboardHandler, adminMemberLevelHandler, adminApiCredentialHandler, adminAuditLogHandler, adminErrorLogHandler, adminCardSecretHandler, adminCatalogCategoryHandler, adminCatalogProductHandler, adminCatalogProductMappingHandler, adminCouponHandler, adminGiftCardHandler, adminPromotionHandler, adminNotificationHandler, adminProcurementHandler, adminResellerManagementHandler, adminResellerProfileDetailHandler, adminResellerSiteConfigHandler, adminResellerProductSettingHandler, adminResellerOperationsHandler, adminResellerFinanceHandler, adminSettingsHandler, adminWalletHandler, adminPaymentHandler, adminPaymentChannelHandler, redisClient, adminLoginRule)
 
 	// 健康检查
 	r.GET("/health", func(c *gin.Context) {

@@ -25,6 +25,10 @@ log:
   max_age_days: 30
   compress: true
 
+error_log:
+  collect_4xx: false       # 是否记录 4xx 响应（量较大，按需开启）
+  retention_days: 30       # 错误日志保留天数，0 表示永不自动清理
+
 database:
   driver: sqlite  # sqlite / postgres
   dsn: ./db/dujiao.db

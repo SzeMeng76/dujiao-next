@@ -48,6 +48,7 @@ import {
   BadgeDollarSign,
   Bell,
   ImageIcon,
+  AlertTriangle,
 } from 'lucide-vue-next'
 import { Menu } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
@@ -249,6 +250,12 @@ const navGroups = computed<NavGroup[]>(() => {
           to: '/user-login-logs',
           icon: History,
           permission: 'GET:/admin/user-login-logs',
+        },
+        {
+          label: t('admin.navItems.errorLogs'),
+          to: '/error-logs',
+          icon: AlertTriangle,
+          permission: 'GET:/admin/error-logs',
         },
         {
           label: t('admin.navItems.memberLevels'),

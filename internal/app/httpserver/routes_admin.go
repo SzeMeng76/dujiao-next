@@ -10,6 +10,7 @@ import (
 	affiliatetransport "github.com/dujiao-next/internal/modules/affiliate/transport/http"
 	apicredentialtransport "github.com/dujiao-next/internal/modules/apicredential/transport/http"
 	auditlogtransport "github.com/dujiao-next/internal/modules/auditlog/transport/http"
+	errorlogtransport "github.com/dujiao-next/internal/modules/errorlog/transport/http"
 	cardsecrettransport "github.com/dujiao-next/internal/modules/cardsecret/transport/http"
 	categoryhttp "github.com/dujiao-next/internal/modules/catalog/category/transport/http"
 	mappinghttp "github.com/dujiao-next/internal/modules/catalog/mapping/transport/http"
@@ -66,6 +67,7 @@ func registerAdminRoutes(
 	adminMemberLevelHandler *memberleveltransport.AdminHandler,
 	adminApiCredentialHandler *apicredentialtransport.AdminHandler,
 	adminAuditLogHandler *auditlogtransport.AdminHandler,
+	adminErrorLogHandler *errorlogtransport.AdminHandler,
 	adminCardSecretHandler *cardsecrettransport.AdminHandler,
 	adminCatalogCategoryHandler *categoryhttp.AdminCategoryHandler,
 	adminCatalogProductHandler *producthttp.AdminProductHandler,
@@ -147,6 +149,8 @@ func registerAdminRoutes(
 	// 权限管理
 	adminauthztransport.RegisterAdminRoutes(authorized, adminAuthzHandler)
 	auditlogtransport.RegisterAdminRoutes(authorized, adminAuditLogHandler)
+	// 应用错误日志
+	errorlogtransport.RegisterAdminRoutes(authorized, adminErrorLogHandler)
 	authorized.GET("/authz/permissions/catalog", func(ctx *gin.Context) {
 		response.Success(ctx, buildAdminPermissionCatalog(engine))
 	})

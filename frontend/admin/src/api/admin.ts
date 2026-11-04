@@ -117,6 +117,23 @@ export interface AuthzUpdateAdminRequest {
   is_super?: boolean
 }
 
+export interface AdminErrorLog {
+  id: number
+  level: string
+  category: string
+  message: string
+  detail: string
+  method: string
+  path: string
+  status_code: number
+  client_ip: string
+  user_agent: string
+  request_id: string
+  user_id?: number
+  admin_id?: number
+  created_at: string
+}
+
 export interface AdminAuthzAuditLog {
   id: number
   operator_admin_id: number
@@ -372,6 +389,7 @@ export const adminAPI = {
   updateAuthzAdmin: (id: number, data: AuthzUpdateAdminRequest) => api.put(`/admin/authz/admins/${id}`, data),
   deleteAuthzAdmin: (id: number) => api.delete(`/admin/authz/admins/${id}`),
   listAuthzAuditLogs: (params?: Record<string, unknown>) => api.get("/admin/authz/audit-logs", { params }),
+  getErrorLogs: (params?: Record<string, unknown>) => api.get('/admin/error-logs', { params }),
   listAuthzPermissionCatalog: () => api.get("/admin/authz/permissions/catalog"),
   createAuthzRole: (data: { role: string }) => api.post('/admin/authz/roles', data),
   deleteAuthzRole: (role: string) => api.delete(`/admin/authz/roles/${encodeURIComponent(role)}`),

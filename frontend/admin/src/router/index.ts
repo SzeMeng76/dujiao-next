@@ -133,6 +133,12 @@ const routes = [
         meta: { permission: 'GET:/admin/user-login-logs' },
       },
       {
+        path: 'error-logs',
+        name: 'error-logs',
+        component: () => import('@/views/admin/ErrorLogs.vue'),
+        meta: { permission: 'GET:/admin/error-logs' },
+      },
+      {
         path: 'users/:id',
         name: 'user-detail',
         component: () => import('@/views/admin/UserDetail.vue'),

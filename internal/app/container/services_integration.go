@@ -9,6 +9,7 @@ import (
 	"github.com/dujiao-next/internal/logger"
 	apicredentialapp "github.com/dujiao-next/internal/modules/apicredential/application"
 	auditlogapp "github.com/dujiao-next/internal/modules/auditlog/application"
+	errorlogapp "github.com/dujiao-next/internal/modules/errorlog/application"
 	channelclientapp "github.com/dujiao-next/internal/modules/channelclient/application"
 	contentapp "github.com/dujiao-next/internal/modules/content/application"
 	localfilestore "github.com/dujiao-next/internal/modules/content/infrastructure/filestore/local"
@@ -54,6 +55,10 @@ func (c *Container) initIntegrationServices() {
 	c.UserLoginLogService = auditlogapp.NewUserLoginService(c.UserLoginLogRepo)
 	c.AuthzAuditService = auditlogapp.NewAuthzService(c.AuthzAuditLogRepo)
 	c.AdminLoginLogService = auditlogapp.NewAdminLoginService(c.AdminLoginLogRepo)
+	c.ErrorLogService = errorlogapp.NewService(c.ErrorLogRepo, &errorlogapp.Options{
+		Collect4xx:    c.Config.ErrorLog.Collect4xx,
+		RetentionDays: c.Config.ErrorLog.RetentionDays,
+	})
 	c.NotificationLogService = notificationapp.NewLogService(c.NotificationLogRepo)
 	c.DashboardService = dashboardapp.NewService(c.DashboardRepo, c.SettingService)
 	telegramNotifyService := notifyapp.NewService(c.SettingService, c.Config.TelegramAuth, notifybotapi.New())

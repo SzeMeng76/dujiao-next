@@ -5,6 +5,7 @@ import (
 	affiliatedomain "github.com/dujiao-next/internal/modules/affiliate/domain"
 	apicredentialdomain "github.com/dujiao-next/internal/modules/apicredential/domain"
 	auditlogdomain "github.com/dujiao-next/internal/modules/auditlog/domain"
+	errorlogdomain "github.com/dujiao-next/internal/modules/errorlog/domain"
 	cardsecretdomain "github.com/dujiao-next/internal/modules/cardsecret/domain"
 	cartdomain "github.com/dujiao-next/internal/modules/cart/domain"
 	categorydomain "github.com/dujiao-next/internal/modules/catalog/category/domain"
@@ -60,6 +61,7 @@ func AutoMigrate() error {
 		&auditlogdomain.AuthzAuditLog{},
 		&notificationdomain.NotificationLog{},
 		&auditlogdomain.AdminLoginLog{},
+		&errorlogdomain.ErrorLog{},
 		&emailverificationdomain.Code{},
 		&orderdomain.Order{},
 		&orderdomain.OrderItem{},

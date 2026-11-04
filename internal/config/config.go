@@ -33,6 +33,7 @@ type Config struct {
 	Captcha      CaptchaConfig      `mapstructure:"captcha"`
 	Web          WebConfig          `mapstructure:"web"`
 	Reseller     ResellerConfig     `mapstructure:"reseller"`
+	ErrorLog     ErrorLogConfig     `mapstructure:"error_log"`
 }
 
 // AppConfig 应用级配置
@@ -69,6 +70,15 @@ func (c LogConfig) ToLoggerOptions() logger.Options {
 		MaxAgeDays: c.MaxAgeDays,
 		Compress:   c.Compress,
 	}
+}
+
+// ErrorLogConfig 应用错误日志配置
+type ErrorLogConfig struct {
+	// Collect4xx 是否同时记录 4xx 响应（默认 false）。
+	// 4xx 是预期内的客户端错误，量通常比 5xx 大得多，建议按需开启。
+	Collect4xx bool `mapstructure:"collect_4xx"`
+	// RetentionDays 错误日志在数据库中的保留天数，0 表示永不清理（默认 30）。
+	RetentionDays int `mapstructure:"retention_days"`
 }
 
 // DatabasePoolConfig 数据库连接池配置
@@ -325,6 +335,8 @@ func Load() *Config {
 	viper.SetDefault("log.max_backups", 7)
 	viper.SetDefault("log.max_age_days", 30)
 	viper.SetDefault("log.compress", true)
+	viper.SetDefault("error_log.collect_4xx", false)
+	viper.SetDefault("error_log.retention_days", 30)
 	viper.SetDefault("database.driver", "sqlite")
 	viper.SetDefault("database.dsn", "./db/dujiao.db")
 	viper.SetDefault("database.pool.max_open_conns", 1)

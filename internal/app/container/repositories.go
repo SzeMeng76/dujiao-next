@@ -6,6 +6,7 @@ import (
 	affiliategormstore "github.com/dujiao-next/internal/modules/affiliate/infrastructure/gormstore"
 	apicredentialgormstore "github.com/dujiao-next/internal/modules/apicredential/infrastructure/gormstore"
 	auditloggormstore "github.com/dujiao-next/internal/modules/auditlog/infrastructure/gormstore"
+	errorloggormstore "github.com/dujiao-next/internal/modules/errorlog/infrastructure/gormstore"
 	cardsecretgormstore "github.com/dujiao-next/internal/modules/cardsecret/infrastructure/gormstore"
 	cartgormstore "github.com/dujiao-next/internal/modules/cart/infrastructure/gormstore"
 	categorygormstore "github.com/dujiao-next/internal/modules/catalog/category/infrastructure/gormstore"
@@ -69,6 +70,7 @@ func (c *Container) initRepositories() error {
 	c.AuthzAuditLogRepo = auditloggormstore.NewAuthzStore(db)
 	c.NotificationLogRepo = notificationgormstore.NewLogStore(db)
 	c.AdminLoginLogRepo = auditloggormstore.NewAdminLoginStore(db)
+	c.ErrorLogRepo = errorloggormstore.New(db)
 	c.DashboardRepo = dashboardgormstore.New(db)
 	c.AffiliateRepo = affiliategormstore.New(db)
 	c.ResellerStore = resellergormstore.New(db)

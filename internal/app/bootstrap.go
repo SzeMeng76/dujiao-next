@@ -12,13 +12,20 @@ import (
 
 // BuildRunner 构建服务运行器
 func BuildRunner(cfg *config.Config, mode string) (*Runner, error) {
+	runner, _, err := buildRunnerWithDependencies(cfg, mode)
+	return runner, err
+}
+
+// buildRunnerWithDependencies 同时返回 container，供 Run 在收尾时释放后台资源
+// （例如错误日志的异步写入队列）。
+func buildRunnerWithDependencies(cfg *config.Config, mode string) (*Runner, *container.Container, error) {
 	if cfg == nil {
-		return nil, errors.New("config is nil")
+		return nil, nil, errors.New("config is nil")
 	}
 
 	dependencies, err := container.NewContainer(cfg)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	var services []Service
@@ -36,17 +43,17 @@ func BuildRunner(cfg *config.Config, mode string) (*Runner, error) {
 		consumer := jobconsumer.New(dependencies)
 		workerService, err := jobs.NewService(&cfg.Queue, consumer)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		services = append(services, workerService)
 	}
 
 	// 如果没有服务被启动（例如模式错误或配置导致都没起），应该报错或至少打日志
 	if len(services) == 0 {
-		return nil, errors.New("no services initialized (check mode and config)")
+		return nil, nil, errors.New("no services initialized (check mode and config)")
 	}
 
-	return NewRunner(services...), nil
+	return NewRunner(services...), dependencies, nil
 }
 
 // Run 应用启动入口
@@ -56,9 +63,13 @@ func Run(opts Options) error {
 		return errors.New("config is nil")
 	}
 
-	runner, err := BuildRunner(opts.Config, opts.Mode)
+	runner, dependencies, err := buildRunnerWithDependencies(opts.Config, opts.Mode)
 	if err != nil {
 		return err
+	}
+	// 进程退出前排干错误日志的异步写入队列，否则最后一批记录会丢。
+	if dependencies != nil && dependencies.ErrorLogService != nil {
+		defer dependencies.ErrorLogService.Stop()
 	}
 
 	addr := opts.Config.Server.Host + ":" + opts.Config.Server.Port

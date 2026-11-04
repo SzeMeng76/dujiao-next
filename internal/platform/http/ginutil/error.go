@@ -39,6 +39,9 @@ func RespondError(c *gin.Context, code int, key string, err error) {
 			"error", err,
 		)
 	}
+	// 服务端错误挂到 gin.Context，供 ErrorLogMiddleware 落库。
+	// 仅 5xx：4xx 是预期内的客户端错误，不进入错误日志。
+	attachServerError(c, code, err)
 	response.Error(c, appErr.Code, appErr.Message)
 }
 
@@ -102,5 +105,32 @@ func RespondErrorWithMsg(c *gin.Context, code int, msg string, err error) {
 			"error", err,
 		)
 	}
+	attachServerError(c, code, err)
 	response.Error(c, appErr.Code, appErr.Message)
+}
+
+// ServerErrorStatusKey 是塞进 gin.Context 的业务状态码键名。
+//
+// 为什么不直接用 c.Writer.Status()：response.Error() 遵循本项目「HTTP 200 +
+// body.status_code」的约定，业务 500 的 HTTP 状态码仍是 200。只看 Writer.Status()
+// 会漏掉全部业务错误，因此这里显式把业务码透传给 ErrorLogMiddleware。
+const ServerErrorStatusKey = "error_log_status_code"
+
+// attachServerError 把业务状态码与错误挂到 gin.Context 上，供 ErrorLogMiddleware 落库。
+//
+// 状态码一律透传（含 4xx）：中间件需要它才能实现「可选收集 4xx」。
+// 但 c.Error(err) 只在 5xx 时调用 —— LoggerMiddleware 见到 c.Errors 非空就会打
+// error 级别日志，若 4xx 也挂上去，正常的用户输错会被刷成 error 日志。
+func attachServerError(c *gin.Context, code int, err error) {
+	if c == nil {
+		return
+	}
+	c.Set(ServerErrorStatusKey, code)
+	if code < response.CodeInternal {
+		return
+	}
+	if err == nil {
+		err = fmt.Errorf("server error: status %d", code)
+	}
+	_ = c.Error(err)
 }
