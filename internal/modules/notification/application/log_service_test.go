@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/dujiao-next/internal/constants"
 	"github.com/dujiao-next/internal/modules/notification/contract"
@@ -87,6 +88,10 @@ func (r *notificationLogRepositoryStub) ListAdmin(filter contract.LogListFilter)
 		result = append(result, item)
 	}
 	return result, int64(len(result)), nil
+}
+
+func (r *notificationLogRepositoryStub) DeleteOlderThan(time.Time) (int64, error) {
+	return 0, nil
 }
 
 func setupLogService(t *testing.T) (*Service, *LogService) {

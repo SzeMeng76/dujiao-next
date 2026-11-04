@@ -34,6 +34,17 @@ type Config struct {
 	Web          WebConfig          `mapstructure:"web"`
 	Reseller     ResellerConfig     `mapstructure:"reseller"`
 	ErrorLog     ErrorLogConfig     `mapstructure:"error_log"`
+	LogRetention LogRetentionConfig `mapstructure:"log_retention"`
+}
+
+// LogRetentionConfig 各日志表的保留期（天）。
+// 0 表示该表永不自动清理。
+type LogRetentionConfig struct {
+	ErrorLog        int `mapstructure:"error_log"`
+	UserLogin       int `mapstructure:"user_login"`
+	AdminLogin      int `mapstructure:"admin_login"`
+	AuthzAudit      int `mapstructure:"authz_audit"`
+	NotificationLog int `mapstructure:"notification_log"`
 }
 
 // AppConfig 应用级配置
@@ -76,9 +87,8 @@ func (c LogConfig) ToLoggerOptions() logger.Options {
 type ErrorLogConfig struct {
 	// Collect4xx 是否同时记录 4xx 响应（默认 false）。
 	// 4xx 是预期内的客户端错误，量通常比 5xx 大得多，建议按需开启。
+	// 保留期统一由 log_retention.error_log 控制。
 	Collect4xx bool `mapstructure:"collect_4xx"`
-	// RetentionDays 错误日志在数据库中的保留天数，0 表示永不清理（默认 30）。
-	RetentionDays int `mapstructure:"retention_days"`
 }
 
 // DatabasePoolConfig 数据库连接池配置
@@ -336,7 +346,11 @@ func Load() *Config {
 	viper.SetDefault("log.max_age_days", 30)
 	viper.SetDefault("log.compress", true)
 	viper.SetDefault("error_log.collect_4xx", false)
-	viper.SetDefault("error_log.retention_days", 30)
+	viper.SetDefault("log_retention.error_log", 30)
+	viper.SetDefault("log_retention.user_login", 90)
+	viper.SetDefault("log_retention.admin_login", 180)
+	viper.SetDefault("log_retention.authz_audit", 180)
+	viper.SetDefault("log_retention.notification_log", 30)
 	viper.SetDefault("database.driver", "sqlite")
 	viper.SetDefault("database.dsn", "./db/dujiao.db")
 	viper.SetDefault("database.pool.max_open_conns", 1)

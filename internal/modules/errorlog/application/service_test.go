@@ -130,37 +130,36 @@ func TestService_FlushesAtBatchSize(t *testing.T) {
 	t.Fatalf("达到批量阈值后应自动刷盘: got %d, want %d", repo.count(), defaultFlushSize)
 }
 
-// runRetention 应按 retentionDays 计算截止时间并调用仓储清理。
-func TestService_RunRetentionDeletesExpiredEntries(t *testing.T) {
+// DeleteOlderThan 应委托给仓储，并把截止时间原样传递。
+func TestService_DeleteOlderThanDelegates(t *testing.T) {
 	repo := &fakeRepo{}
-	svc := NewService(repo, &Options{RetentionDays: 7})
+	svc := NewService(repo, nil)
 	defer svc.Stop()
 
-	svc.runRetention()
+	before := time.Now().AddDate(0, 0, -7)
+	if _, err := svc.DeleteOlderThan(before); err != nil {
+		t.Fatalf("DeleteOlderThan 不应报错: %v", err)
+	}
 
 	calls := repo.cleanupCalls()
 	if len(calls) != 1 {
-		t.Fatalf("应触发 1 次清理，实际 %d 次", len(calls))
+		t.Fatalf("应委托仓储 1 次，实际 %d 次", len(calls))
 	}
-
-	// 截止时间应约为 7 天前（允许几秒误差）
-	want := time.Now().AddDate(0, 0, -7)
-	diff := calls[0].Sub(want)
-	if diff < -time.Minute || diff > time.Minute {
-		t.Fatalf("截止时间偏差过大: got %v, want ≈%v", calls[0], want)
+	if !calls[0].Equal(before) {
+		t.Fatalf("截止时间应原样透传: got %v, want %v", calls[0], before)
 	}
 }
 
-// retentionDays 为 0 时不应启动清理 goroutine，也不应删除任何数据。
-func TestService_NoRetentionWhenDisabled(t *testing.T) {
-	repo := &fakeRepo{}
-	svc := NewService(repo, &Options{RetentionDays: 0})
-	defer svc.Stop()
+// nil Service 与 nil repo 时 DeleteOlderThan 必须安全返回。
+func TestService_DeleteOlderThanNilSafe(t *testing.T) {
+	var nilSvc *Service
+	if _, err := nilSvc.DeleteOlderThan(time.Now()); err != nil {
+		t.Fatalf("nil Service 不应报错: %v", err)
+	}
 
-	svc.runRetention() // 即使被显式调用，也只验证不 panic
-
-	if calls := repo.cleanupCalls(); len(calls) > 1 {
-		t.Fatalf("未启用清理时不应反复删除: %d 次", len(calls))
+	noRepo := &Service{}
+	if _, err := noRepo.DeleteOlderThan(time.Now()); err != nil {
+		t.Fatalf("nil repo 不应报错: %v", err)
 	}
 }
 

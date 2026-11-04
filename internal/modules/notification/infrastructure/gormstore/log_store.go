@@ -1,6 +1,8 @@
 package gormstore
 
 import (
+	"time"
+
 	"github.com/dujiao-next/internal/modules/notification/contract"
 	"github.com/dujiao-next/internal/modules/notification/domain"
 	"github.com/dujiao-next/internal/persistence/gormutil"
@@ -58,6 +60,11 @@ func (r *LogStore) ListAdmin(filter contract.LogListFilter) ([]domain.Notificati
 		return nil, 0, err
 	}
 	return logs, total, nil
+}
+
+// DeleteOlderThan 分批删除创建时间早于 before 的通知日志，返回删除条数。
+func (r *LogStore) DeleteOlderThan(before time.Time) (int64, error) {
+	return gormutil.DeleteOlderThanBatched(r.db, &domain.NotificationLog{}, before, gormutil.DefaultRetentionBatchSize)
 }
 
 var _ contract.LogRepository = (*LogStore)(nil)

@@ -44,14 +44,20 @@ type UserLoginRepository interface {
 	Create(log *domain.UserLoginLog) error
 	ListAdmin(filter UserLoginFilter) ([]domain.UserLoginLog, int64, error)
 	ListByUser(userID uint, page, pageSize int) ([]domain.UserLoginLog, int64, error)
+	// DeleteOlderThan 删除创建时间早于 before 的记录，返回删除条数。
+	DeleteOlderThan(before time.Time) (int64, error)
 }
 
 type AuthzRepository interface {
 	Create(log *domain.AuthzAuditLog) error
 	ListAdmin(filter AuthzFilter) ([]domain.AuthzAuditLog, int64, error)
+	// DeleteOlderThan 删除创建时间早于 before 的记录，返回删除条数。
+	DeleteOlderThan(before time.Time) (int64, error)
 }
 
 type AdminLoginRepository interface {
 	Create(log *domain.AdminLoginLog) error
 	List(filter AdminLoginFilter) ([]domain.AdminLoginLog, int64, error)
+	// DeleteOlderThan 删除创建时间早于 before 的记录，返回删除条数。
+	DeleteOlderThan(before time.Time) (int64, error)
 }

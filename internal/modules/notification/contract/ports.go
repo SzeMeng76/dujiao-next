@@ -78,6 +78,8 @@ type FeishuSender interface {
 type LogRepository interface {
 	Create(log *domain.NotificationLog) error
 	ListAdmin(filter LogListFilter) ([]domain.NotificationLog, int64, error)
+	// DeleteOlderThan 删除创建时间早于 before 的记录，返回删除条数。
+	DeleteOlderThan(before time.Time) (int64, error)
 }
 
 type LogListFilter struct {

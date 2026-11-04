@@ -27,7 +27,15 @@ log:
 
 error_log:
   collect_4xx: false       # 是否记录 4xx 响应（量较大，按需开启）
-  retention_days: 30       # 错误日志保留天数，0 表示永不自动清理
+
+# 各日志表的自动清理保留期（天）。0 表示该表永不自动清理。
+# 清理每天执行一次，分批删除，不会长时间占用数据库连接。
+log_retention:
+  error_log: 30
+  user_login: 90
+  admin_login: 180
+  authz_audit: 180
+  notification_log: 30
 
 database:
   driver: sqlite  # sqlite / postgres

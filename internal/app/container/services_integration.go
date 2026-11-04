@@ -9,7 +9,6 @@ import (
 	"github.com/dujiao-next/internal/logger"
 	apicredentialapp "github.com/dujiao-next/internal/modules/apicredential/application"
 	auditlogapp "github.com/dujiao-next/internal/modules/auditlog/application"
-	errorlogapp "github.com/dujiao-next/internal/modules/errorlog/application"
 	channelclientapp "github.com/dujiao-next/internal/modules/channelclient/application"
 	contentapp "github.com/dujiao-next/internal/modules/content/application"
 	localfilestore "github.com/dujiao-next/internal/modules/content/infrastructure/filestore/local"
@@ -21,6 +20,7 @@ import (
 	downstreamcallbackcredentialreader "github.com/dujiao-next/internal/modules/downstreamcallback/infrastructure/credentialreader"
 	downstreamcallbackorderreader "github.com/dujiao-next/internal/modules/downstreamcallback/infrastructure/orderreader"
 	downstreamcallbackqueue "github.com/dujiao-next/internal/modules/downstreamcallback/infrastructure/queueadapter"
+	errorlogapp "github.com/dujiao-next/internal/modules/errorlog/application"
 	notificationapp "github.com/dujiao-next/internal/modules/notification/application"
 	notificationcontract "github.com/dujiao-next/internal/modules/notification/contract"
 	notificationasyncqueue "github.com/dujiao-next/internal/modules/notification/infrastructure/asyncqueue"
@@ -48,6 +48,7 @@ import (
 	ticketorderadapter "github.com/dujiao-next/internal/modules/ticket/infrastructure/orderadapter"
 	uploadlocal "github.com/dujiao-next/internal/modules/upload/infrastructure/localstore"
 	"github.com/dujiao-next/internal/platform/database/gormdb"
+	"github.com/dujiao-next/internal/platform/retention"
 )
 
 // initIntegrationServices 装配通知、站点对接、支付、采购、渠道与 Telegram 集成。
@@ -56,10 +57,16 @@ func (c *Container) initIntegrationServices() {
 	c.AuthzAuditService = auditlogapp.NewAuthzService(c.AuthzAuditLogRepo)
 	c.AdminLoginLogService = auditlogapp.NewAdminLoginService(c.AdminLoginLogRepo)
 	c.ErrorLogService = errorlogapp.NewService(c.ErrorLogRepo, &errorlogapp.Options{
-		Collect4xx:    c.Config.ErrorLog.Collect4xx,
-		RetentionDays: c.Config.ErrorLog.RetentionDays,
+		Collect4xx: c.Config.ErrorLog.Collect4xx,
 	})
 	c.NotificationLogService = notificationapp.NewLogService(c.NotificationLogRepo)
+	c.LogRetentionRunner = retention.NewRunner([]retention.Target{
+		{Name: "error_logs", RetentionDays: c.Config.LogRetention.ErrorLog, Delete: c.ErrorLogService.DeleteOlderThan},
+		{Name: "user_login_logs", RetentionDays: c.Config.LogRetention.UserLogin, Delete: c.UserLoginLogRepo.DeleteOlderThan},
+		{Name: "admin_login_logs", RetentionDays: c.Config.LogRetention.AdminLogin, Delete: c.AdminLoginLogRepo.DeleteOlderThan},
+		{Name: "authz_audit_logs", RetentionDays: c.Config.LogRetention.AuthzAudit, Delete: c.AuthzAuditLogRepo.DeleteOlderThan},
+		{Name: "notification_logs", RetentionDays: c.Config.LogRetention.NotificationLog, Delete: c.NotificationLogRepo.DeleteOlderThan},
+	}, retention.Options{})
 	c.DashboardService = dashboardapp.NewService(c.DashboardRepo, c.SettingService)
 	telegramNotifyService := notifyapp.NewService(c.SettingService, c.Config.TelegramAuth, notifybotapi.New())
 	c.NotificationService = notificationapp.NewService(

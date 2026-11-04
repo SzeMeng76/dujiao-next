@@ -2,6 +2,7 @@ package application
 
 import (
 	"testing"
+	"time"
 
 	"github.com/dujiao-next/internal/constants"
 	"github.com/dujiao-next/internal/modules/auditlog/contract"
@@ -25,6 +26,10 @@ func (s *userLoginRepositoryStub) ListByUser(uint, int, int) ([]domain.UserLogin
 	return nil, 0, nil
 }
 
+func (s *userLoginRepositoryStub) DeleteOlderThan(time.Time) (int64, error) {
+	return 0, nil
+}
+
 type authzRepositoryStub struct {
 	created *domain.AuthzAuditLog
 }
@@ -36,6 +41,10 @@ func (s *authzRepositoryStub) Create(item *domain.AuthzAuditLog) error {
 
 func (s *authzRepositoryStub) ListAdmin(contract.AuthzFilter) ([]domain.AuthzAuditLog, int64, error) {
 	return nil, 0, nil
+}
+
+func (s *authzRepositoryStub) DeleteOlderThan(time.Time) (int64, error) {
+	return 0, nil
 }
 
 func TestUserLoginServiceRecordPreservesNormalizationContract(t *testing.T) {

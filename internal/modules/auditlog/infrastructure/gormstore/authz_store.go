@@ -1,6 +1,8 @@
 package gormstore
 
 import (
+	"time"
+
 	"github.com/dujiao-next/internal/modules/auditlog/contract"
 	"github.com/dujiao-next/internal/modules/auditlog/domain"
 	"github.com/dujiao-next/internal/persistence/gormutil"
@@ -64,6 +66,11 @@ func (r *AuthzStore) ListAdmin(filter contract.AuthzFilter) ([]domain.AuthzAudit
 		return nil, 0, err
 	}
 	return logs, total, nil
+}
+
+// DeleteOlderThan 分批删除创建时间早于 before 的权限审计日志，返回删除条数。
+func (r *AuthzStore) DeleteOlderThan(before time.Time) (int64, error) {
+	return gormutil.DeleteOlderThanBatched(r.db, &domain.AuthzAuditLog{}, before, gormutil.DefaultRetentionBatchSize)
 }
 
 var _ contract.AuthzRepository = (*AuthzStore)(nil)

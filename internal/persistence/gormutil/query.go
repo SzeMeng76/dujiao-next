@@ -3,6 +3,7 @@ package gormutil
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/dujiao-next/internal/constants"
 
@@ -104,4 +105,41 @@ func ApplyPagination(query *gorm.DB, page, pageSize int) *gorm.DB {
 		offset = 0
 	}
 	return query.Limit(pageSize).Offset(offset)
+}
+
+// DefaultRetentionBatchSize 是分批清理的默认单批行数。
+const DefaultRetentionBatchSize = 1000
+
+// DeleteOlderThanBatched 分批删除 created_at 早于 before 的记录，返回删除总行数。
+//
+// 为什么分批：清理对象通常是历史日志表，积压可能几十万行。SQLite 运行在
+// MaxOpenConns=1，一次性大 DELETE 会长时间占住唯一连接，期间所有业务请求
+// 都被阻塞。按批删除并在批与批之间让出连接，可以避免这种停顿。
+//
+// SQL 采用 `id IN (SELECT ...)` 形式，SQLite 与 PostgreSQL 都支持；
+// 不要用 DELETE ... LIMIT，SQLite 默认编译选项下不支持。
+func DeleteOlderThanBatched(db *gorm.DB, model interface{}, before time.Time, batchSize int) (int64, error) {
+	if db == nil {
+		return 0, fmt.Errorf("db is nil")
+	}
+	if batchSize <= 0 {
+		batchSize = DefaultRetentionBatchSize
+	}
+
+	var total int64
+	for {
+		sub := db.Model(model).
+			Select("id").
+			Where("created_at < ?", before).
+			Limit(batchSize)
+
+		result := db.Where("id IN (?)", sub).Delete(model)
+		if result.Error != nil {
+			return total, result.Error
+		}
+		total += result.RowsAffected
+		if result.RowsAffected == 0 {
+			return total, nil
+		}
+	}
 }

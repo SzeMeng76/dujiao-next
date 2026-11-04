@@ -10,8 +10,6 @@ import (
 	apicredentialcontract "github.com/dujiao-next/internal/modules/apicredential/contract"
 	auditlogapp "github.com/dujiao-next/internal/modules/auditlog/application"
 	auditlogcontract "github.com/dujiao-next/internal/modules/auditlog/contract"
-	errorlogapp "github.com/dujiao-next/internal/modules/errorlog/application"
-	errorlogcontract "github.com/dujiao-next/internal/modules/errorlog/contract"
 	captchaapp "github.com/dujiao-next/internal/modules/captcha/application"
 	cardsecretapp "github.com/dujiao-next/internal/modules/cardsecret/application"
 	cardsecretgormstore "github.com/dujiao-next/internal/modules/cardsecret/infrastructure/gormstore"
@@ -35,6 +33,8 @@ import (
 	dashboardcontract "github.com/dujiao-next/internal/modules/dashboard/contract"
 	downstreamcallbackapp "github.com/dujiao-next/internal/modules/downstreamcallback/application"
 	downstreamcallbackcontract "github.com/dujiao-next/internal/modules/downstreamcallback/contract"
+	errorlogapp "github.com/dujiao-next/internal/modules/errorlog/application"
+	errorlogcontract "github.com/dujiao-next/internal/modules/errorlog/contract"
 	fulfillmentapp "github.com/dujiao-next/internal/modules/fulfillment/application"
 	fulfillmentcontract "github.com/dujiao-next/internal/modules/fulfillment/contract"
 	giftcardapp "github.com/dujiao-next/internal/modules/giftcard/application"
@@ -85,6 +85,7 @@ import (
 	uploadapp "github.com/dujiao-next/internal/modules/upload/application"
 	walletapp "github.com/dujiao-next/internal/modules/wallet/application"
 	walletgormstore "github.com/dujiao-next/internal/modules/wallet/infrastructure/gormstore"
+	"github.com/dujiao-next/internal/platform/retention"
 	"github.com/dujiao-next/internal/queue"
 	"github.com/dujiao-next/internal/shared/mailbrand"
 )
@@ -180,6 +181,7 @@ type Container struct {
 	AdminLoginLogService          *auditlogapp.AdminLoginService
 	ErrorLogService               *errorlogapp.Service
 	NotificationLogService        *notificationapp.LogService
+	LogRetentionRunner            *retention.Runner
 	DashboardService              *dashboardapp.Service
 	NotificationService           *notificationapp.Service
 	AffiliateService              *affiliateapp.Service

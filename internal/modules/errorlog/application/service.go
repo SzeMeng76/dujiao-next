@@ -20,8 +20,6 @@ const (
 type Options struct {
 	// Collect4xx 为 true 时同时记录 4xx 响应（默认只记录 5xx）。
 	Collect4xx bool
-	// RetentionDays 日志保留天数，>0 时后台 goroutine 每天清理一次，0 表示永不清理。
-	RetentionDays int
 }
 
 // Service 错误日志服务。
@@ -60,12 +58,8 @@ func NewService(repo contract.Repository, opts *Options) *Service {
 	}
 	if opts != nil {
 		s.collect4xx = opts.Collect4xx
-		s.retentionDays = opts.RetentionDays
 	}
 	go s.worker()
-	if s.retentionDays > 0 {
-		go s.retentionWorker()
-	}
 	return s
 }
 
@@ -127,48 +121,15 @@ func (s *Service) ListForAdmin(filter contract.Filter) ([]domain.ErrorLog, int64
 	return s.repo.ListAdmin(filter)
 }
 
-// retentionWorker 每天凌晨执行一次过期清理。
-// 只在 retentionDays > 0 时启动，Stop() 调用后自动退出。
-func (s *Service) retentionWorker() {
-	// 首次在 1 分钟后执行一次（进程刚启动时不要立刻 DELETE），之后每 24 小时一次。
-	firstTick := time.NewTimer(time.Minute)
-	defer firstTick.Stop()
-	select {
-	case <-firstTick.C:
-	case <-s.done:
-		return
+// DeleteOlderThan 删除创建时间早于 before 的记录，返回删除条数。
+// 供统一的 retention 调度器调用。
+func (s *Service) DeleteOlderThan(before time.Time) (int64, error) {
+	if s == nil || s.repo == nil {
+		return 0, nil
 	}
-	s.runRetention()
-
-	ticker := time.NewTicker(24 * time.Hour)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			s.runRetention()
-		case <-s.done:
-			return
-		}
-	}
+	return s.repo.DeleteOlderThan(before)
 }
 
-func (s *Service) runRetention() {
-	before := time.Now().AddDate(0, 0, -s.retentionDays)
-	n, err := s.repo.DeleteOlderThan(before)
-	if err != nil {
-		logger.Warnw("errorlog_retention_cleanup_failed",
-			"retention_days", s.retentionDays,
-			"error", err,
-		)
-		return
-	}
-	if n > 0 {
-		logger.Infow("errorlog_retention_cleanup_ok",
-			"deleted", n,
-			"retention_days", s.retentionDays,
-		)
-	}
-}
 func (s *Service) worker() {
 	defer close(s.done)
 

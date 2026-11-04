@@ -1,6 +1,8 @@
 package gormstore
 
 import (
+	"time"
+
 	"github.com/dujiao-next/internal/modules/auditlog/contract"
 	"github.com/dujiao-next/internal/modules/auditlog/domain"
 	"github.com/dujiao-next/internal/persistence/gormutil"
@@ -82,6 +84,11 @@ func (r *UserLoginStore) ListByUser(userID uint, page, pageSize int) ([]domain.U
 		return nil, 0, err
 	}
 	return logs, total, nil
+}
+
+// DeleteOlderThan 分批删除创建时间早于 before 的登录日志，返回删除条数。
+func (r *UserLoginStore) DeleteOlderThan(before time.Time) (int64, error) {
+	return gormutil.DeleteOlderThanBatched(r.db, &domain.UserLoginLog{}, before, gormutil.DefaultRetentionBatchSize)
 }
 
 var _ contract.UserLoginRepository = (*UserLoginStore)(nil)

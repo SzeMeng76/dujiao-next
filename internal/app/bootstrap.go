@@ -68,8 +68,14 @@ func Run(opts Options) error {
 		return err
 	}
 	// 进程退出前排干错误日志的异步写入队列，否则最后一批记录会丢。
-	if dependencies != nil && dependencies.ErrorLogService != nil {
-		defer dependencies.ErrorLogService.Stop()
+	if dependencies != nil {
+		if dependencies.ErrorLogService != nil {
+			defer dependencies.ErrorLogService.Stop()
+		}
+		if dependencies.LogRetentionRunner != nil {
+			dependencies.LogRetentionRunner.Start()
+			defer dependencies.LogRetentionRunner.Stop()
+		}
 	}
 
 	addr := opts.Config.Server.Host + ":" + opts.Config.Server.Port
