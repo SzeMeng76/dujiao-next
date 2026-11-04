@@ -3,6 +3,7 @@ package middleware
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -193,6 +194,39 @@ func TestErrorLogMiddleware_Records4xxWhenEnabled(t *testing.T) {
 	}
 	if logs[0].StatusCode != 400 {
 		t.Fatalf("状态码应为 400，实际 %d", logs[0].StatusCode)
+	}
+	// 4xx 不会挂 c.Errors，message 必须来自 ginutil 透传的 i18n key，
+	// 不能兜底成 "server error" —— 否则后台看到的 400 全长得一样，没法定位原因。
+	if logs[0].Message == "" || logs[0].Message == "server error" {
+		t.Fatalf("4xx 应带上具体原因，实际 %q", logs[0].Message)
+	}
+	if !strings.Contains(logs[0].Message, "error.bad_request") {
+		t.Fatalf("message 应包含原始 i18n key 便于聚合，实际 %q", logs[0].Message)
+	}
+}
+
+// RespondErrorWithMsg 传的是已翻译文案（没有 i18n key），应原样落库。
+func TestErrorLogMiddleware_Records4xxCustomMessage(t *testing.T) {
+	repo := &captureRepo{}
+	gin.SetMode(gin.TestMode)
+	svc := application.NewService(repo, &application.Options{Collect4xx: true})
+	r := gin.New()
+	r.Use(RequestIDMiddleware())
+	r.Use(ErrorLogMiddleware(svc))
+	r.Use(RecoveryMiddleware())
+	r.GET("/boom", func(c *gin.Context) {
+		ginutil.RespondErrorWithMsg(c, response.CodeBadRequest, "邮箱格式不正确", nil)
+	})
+
+	r.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/boom", nil))
+
+	svc.Stop()
+	logs := repo.all()
+	if len(logs) != 1 {
+		t.Fatalf("应记录 1 条，实际 %d 条", len(logs))
+	}
+	if logs[0].Message != "邮箱格式不正确" {
+		t.Fatalf("自定义文案应原样保留，实际 %q", logs[0].Message)
 	}
 }
 

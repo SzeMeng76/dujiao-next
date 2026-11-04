@@ -4,6 +4,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dujiao-next/internal/i18n"
 	"github.com/dujiao-next/internal/modules/errorlog/application"
 	"github.com/dujiao-next/internal/modules/errorlog/domain"
 	"github.com/dujiao-next/internal/platform/http/ginutil"
@@ -83,6 +84,16 @@ func buildEntry(c *gin.Context, status int) *domain.ErrorLog {
 			detail = c.Errors.String()
 		}
 	}
+	// 4xx 不挂 c.Errors（避免被 LoggerMiddleware 刷成 error 级别），
+	// 错误描述改由 ginutil 通过独立 key 透传：可能是 i18n key，也可能是直接文案。
+	// 5xx 已有 c.Errors 的真实错误，保留它，这里只做兜底。
+	if message == "" {
+		if v, exists := c.Get(ginutil.ServerErrorMessageKey); exists {
+			if raw, ok := v.(string); ok && raw != "" {
+				message = resolveErrorMessage(raw)
+			}
+		}
+	}
 	if message == "" {
 		message = "server error"
 	}
@@ -134,6 +145,19 @@ func buildEntry(c *gin.Context, status int) *domain.ErrorLog {
 		AdminID:    adminID,
 		CreatedAt:  time.Now(),
 	}
+}
+
+// resolveErrorMessage 把 ginutil 透传的错误描述还原成可读文案。
+//
+// 传进来的是 i18n key（如 error.guest_email_required）时用中文翻译，
+// 后台日志统一中文，方便按原因聚合；查不到（自定义文案，如 RespondErrorWithMsg
+// 传入的校验详情）就原样使用。
+func resolveErrorMessage(raw string) string {
+	msg := i18n.T(i18n.LocaleZH, raw)
+	if msg == raw {
+		return raw
+	}
+	return msg + " (" + raw + ")"
 }
 
 // truncate 截断超长字符串，防止写入超出列长度限制。

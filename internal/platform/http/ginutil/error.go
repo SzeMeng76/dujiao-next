@@ -39,9 +39,9 @@ func RespondError(c *gin.Context, code int, key string, err error) {
 			"error", err,
 		)
 	}
-	// 服务端错误挂到 gin.Context，供 ErrorLogMiddleware 落库。
-	// 仅 5xx：4xx 是预期内的客户端错误，不进入错误日志。
-	attachServerError(c, code, err)
+	// 错误信息挂到 gin.Context，供 ErrorLogMiddleware 落库。
+	// 这里传 i18n key 而不是翻译后的文案：后台按原因分组统计不受请求语言影响。
+	attachErrorContext(c, code, key, err)
 	response.Error(c, appErr.Code, appErr.Message)
 }
 
@@ -105,7 +105,8 @@ func RespondErrorWithMsg(c *gin.Context, code int, msg string, err error) {
 			"error", err,
 		)
 	}
-	attachServerError(c, code, err)
+	// 自定义消息直接作为错误日志的 message（调用方传的已是最终文案，没有 key 可查）。
+	attachErrorContext(c, code, msg, err)
 	response.Error(c, appErr.Code, appErr.Message)
 }
 
@@ -116,16 +117,26 @@ func RespondErrorWithMsg(c *gin.Context, code int, msg string, err error) {
 // 会漏掉全部业务错误，因此这里显式把业务码透传给 ErrorLogMiddleware。
 const ServerErrorStatusKey = "error_log_status_code"
 
-// attachServerError 把业务状态码与错误挂到 gin.Context 上，供 ErrorLogMiddleware 落库。
+// ServerErrorMessageKey 是塞进 gin.Context 的错误描述键名，供 ErrorLogMiddleware 落库。
+//
+// 为什么不复用 c.Errors：LoggerMiddleware 见到 c.Errors 非空就会打 error 级别日志，
+// 4xx 挂上去会把正常的用户输错刷成 error 日志，所以 4xx 不能走 c.Error()。
+// 这个独立键解决的是「4xx 没有 c.Errors 可读、message 只能兜底成 server error」的问题。
+const ServerErrorMessageKey = "error_log_message"
+
+// attachErrorContext 把业务状态码与错误描述挂到 gin.Context 上，供 ErrorLogMiddleware 落库。
 //
 // 状态码一律透传（含 4xx）：中间件需要它才能实现「可选收集 4xx」。
-// 但 c.Error(err) 只在 5xx 时调用 —— LoggerMiddleware 见到 c.Errors 非空就会打
-// error 级别日志，若 4xx 也挂上去，正常的用户输错会被刷成 error 日志。
-func attachServerError(c *gin.Context, code int, err error) {
+// message 传 i18n key（RespondError）或已确定的文案（RespondErrorWithMsg）。
+// c.Error(err) 仍只在 5xx 时调用。
+func attachErrorContext(c *gin.Context, code int, message string, err error) {
 	if c == nil {
 		return
 	}
 	c.Set(ServerErrorStatusKey, code)
+	if message != "" {
+		c.Set(ServerErrorMessageKey, message)
+	}
 	if code < response.CodeInternal {
 		return
 	}

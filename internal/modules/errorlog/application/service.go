@@ -40,8 +40,7 @@ type Service struct {
 	mu     sync.RWMutex
 	closed bool
 
-	collect4xx    bool
-	retentionDays int
+	collect4xx bool
 
 	flushSize     int
 	flushInterval time.Duration
