@@ -24,17 +24,18 @@ type UserDirectory interface {
 type AdminHandler struct {
 	service       *ticketapp.Service
 	users         UserDirectory
+	uploader      FileUploader
 	orderNos      OrderNoResolver
 	productTitles ProductTitleResolver
 }
 
 // NewAdminHandler 创建管理端工单 handler。
 // orderNos/productTitles 可为 nil，此时响应只带 ID，不补充订单号与商品名。
-func NewAdminHandler(service *ticketapp.Service, users UserDirectory, orderNos OrderNoResolver, productTitles ProductTitleResolver) *AdminHandler {
-	if service == nil || users == nil {
+func NewAdminHandler(service *ticketapp.Service, users UserDirectory, uploader FileUploader, orderNos OrderNoResolver, productTitles ProductTitleResolver) *AdminHandler {
+	if service == nil || users == nil || uploader == nil {
 		panic("ticket admin handler: required dependency is nil")
 	}
-	return &AdminHandler{service: service, users: users, orderNos: orderNos, productTitles: productTitles}
+	return &AdminHandler{service: service, users: users, uploader: uploader, orderNos: orderNos, productTitles: productTitles}
 }
 
 func fillTicketUserInfo(summary *ticketpresenter.TicketSummary, userMap map[uint]userdomain.User) {
@@ -125,8 +126,9 @@ func (h *AdminHandler) GetTicket(c *gin.Context) {
 
 // AdminReplyRequest 管理员回复工单请求体。
 type AdminReplyRequest struct {
-	Content string `json:"content" binding:"required"`
-	Close   bool   `json:"close"`
+	Content  string `json:"content" binding:"required"`
+	ImageURL string `json:"image_url"`
+	Close    bool   `json:"close"`
 }
 
 // ReplyTicket 管理员回复工单（close=true 时回复后直接关闭）。
@@ -147,13 +149,35 @@ func (h *AdminHandler) ReplyTicket(c *gin.Context) {
 		return
 	}
 
-	message, err := h.service.AdminReply(id, adminID, req.Content, req.Close)
+	message, err := h.service.AdminReply(id, adminID, req.Content, req.ImageURL, req.Close)
 	if err != nil {
 		respondTicketError(c, err, "error.ticket_reply_failed")
 		return
 	}
 
 	response.Success(c, ticketpresenter.NewTicketMessageResp(message))
+}
+
+// UploadImage 管理员回复工单时的图片上传。
+// 只落盘到 ticket 场景，不写入媒体库，工单删除时随消息一起清理。
+func (h *AdminHandler) UploadImage(c *gin.Context) {
+	file, err := c.FormFile("file")
+	if err != nil {
+		ginutil.RespondError(c, response.CodeBadRequest, "error.file_missing", nil)
+		return
+	}
+
+	result, err := h.uploader.SaveFileWithMeta(file, "ticket")
+	if err != nil {
+		if isUploadValidationError(err) {
+			ginutil.RespondErrorWithMsg(c, response.CodeBadRequest, err.Error(), nil)
+			return
+		}
+		ginutil.RespondError(c, response.CodeInternal, "error.upload_failed", err)
+		return
+	}
+
+	response.Success(c, gin.H{"url": result.URL})
 }
 
 // CloseTicket 管理员直接关闭工单。

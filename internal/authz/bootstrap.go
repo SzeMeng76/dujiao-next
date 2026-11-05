@@ -115,6 +115,7 @@ func BuiltinRoleSeeds() []RoleSeed {
 				{Object: "/admin/orders/:id/fulfillment/replace-secrets", Action: "POST"},
 				{Object: "/admin/tickets", Action: "GET"},
 				{Object: "/admin/tickets/badge", Action: "GET"},
+				{Object: "/admin/tickets/upload", Action: "POST"},
 				{Object: "/admin/tickets/:id", Action: "GET"},
 				{Object: "/admin/tickets/:id/reply", Action: "POST"},
 				{Object: "/admin/tickets/:id/close", Action: "POST"},

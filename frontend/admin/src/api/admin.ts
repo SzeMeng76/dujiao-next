@@ -494,7 +494,12 @@ export const adminAPI = {
   downloadFulfillment: (orderId: number) => api.get(`/admin/orders/${orderId}/fulfillment/download`, { blob: true }),
   getTickets: (params?: Record<string, unknown>) => api.get('/admin/tickets', { params }),
   getTicket: (id: number) => api.get(`/admin/tickets/${id}`),
-  replyTicket: (id: number, data: { content: string; close?: boolean }) => api.post(`/admin/tickets/${id}/reply`, data),
+  replyTicket: (id: number, data: { content: string; image_url?: string; close?: boolean }) => api.post(`/admin/tickets/${id}/reply`, data),
+  uploadTicketImage: (file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return api.post('/admin/tickets/upload', formData)
+  },
   closeTicket: (id: number) => api.post(`/admin/tickets/${id}/close`, {}),
   reopenTicket: (id: number) => api.post(`/admin/tickets/${id}/reopen`, {}),
   batchDeleteTickets: (ids: number[]) => api.post('/admin/tickets/batch-delete', { ids }),

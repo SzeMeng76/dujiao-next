@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { ImagePlus, Loader2 } from 'lucide-vue-next'
 import { useDebounceFn } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
@@ -161,11 +162,32 @@ const detail = ref<AdminTicket | null>(null)
 const replyContent = ref('')
 const replying = ref(false)
 const closing = ref(false)
+const replyImageUrl = ref('')
+const imageUploading = ref(false)
+const imageInput = ref<HTMLInputElement | null>(null)
+
+const onImageSelected = async (e: Event) => {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  imageUploading.value = true
+  try {
+    const res = await adminAPI.uploadTicketImage(file)
+    const url = res.data?.data?.url
+    if (url) replyImageUrl.value = url
+  } catch (err: any) {
+    notifyError(err?.response?.data?.msg || t('admin.tickets.uploadFailed'))
+  } finally {
+    imageUploading.value = false
+  }
+}
 
 const openDetail = async (ticket: AdminTicket) => {
   showDetail.value = true
   detailLoading.value = true
   replyContent.value = ''
+  replyImageUrl.value = ''
   try {
     const response = await adminAPI.getTicket(ticket.id)
     detail.value = response.data.data
@@ -191,9 +213,14 @@ const submitReply = async (closeAfter: boolean) => {
   }
   replying.value = true
   try {
-    await adminAPI.replyTicket(detail.value.id, { content, close: closeAfter })
+    await adminAPI.replyTicket(detail.value.id, {
+      content,
+      image_url: replyImageUrl.value || undefined,
+      close: closeAfter,
+    })
     notifySuccess(t('admin.tickets.replySuccess'))
     replyContent.value = ''
+    replyImageUrl.value = ''
     await openDetail(detail.value)
     fetchTickets(pagination.value.page)
   } catch (err: any) {
@@ -409,9 +436,36 @@ onMounted(() => {
 
           <div v-if="canReply" class="space-y-2">
             <Textarea v-model="replyContent" rows="4" :placeholder="t('admin.tickets.replyPlaceholder')" />
+            <div class="flex items-center gap-3">
+              <button
+                type="button"
+                class="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-dashed border-input bg-muted/40 transition-colors hover:border-primary/60 hover:bg-muted disabled:cursor-not-allowed"
+                :disabled="imageUploading"
+                @click="imageInput?.click()"
+              >
+                <img v-if="replyImageUrl" :src="replyImageUrl" alt="" class="h-full w-full object-cover" />
+                <Loader2 v-else-if="imageUploading" class="h-5 w-5 animate-spin text-muted-foreground" />
+                <ImagePlus v-else class="h-5 w-5 text-muted-foreground" />
+              </button>
+              <Button type="button" variant="outline" size="sm" :disabled="imageUploading" @click="imageInput?.click()">
+                {{ replyImageUrl ? t('admin.tickets.replaceImage') : t('admin.tickets.uploadImage') }}
+              </Button>
+              <Button
+                v-if="replyImageUrl"
+                type="button"
+                variant="ghost"
+                size="sm"
+                class="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                :disabled="imageUploading"
+                @click="replyImageUrl = ''"
+              >
+                {{ t('admin.tickets.removeImage') }}
+              </Button>
+              <input ref="imageInput" type="file" accept="image/*" class="hidden" @change="onImageSelected" />
+            </div>
             <div class="flex flex-wrap items-center gap-2">
-              <Button :disabled="replying" @click="submitReply(false)">{{ t('admin.tickets.reply') }}</Button>
-              <Button variant="outline" :disabled="replying" @click="submitReply(true)">{{ t('admin.tickets.replyAndClose') }}</Button>
+              <Button :disabled="replying || imageUploading" @click="submitReply(false)">{{ t('admin.tickets.reply') }}</Button>
+              <Button variant="outline" :disabled="replying || imageUploading" @click="submitReply(true)">{{ t('admin.tickets.replyAndClose') }}</Button>
               <Button variant="ghost" :disabled="closing" @click="closeTicket">{{ t('admin.tickets.closeOnly') }}</Button>
             </div>
           </div>

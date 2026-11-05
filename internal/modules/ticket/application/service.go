@@ -180,7 +180,7 @@ func (s *Service) UserReply(ticketID, userID uint, content, imageURL string) (*t
 }
 
 // AdminReply 管理员回复工单。close=true 时回复后直接关闭工单。
-func (s *Service) AdminReply(ticketID, adminID uint, content string, close bool) (*ticketdomain.TicketMessage, error) {
+func (s *Service) AdminReply(ticketID, adminID uint, content, imageURL string, close bool) (*ticketdomain.TicketMessage, error) {
 	content = strings.TrimSpace(content)
 	if content == "" {
 		return nil, ErrTicketContentEmpty
@@ -202,6 +202,7 @@ func (s *Service) AdminReply(ticketID, adminID uint, content string, close bool)
 		SenderType: ticketdomain.SenderAdmin,
 		SenderID:   adminID,
 		Content:    content,
+		ImageURL:   strings.TrimSpace(imageURL),
 	}
 	if err := s.store.AppendMessage(message); err != nil {
 		return nil, err

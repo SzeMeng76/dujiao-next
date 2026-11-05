@@ -171,6 +171,7 @@ func registerAdminRoutes(
 	tickettransport.RegisterAdminRoutes(authorized, tickettransport.NewAdminHandler(
 		c.TicketService,
 		c.UserStore,
+		c.UploadService,
 		ticketorderadapter.New(c.OrderStore),
 		ticketproductadapter.New(c.ProductRepo),
 	))
