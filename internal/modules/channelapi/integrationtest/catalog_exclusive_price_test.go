@@ -15,6 +15,7 @@ import (
 	channeltransport "github.com/dujiao-next/internal/modules/channelapi/transport/http"
 	externalidentitydomain "github.com/dujiao-next/internal/modules/identity/externalidentity/domain"
 	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
+	memberlevelapp "github.com/dujiao-next/internal/modules/memberlevel/application"
 	promotiondomain "github.com/dujiao-next/internal/modules/promotion/domain"
 	settingsapp "github.com/dujiao-next/internal/modules/settings/application"
 	settingsstore "github.com/dujiao-next/internal/modules/settings/infrastructure/gormstore"
@@ -48,6 +49,24 @@ func (l exclusiveLevels) ResolveUserPrice(userID, _, _ uint, base decimal.Decima
 		return price, true
 	}
 	return base, false
+}
+
+// LoadUserPriceBook 把测试用的专属价装进快照（商品级 + SKU 级）。
+func (l exclusiveLevels) LoadUserPriceBook(userID uint) (memberlevelapp.UserPriceBook, error) {
+	book := memberlevelapp.UserPriceBook{}
+	if userID == l.exclusiveUserID {
+		book["1:0"] = decimal.NewFromInt(95)
+		book["1:1"] = decimal.NewFromInt(95)
+	}
+	return book, nil
+}
+
+// ResolveCatalogPrice 复刻生产规则：专属价与会员价取更低者。
+func (l exclusiveLevels) ResolveCatalogPrice(book memberlevelapp.UserPriceBook, _, productID, skuID uint, base decimal.Decimal) (decimal.Decimal, bool, bool) {
+	if price, ok := book.Resolve(productID, skuID, base); ok {
+		return price, true, true
+	}
+	return base, false, false
 }
 
 type fixedPromotion struct{}

@@ -13,6 +13,7 @@ import (
 	"github.com/dujiao-next/internal/constants"
 	"github.com/dujiao-next/internal/logger"
 	domaincatalog "github.com/dujiao-next/internal/modules/catalog"
+	memberlevelapp "github.com/dujiao-next/internal/modules/memberlevel/application"
 	promotioncontract "github.com/dujiao-next/internal/modules/promotion/contract"
 	"github.com/dujiao-next/internal/platform/http/ginutil"
 	"github.com/dujiao-next/internal/shared/jsonmap"
@@ -104,20 +105,17 @@ type channelWholesalePrice struct {
 	UnitPrice   string `json:"unit_price"`
 }
 
-// resolveChannelMemberPrice 解析渠道目录展示的会员价，口径与下单一致：用户专属价优先，其次会员等级价。
-// 第三个返回值表示命中的是用户专属一口价；一口价不与活动价叠加，调用方应隐藏活动价。
-func (h *Handler) resolveChannelMemberPrice(userID, memberLevelID, productID, skuID uint, base decimal.Decimal) (decimal.Decimal, bool, bool) {
-	if userID > 0 {
-		if price, hit := h.MemberLevelService.ResolveUserPrice(userID, productID, skuID, base); hit {
-			return price, true, true
-		}
+// loadChannelPriceBook 读一次渠道用户的专属价快照；失败按"没有专属价"处理。
+func (h *Handler) loadChannelPriceBook(userID uint) memberlevelapp.UserPriceBook {
+	if h.MemberLevelService == nil || userID == 0 {
+		return memberlevelapp.UserPriceBook{}
 	}
-	if memberLevelID > 0 {
-		if price, _ := h.MemberLevelService.ResolveMemberPrice(memberLevelID, productID, skuID, base); price.LessThan(base) {
-			return price, true, false
-		}
+	book, err := h.MemberLevelService.LoadUserPriceBook(userID)
+	if err != nil {
+		logger.Warnw("channel_catalog_load_user_price_book_failed", "user_id", userID, "error", err)
+		return memberlevelapp.UserPriceBook{}
 	}
-	return base, false, false
+	return book
 }
 
 func normalizeChannelWholesalePrices(tiers productdomain.WholesalePriceTiers) []channelWholesalePrice {
@@ -186,6 +184,8 @@ func (h *Handler) GetProducts(c *gin.Context) {
 			userID, memberLevelID = user.ID, user.MemberLevelID
 		}
 	}
+	// 专属价整页读一次，避免每个 SKU 都查库。
+	priceBook := h.loadChannelPriceBook(userID)
 
 	type productItem struct {
 		ID                  uint                    `json:"id"`
@@ -253,7 +253,7 @@ func (h *Handler) GetProducts(c *gin.Context) {
 		// 计算会员价
 		exclusive := false
 		if (userID > 0 || memberLevelID > 0) && h.MemberLevelService != nil {
-			memberPrice, hit, isExclusive := h.resolveChannelMemberPrice(userID, memberLevelID, p.ID, 0, p.PriceAmount.Decimal)
+			memberPrice, hit, isExclusive := h.MemberLevelService.ResolveCatalogPrice(priceBook, memberLevelID, p.ID, 0, p.PriceAmount.Decimal)
 			if hit && memberPrice.LessThan(p.PriceAmount.Decimal) {
 				item.MemberPriceFrom = money.FromDecimal(memberPrice).String()
 				exclusive = isExclusive
@@ -354,6 +354,8 @@ func (h *Handler) GetProductDetail(c *gin.Context) {
 			userID, memberLevelID = user.ID, user.MemberLevelID
 		}
 	}
+	// 专属价整页读一次，避免每个 SKU 都查库。
+	priceBook := h.loadChannelPriceBook(userID)
 
 	type skuItem struct {
 		ID                  uint   `json:"id"`
@@ -375,7 +377,7 @@ func (h *Handler) GetProductDetail(c *gin.Context) {
 	var memberPriceFrom string
 	productExclusive := false
 	if (userID > 0 || memberLevelID > 0) && h.MemberLevelService != nil {
-		mp, hit, isExclusive := h.resolveChannelMemberPrice(userID, memberLevelID, product.ID, 0, product.PriceAmount.Decimal)
+		mp, hit, isExclusive := h.MemberLevelService.ResolveCatalogPrice(priceBook, memberLevelID, product.ID, 0, product.PriceAmount.Decimal)
 		if hit && mp.LessThan(product.PriceAmount.Decimal) {
 			memberPriceFrom = money.FromDecimal(mp).String()
 			productExclusive = isExclusive
@@ -420,7 +422,7 @@ func (h *Handler) GetProductDetail(c *gin.Context) {
 		}
 		skuExclusive := false
 		if (userID > 0 || memberLevelID > 0) && h.MemberLevelService != nil {
-			memberPrice, hit, isExclusive := h.resolveChannelMemberPrice(userID, memberLevelID, product.ID, sku.ID, sku.PriceAmount.Decimal)
+			memberPrice, hit, isExclusive := h.MemberLevelService.ResolveCatalogPrice(priceBook, memberLevelID, product.ID, sku.ID, sku.PriceAmount.Decimal)
 			if hit && memberPrice.LessThan(sku.PriceAmount.Decimal) {
 				si.MemberPrice = money.FromDecimal(memberPrice).String()
 				skuExclusive = isExclusive
