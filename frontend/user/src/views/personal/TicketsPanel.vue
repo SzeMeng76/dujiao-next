@@ -296,7 +296,18 @@
             <span class="font-semibold">{{ message.sender_type === 'admin' ? t('tickets.senderAdmin') : t('tickets.senderUser') }}</span>
             <span>{{ formatDate(message.created_at) }}</span>
           </div>
-          <p class="whitespace-pre-wrap break-words text-sm text-foreground">{{ message.content }}</p>
+          <p class="whitespace-pre-wrap break-words text-sm text-foreground">
+            <template v-for="(segment, index) in splitTextLinks(message.content)" :key="index">
+              <a
+                v-if="segment.type === 'link'"
+                :href="segment.href"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="break-all text-primary underline underline-offset-2 hover:opacity-80"
+              >{{ segment.value }}</a>
+              <template v-else>{{ segment.value }}</template>
+            </template>
+          </p>
           <img v-if="message.image_url" :src="message.image_url" class="mt-2 max-h-56 rounded-lg border" />
         </div>
       </div>
@@ -386,6 +397,7 @@ import type { Ticket } from '../../api/types'
 import type { BadgeTone } from '../../utils/status'
 import { getLocalizedText } from '../../utils/resellerSiteConfig'
 import { getImageUrl } from '../../utils/image'
+import { splitTextLinks } from '../../utils/linkify'
 import { useAppStore } from '../../stores/app'
 import { debounceAsync } from '../../utils/debounce'
 import { Badge } from '@/components/ui/badge'

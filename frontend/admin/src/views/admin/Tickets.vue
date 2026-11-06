@@ -17,6 +17,7 @@ import ListPagination from '@/components/ListPagination.vue'
 import { useListRefresh } from '@/composables/useListRefresh'
 import { useAdminAuthStore } from '@/stores/auth'
 import { formatDate, getLocalizedText } from '@/utils/format'
+import { splitTextLinks } from '@/utils/linkify'
 import { notifyError, notifySuccess } from '@/utils/notify'
 import { confirmAction } from '@/utils/confirm'
 
@@ -429,7 +430,18 @@ onMounted(() => {
                 <span class="font-semibold">{{ senderLabel(message.sender_type) }}</span>
                 <span>{{ formatDate(message.created_at) }}</span>
               </div>
-              <p class="whitespace-pre-wrap break-words text-sm">{{ message.content }}</p>
+              <p class="whitespace-pre-wrap break-words text-sm">
+                <template v-for="(segment, index) in splitTextLinks(message.content)" :key="index">
+                  <a
+                    v-if="segment.type === 'link'"
+                    :href="segment.href"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="break-all text-primary underline underline-offset-2 hover:opacity-80"
+                  >{{ segment.value }}</a>
+                  <template v-else>{{ segment.value }}</template>
+                </template>
+              </p>
               <img v-if="message.image_url" :src="message.image_url" class="mt-2 max-h-48 rounded border border-border" />
             </div>
           </div>
