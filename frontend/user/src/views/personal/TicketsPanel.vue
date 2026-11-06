@@ -296,7 +296,7 @@
             <span class="font-semibold">{{ message.sender_type === 'admin' ? t('tickets.senderAdmin') : t('tickets.senderUser') }}</span>
             <span>{{ formatDate(message.created_at) }}</span>
           </div>
-          <p class="whitespace-pre-wrap text-sm text-foreground">{{ message.content }}</p>
+          <p class="whitespace-pre-wrap break-words text-sm text-foreground">{{ message.content }}</p>
           <img v-if="message.image_url" :src="message.image_url" class="mt-2 max-h-56 rounded-lg border" />
         </div>
       </div>

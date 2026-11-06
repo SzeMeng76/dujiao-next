@@ -429,7 +429,7 @@ onMounted(() => {
                 <span class="font-semibold">{{ senderLabel(message.sender_type) }}</span>
                 <span>{{ formatDate(message.created_at) }}</span>
               </div>
-              <p class="whitespace-pre-wrap text-sm">{{ message.content }}</p>
+              <p class="whitespace-pre-wrap break-words text-sm">{{ message.content }}</p>
               <img v-if="message.image_url" :src="message.image_url" class="mt-2 max-h-48 rounded border border-border" />
             </div>
           </div>
