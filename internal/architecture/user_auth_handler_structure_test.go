@@ -185,10 +185,10 @@ func TestUserProfileHTTPLivesInTransport(t *testing.T) {
 		"NewUserPasswordHandler", "UserForgotPassword", "ChangeUserPassword", "NewWeakPasswordError", "respondWeakPassword",
 	})
 	assertFileDeclaresTypes(t, filepath.Join(transportRoot, "user_upgrade_handler.go"), []string{
-		"UserUpgradeService", "UserUpgradeHandler", "UpgradePlaceholderAccountRequest",
+		"UserUpgradeService", "UserUpgradeHandler", "UpgradePlaceholderSendCodeRequest", "UpgradePlaceholderAccountRequest",
 	})
 	assertFileDeclaresFunctions(t, filepath.Join(transportRoot, "user_upgrade_handler.go"), []string{
-		"NewUserUpgradeHandler", "UpgradePlaceholderAccount", "upgradeProfileResponse",
+		"NewUserUpgradeHandler", "SendUpgradePlaceholderCode", "UpgradePlaceholderAccount", "upgradeProfileResponse",
 	})
 	assertFileDeclaresTypes(t, filepath.Join(transportRoot, "user_verify_handler.go"), []string{
 		"UserVerifySettings", "UserVerifyAuth", "UserVerifyHandler", "UserSendVerifyCodeRequest", "CaptchaVerifier",

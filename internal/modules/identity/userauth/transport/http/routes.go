@@ -93,6 +93,7 @@ func RegisterUserUpgradeRoutes(user gin.IRoutes, handler *UserUpgradeHandler) {
 	if user == nil || handler == nil {
 		panic("user upgrade routes: required dependency is nil")
 	}
+	user.POST("/me/upgrade-placeholder/send-code", handler.SendUpgradePlaceholderCode)
 	user.POST("/me/upgrade-placeholder", handler.UpgradePlaceholderAccount)
 }
 

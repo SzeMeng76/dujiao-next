@@ -305,6 +305,43 @@ func (s *Service) ensureTelegramVirtualEmailState(user *userdomain.User) error {
 	return s.userRepo.Update(user)
 }
 
+// SendUpgradePlaceholderCode 向占位账号想要升级成的邮箱发送验证码。
+// 只允许登录态的占位账号调用，并拒绝已被占用的邮箱；
+// 公开的 SendVerifyCode 不接受该用途，否则未登录者可借此向任意邮箱发信。
+func (s *Service) SendUpgradePlaceholderCode(ctx context.Context, userID uint, newEmail, locale string) error {
+	if s.emailService == nil {
+		return ErrEmailServiceNotConfigured
+	}
+	if userID == 0 {
+		return ErrNotFound
+	}
+	user, err := s.userRepo.GetByID(userID)
+	if err != nil {
+		return err
+	}
+	if user == nil {
+		return ErrNotFound
+	}
+	if !telegramidentity.IsPlaceholderEmail(user.Email) {
+		return ErrUserOAuthAlreadyBound
+	}
+	normalized, err := normalizeUserSuppliedEmail(newEmail)
+	if err != nil {
+		return err
+	}
+	exist, err := s.userRepo.GetByEmail(normalized)
+	if err != nil {
+		return err
+	}
+	if exist != nil && exist.ID != user.ID {
+		return ErrEmailExists
+	}
+	if strings.TrimSpace(user.Locale) != "" {
+		locale = user.Locale
+	}
+	return s.sendVerifyCode(ctx, normalized, constants.VerifyPurposeUpgradePlaceholder, locale)
+}
+
 // UpgradePlaceholderAccount 将占位账号（@login.local）升级为真实邮箱账号
 func (s *Service) UpgradePlaceholderAccount(userID uint, newEmail, code, password string) (*userdomain.User, error) {
 	if userID == 0 {

@@ -274,16 +274,6 @@ func (s *Service) SendVerifyCode(ctx context.Context, email, purpose, locale, in
 		}
 	}
 
-	if purpose == constants.VerifyPurposeUpgradePlaceholder {
-		exist, err := s.userRepo.GetByEmail(normalized)
-		if err != nil {
-			return err
-		}
-		if exist != nil {
-			return ErrEmailExists
-		}
-	}
-
 	return s.sendVerifyCode(ctx, normalized, purpose, locale)
 }
 
@@ -629,11 +619,12 @@ func NormalizeEmail(email string) (string, error) {
 }
 
 // isVerifyPurposeSupported 判断公开发信入口（SendVerifyCode）是否接受该用途。
-// change_email_old / change_email_new 不在其中：它们只能由登录态的 SendChangeEmailCode
-// 在校验用户身份、换绑模式和新邮箱占用后发送，公开入口接受会让未登录者向任意邮箱发信。
+// change_email_old / change_email_new / upgrade_placeholder 不在其中：它们只能由登录态的
+// SendChangeEmailCode / SendUpgradePlaceholderCode 在校验用户身份和目标邮箱后发送，
+// 公开入口接受会让未登录者向任意邮箱发信。
 func isVerifyPurposeSupported(purpose string) bool {
 	switch strings.ToLower(strings.TrimSpace(purpose)) {
-	case constants.VerifyPurposeRegister, constants.VerifyPurposeReset, constants.VerifyPurposeTelegramBind, constants.VerifyPurposeUpgradePlaceholder:
+	case constants.VerifyPurposeRegister, constants.VerifyPurposeReset, constants.VerifyPurposeTelegramBind:
 		return true
 	default:
 		return false

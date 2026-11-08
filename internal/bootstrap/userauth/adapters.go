@@ -83,6 +83,10 @@ type userUpgradeTransportAdapter struct {
 	service *userauthapp.Service
 }
 
+func (a userUpgradeTransportAdapter) SendUpgradePlaceholderCode(ctx context.Context, userID uint, newEmail, locale string) error {
+	return mapUserAuthTransportError(a.service.SendUpgradePlaceholderCode(ctx, userID, newEmail, locale))
+}
+
 func (a userUpgradeTransportAdapter) UpgradePlaceholderAccount(userID uint, newEmail, code, password string) (*userdomain.User, error) {
 	user, err := a.service.UpgradePlaceholderAccount(userID, newEmail, code, password)
 	return user, mapUserAuthTransportError(err)
