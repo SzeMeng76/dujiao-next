@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onBeforeUnmount } from 'vue'
+import { computed, ref, watch, onBeforeUnmount } from 'vue'
 import { useEditor, EditorContent, VueNodeViewRenderer } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import Image from '@tiptap/extension-image'
@@ -17,6 +17,12 @@ import { getImageUrl } from '@/utils/image'
 import { processHtmlForDisplay, processHtmlForStorage } from '@/utils/content'
 import { useI18n } from 'vue-i18n'
 import TiptapImage from './TiptapImage.vue'
+import { Video } from './tiptapVideo'
+import { Embed } from './tiptapEmbed'
+import { resolveVideoUrl } from '@/utils/videoEmbed'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Dialog, DialogScrollContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 const props = defineProps<{
   modelValue: string
@@ -51,6 +57,49 @@ const handleMediaSelected = (value: string | string[]) => {
 const { t } = useI18n()
 const showColorPicker = ref(false)
 const currentColor = ref('#0f766e')
+
+// ── 视频插入 ──
+const showVideoDialog = ref(false)
+const videoSrc = ref('')
+const videoPoster = ref('')
+const videoPickerRef = ref<InstanceType<typeof MediaPicker> | null>(null)
+
+const openVideoDialog = () => {
+  videoSrc.value = ''
+  videoPoster.value = ''
+  showVideoDialog.value = true
+}
+
+const openPosterPicker = () => {
+  videoPickerRef.value?.openPicker()
+}
+
+const handlePosterSelected = (value: string | string[]) => {
+  videoPoster.value = Array.isArray(value) ? (value[0] || '') : value
+}
+
+const resolvedVideo = computed(() => resolveVideoUrl(videoSrc.value))
+
+const insertVideo = () => {
+  const resolved = resolvedVideo.value
+  if (!resolved || !editor.value) return
+
+  if (resolved.kind === 'embed') {
+    editor.value.chain().focus().insertContent({
+      type: 'embed',
+      attrs: { src: resolved.url },
+    }).run()
+  } else {
+    editor.value.chain().focus().insertContent({
+      type: 'video',
+      attrs: {
+        src: resolved.url,
+        poster: videoPoster.value.trim() || null,
+      },
+    }).run()
+  }
+  showVideoDialog.value = false
+}
 
 const presetColors = [
   '#ffffff',
@@ -116,6 +165,8 @@ const editor = useEditor({
     TableRow,
     TableHeader,
     TableCell,
+    Video,
+    Embed,
   ],
   editorProps: {
     attributes: {
@@ -272,6 +323,12 @@ onBeforeUnmount(() => {
       </button>
       <MediaPicker ref="mediaPickerRef" :model-value="mediaPickerValue" :multiple="true" scene="editor" dialog-only @update:model-value="handleMediaSelected" />
 
+      <button type="button" class="toolbar-btn" :title="t('admin.richEditor.insertVideo')" @click="openVideoDialog">
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" />
+        </svg>
+      </button>
+
       <div class="relative color-picker-container">
         <button type="button" class="toolbar-btn" :title="t('admin.richEditor.textColor')" @click="showColorPicker = !showColorPicker">
           <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
@@ -381,6 +438,72 @@ onBeforeUnmount(() => {
       @input="handleSourceInput"
     ></textarea>
     <editor-content v-show="!isSourceMode" :editor="editor" class="editor-content" />
+
+    <!-- ═══ 插入视频 ═══ -->
+    <Dialog v-model:open="showVideoDialog">
+      <DialogScrollContent class="w-[calc(100vw-1rem)] max-w-lg">
+        <DialogHeader>
+          <DialogTitle class="text-base">{{ t('admin.richEditor.insertVideo') }}</DialogTitle>
+        </DialogHeader>
+
+        <div class="mt-4 space-y-4">
+          <div>
+            <label class="mb-1.5 block text-xs font-medium text-muted-foreground">{{ t('admin.richEditor.videoSrc') }}</label>
+            <Input v-model="videoSrc" :placeholder="t('admin.richEditor.videoSrcPlaceholder')" />
+            <p v-if="videoSrc.trim() && !resolvedVideo" class="mt-1 text-xs text-destructive">{{ t('admin.richEditor.videoUnsupported') }}</p>
+            <p v-else-if="resolvedVideo?.kind === 'embed'" class="mt-1 text-xs text-muted-foreground">
+              {{ t('admin.richEditor.videoDetectedEmbed', { provider: resolvedVideo.provider }) }}
+            </p>
+            <p v-else class="mt-1 text-xs text-muted-foreground">{{ t('admin.richEditor.videoSrcTip') }}</p>
+          </div>
+
+          <div v-if="resolvedVideo?.kind === 'file'">
+            <label class="mb-1.5 block text-xs font-medium text-muted-foreground">{{ t('admin.richEditor.videoPoster') }}</label>
+            <div class="flex items-center gap-2">
+              <Input v-model="videoPoster" :placeholder="t('admin.richEditor.videoPosterPlaceholder')" />
+              <Button type="button" variant="outline" class="shrink-0" @click="openPosterPicker">
+                {{ t('admin.richEditor.videoPosterSelect') }}
+              </Button>
+            </div>
+            <p class="mt-1 text-xs text-muted-foreground">{{ t('admin.richEditor.videoPosterTip') }}</p>
+          </div>
+
+          <div v-if="resolvedVideo" class="rounded-lg border border-border bg-muted/30 p-3">
+            <video
+              v-if="resolvedVideo.kind === 'file'"
+              :src="resolvedVideo.url"
+              :poster="videoPoster || undefined"
+              controls
+              playsinline
+              preload="metadata"
+              class="max-h-56 w-full rounded"
+            />
+            <iframe
+              v-else
+              :src="resolvedVideo.url"
+              frameborder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowfullscreen
+              referrerpolicy="strict-origin-when-cross-origin"
+              class="aspect-video w-full rounded"
+            ></iframe>
+          </div>
+        </div>
+
+        <div class="mt-5 flex justify-end gap-2 border-t border-border pt-4">
+          <Button variant="outline" @click="showVideoDialog = false">{{ t('admin.common.cancel') }}</Button>
+          <Button :disabled="!resolvedVideo" @click="insertVideo">{{ t('admin.richEditor.videoInsert') }}</Button>
+        </div>
+      </DialogScrollContent>
+    </Dialog>
+
+    <MediaPicker
+      ref="videoPickerRef"
+      :model-value="videoPoster"
+      scene="editor"
+      dialog-only
+      @update:model-value="handlePosterSelected"
+    />
   </div>
 </template>
 

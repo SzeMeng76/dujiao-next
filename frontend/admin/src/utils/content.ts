@@ -3,8 +3,8 @@ import { getImageUrl } from './image'
 export function processHtmlForDisplay(html: string): string {
   if (!html) return ''
 
-  return html.replace(/src=["'](\/uploads\/.*?)["']/g, (_, path) => {
-    return `src="${getImageUrl(path)}"`
+  return html.replace(/\b(src|poster)=["'](\/uploads\/.*?)["']/g, (_, attr, path) => {
+    return `${attr}="${getImageUrl(path)}"`
   })
 }
 
@@ -23,12 +23,12 @@ export function processHtmlForStorage(html: string): string {
     apiHost = window.location.host
   }
 
-  return html.replace(/src=["'](.*?)["']/g, (match, src) => {
+  return html.replace(/\b(src|poster)=["'](.*?)["']/g, (match, attr, src) => {
     try {
       if (src.startsWith('http://') || src.startsWith('https://')) {
         const url = new URL(src)
         if (url.host === apiHost && url.pathname.startsWith('/uploads/')) {
-          return `src="${url.pathname}"`
+          return `${attr}="${url.pathname}"`
         }
       }
     } catch (e) {
