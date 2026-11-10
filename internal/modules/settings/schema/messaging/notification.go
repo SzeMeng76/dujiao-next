@@ -87,6 +87,7 @@ type NotificationSceneSetting struct {
 	RestockSuccess           bool `json:"restock_success"`
 	ExceptionAlert           bool `json:"exception_alert"`
 	TicketMessage            bool `json:"ticket_message"`
+	WithdrawRequestSubmitted bool `json:"withdraw_request_submitted"`
 }
 
 // NotificationLocalizedTemplate 通知多语言模板
@@ -110,6 +111,7 @@ type NotificationTemplatesSetting struct {
 	RestockSuccess           NotificationSceneTemplate `json:"restock_success"`
 	ExceptionAlert           NotificationSceneTemplate `json:"exception_alert"`
 	TicketMessage            NotificationSceneTemplate `json:"ticket_message"`
+	WithdrawRequestSubmitted NotificationSceneTemplate `json:"withdraw_request_submitted"`
 }
 
 // NotificationCenterSetting 通知中心配置
@@ -175,6 +177,7 @@ type NotificationScenePatch struct {
 	RestockSuccess           *bool `json:"restock_success"`
 	ExceptionAlert           *bool `json:"exception_alert"`
 	TicketMessage            *bool `json:"ticket_message"`
+	WithdrawRequestSubmitted *bool `json:"withdraw_request_submitted"`
 }
 
 // NotificationTemplatesPatch 通知模板补丁
@@ -185,6 +188,7 @@ type NotificationTemplatesPatch struct {
 	RestockSuccess           *NotificationSceneTemplatePatch `json:"restock_success"`
 	ExceptionAlert           *NotificationSceneTemplatePatch `json:"exception_alert"`
 	TicketMessage            *NotificationSceneTemplatePatch `json:"ticket_message"`
+	WithdrawRequestSubmitted *NotificationSceneTemplatePatch `json:"withdraw_request_submitted"`
 }
 
 // NotificationSceneTemplatePatch 单场景模板补丁
@@ -226,6 +230,7 @@ func NotificationCenterDefaultSetting() NotificationCenterSetting {
 			RestockSuccess:           true,
 			ExceptionAlert:           true,
 			TicketMessage:            true,
+			WithdrawRequestSubmitted: true,
 		},
 		Templates: NotificationTemplatesSetting{
 			WalletRechargeSuccess: NotificationSceneTemplate{
@@ -310,6 +315,20 @@ func NotificationCenterDefaultSetting() NotificationCenterSetting {
 				ENUS: NotificationLocalizedTemplate{
 					Title: "Ticket Update: {{ticket_no}}",
 					Body:  "Ticket No: {{ticket_no}}\nTitle: {{ticket_title}}\nPriority: {{ticket_priority}}\nFrom: {{sender_label}}\nMessage: {{content_excerpt}}",
+				},
+			},
+			WithdrawRequestSubmitted: NotificationSceneTemplate{
+				ZHCN: NotificationLocalizedTemplate{
+					Title: "💰 {{withdraw_scope}}提现申请待审核",
+					Body:  "申请类型：{{withdraw_scope}}\n申请单号：#{{withdraw_id}}\n申请人：{{applicant_label}}\n提现金额：{{amount}} {{currency}}\n提现渠道：{{channel}}\n收款账号：{{account}}",
+				},
+				ZHTW: NotificationLocalizedTemplate{
+					Title: "💰 {{withdraw_scope}}提現申請待審核",
+					Body:  "申請類型：{{withdraw_scope}}\n申請單號：#{{withdraw_id}}\n申請人：{{applicant_label}}\n提現金額：{{amount}} {{currency}}\n提現渠道：{{channel}}\n收款帳號：{{account}}",
+				},
+				ENUS: NotificationLocalizedTemplate{
+					Title: "💰 {{withdraw_scope}} withdrawal awaiting review",
+					Body:  "Type: {{withdraw_scope}}\nRequest: #{{withdraw_id}}\nApplicant: {{applicant_label}}\nAmount: {{amount}} {{currency}}\nChannel: {{channel}}\nAccount: {{account}}",
 				},
 			},
 		},
@@ -437,6 +456,7 @@ func NotificationCenterSettingToMap(setting NotificationCenterSetting) map[strin
 			"restock_success":            normalized.Scenes.RestockSuccess,
 			"exception_alert":            normalized.Scenes.ExceptionAlert,
 			"ticket_message":             normalized.Scenes.TicketMessage,
+			"withdraw_request_submitted": normalized.Scenes.WithdrawRequestSubmitted,
 		},
 		"templates": map[string]interface{}{
 			"wallet_recharge_success":    notificationSceneTemplateToMap(normalized.Templates.WalletRechargeSuccess),
@@ -445,6 +465,7 @@ func NotificationCenterSettingToMap(setting NotificationCenterSetting) map[strin
 			"restock_success":            notificationSceneTemplateToMap(normalized.Templates.RestockSuccess),
 			"exception_alert":            notificationSceneTemplateToMap(normalized.Templates.ExceptionAlert),
 			"ticket_message":             notificationSceneTemplateToMap(normalized.Templates.TicketMessage),
+			"withdraw_request_submitted": notificationSceneTemplateToMap(normalized.Templates.WithdrawRequestSubmitted),
 		},
 		"dedupe_ttl_seconds":                         normalized.DedupeTTLSeconds,
 		"inventory_alert_interval_seconds":           normalized.InventoryAlertIntervalSeconds,
@@ -556,6 +577,9 @@ func ApplyNotificationCenterSettingPatch(current NotificationCenterSetting, patc
 		if patch.Scenes.TicketMessage != nil {
 			next.Scenes.TicketMessage = *patch.Scenes.TicketMessage
 		}
+		if patch.Scenes.WithdrawRequestSubmitted != nil {
+			next.Scenes.WithdrawRequestSubmitted = *patch.Scenes.WithdrawRequestSubmitted
+		}
 	}
 	if patch.Templates != nil {
 		if patch.Templates.WalletRechargeSuccess != nil {
@@ -575,6 +599,9 @@ func ApplyNotificationCenterSettingPatch(current NotificationCenterSetting, patc
 		}
 		if patch.Templates.TicketMessage != nil {
 			applyNotificationSceneTemplatePatch(&next.Templates.TicketMessage, patch.Templates.TicketMessage)
+		}
+		if patch.Templates.WithdrawRequestSubmitted != nil {
+			applyNotificationSceneTemplatePatch(&next.Templates.WithdrawRequestSubmitted, patch.Templates.WithdrawRequestSubmitted)
 		}
 	}
 
@@ -600,6 +627,8 @@ func (s NotificationSceneSetting) IsSceneEnabled(eventType string) bool {
 		return s.ExceptionAlert
 	case constants.NotificationEventTicketMessage:
 		return s.TicketMessage
+	case constants.NotificationEventWithdrawRequestSubmitted:
+		return s.WithdrawRequestSubmitted
 	default:
 		return false
 	}
@@ -620,6 +649,8 @@ func (s NotificationTemplatesSetting) TemplateByEvent(eventType string) Notifica
 		return s.ExceptionAlert
 	case constants.NotificationEventTicketMessage:
 		return s.TicketMessage
+	case constants.NotificationEventWithdrawRequestSubmitted:
+		return s.WithdrawRequestSubmitted
 	default:
 		return s.ExceptionAlert
 	}

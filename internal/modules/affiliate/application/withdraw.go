@@ -135,7 +135,29 @@ func (s *Service) ApplyWithdraw(userID uint, input WithdrawApplyInput) (*affilia
 	if err != nil {
 		return nil, err
 	}
-	return s.repo.GetWithdrawByID(createdID)
+	// 事务已提交，此时才发通知：SQLite 单连接下不能在事务闭包内做其它查询/外部调用。
+	row, err := s.repo.GetWithdrawByID(createdID)
+	if err != nil {
+		return nil, err
+	}
+	s.notifyWithdrawSubmitted(row, userID)
+	return row, nil
+}
+
+// notifyWithdrawSubmitted 投递提现申请通知；通知失败不影响提现结果。
+func (s *Service) notifyWithdrawSubmitted(row *affiliatedomain.WithdrawRequest, userID uint) {
+	if s == nil || s.notifier == nil || row == nil {
+		return
+	}
+	s.notifier.NotifyWithdrawSubmitted(
+		ScopeAffiliate,
+		row.ID,
+		userID,
+		row.Amount.Decimal.Round(2).StringFixed(2),
+		"",
+		row.Channel,
+		row.Account,
+	)
 }
 
 // ReviewWithdraw 管理端审核提现申请

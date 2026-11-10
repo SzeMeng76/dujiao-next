@@ -75,6 +75,7 @@ const notificationData = reactive({
     restock_success: true,
     exception_alert: true,
     ticket_message: true,
+    withdraw_request_submitted: true,
   },
   templates: {
     wallet_recharge_success: createNotificationSceneTemplate(),
@@ -83,6 +84,7 @@ const notificationData = reactive({
     restock_success: createNotificationSceneTemplate(),
     exception_alert: createNotificationSceneTemplate(),
     ticket_message: createNotificationSceneTemplate(),
+    withdraw_request_submitted: createNotificationSceneTemplate(),
   },
   restock_broadcast: {
     chat_id: '',
@@ -166,6 +168,7 @@ const testScenes = computed(() => [
   { value: 'restock_success', label: t('admin.settings.notification.scenes.restockSuccess') },
   { value: 'exception_alert', label: t('admin.settings.notification.scenes.exceptionAlert') },
   { value: 'ticket_message', label: t('admin.settings.notification.scenes.ticketMessage') },
+  { value: 'withdraw_request_submitted', label: t('admin.settings.notification.scenes.withdrawRequestSubmitted') },
 ])
 
 const syncTestTarget = (force = false) => {
@@ -213,6 +216,7 @@ const fetchSettings = async () => {
     notificationData.scenes.restock_success = !!notifScenes?.restock_success
     notificationData.scenes.exception_alert = !!notifScenes?.exception_alert
     notificationData.scenes.ticket_message = !!notifScenes?.ticket_message
+    notificationData.scenes.withdraw_request_submitted = !!notifScenes?.withdraw_request_submitted
 
     const notifTemplates = notification.templates as Record<string, unknown> | undefined
     notificationData.templates.wallet_recharge_success = normalizeNotificationSceneTemplate(notifTemplates?.wallet_recharge_success)
@@ -221,6 +225,7 @@ const fetchSettings = async () => {
     notificationData.templates.restock_success = normalizeNotificationSceneTemplate(notifTemplates?.restock_success)
     notificationData.templates.exception_alert = normalizeNotificationSceneTemplate(notifTemplates?.exception_alert)
     notificationData.templates.ticket_message = normalizeNotificationSceneTemplate(notifTemplates?.ticket_message)
+    notificationData.templates.withdraw_request_submitted = normalizeNotificationSceneTemplate(notifTemplates?.withdraw_request_submitted)
 
     const notifRestockBroadcast = notification.restock_broadcast as Record<string, unknown> | undefined
     notificationData.restock_broadcast.chat_id = String(notifRestockBroadcast?.chat_id || '')
@@ -295,6 +300,7 @@ const notificationSceneLabel = (value: string) => {
     restock_success: 'admin.settings.notification.scenes.restockSuccess',
     exception_alert: 'admin.settings.notification.scenes.exceptionAlert',
     ticket_message: 'admin.settings.notification.scenes.ticketMessage',
+    withdraw_request_submitted: 'admin.settings.notification.scenes.withdrawRequestSubmitted',
   }
   const key = keyMap[value]
   if (!key) return value || '-'

@@ -3691,6 +3691,7 @@ const messages = {
             restockSuccess: '商品补货通知',
             exceptionAlert: '异常告警通知',
             ticketMessage: '工单提醒通知',
+            withdrawRequestSubmitted: '提现申请待审核通知',
             exceptionThresholdHint: '异常告警阈值沿用“仪表盘规则”：低库存阈值、缺货商品阈值、待支付订单阈值、支付失败阈值。库存告警、通知巡检中的待支付和支付失败告警使用上方独立频率设置。',
           },
           restockBroadcast: {
@@ -3703,7 +3704,7 @@ const messages = {
             title: '模板配置（按当前语言编辑）',
             titlePlaceholder: '通知标题，支持变量',
             bodyPlaceholder: '通知正文，支持多行与变量',
-            variableHint: '可用变量示例：{\'{{customer_label}}\'} {\'{{customer_email}}\'} {\'{{order_no}}\'} {\'{{payment_channel}}\'} {\'{{items_summary}}\'} {\'{{fulfillment_items_summary}}\'} {\'{{delivery_summary}}\'} {\'{{alert_type}}\'} {\'{{affected_items_summary}}\'} {\'{{affected_items_count}}\'}',
+            variableHint: '可用变量示例：{\'{{customer_label}}\'} {\'{{customer_email}}\'} {\'{{order_no}}\'} {\'{{payment_channel}}\'} {\'{{items_summary}}\'} {\'{{fulfillment_items_summary}}\'} {\'{{delivery_summary}}\'} {\'{{alert_type}}\'} {\'{{affected_items_summary}}\'} {\'{{affected_items_count}}\'}；提现通知可用：{\'{{withdraw_scope}}\'} {\'{{withdraw_id}}\'} {\'{{applicant_label}}\'} {\'{{amount}}\'} {\'{{currency}}\'} {\'{{channel}}\'} {\'{{account}}\'}',
           },
         },
         dashboard: {
@@ -8535,6 +8536,7 @@ const messages = {
             restockSuccess: '商品補貨通知',
             exceptionAlert: '異常告警通知',
             ticketMessage: '工單提醒通知',
+            withdrawRequestSubmitted: '提現申請待審核通知',
             exceptionThresholdHint: '異常告警閾值沿用「儀表板規則」：低庫存閾值、缺貨商品閾值、待支付訂單閾值、支付失敗閾值。庫存告警、通知巡檢中的待支付和支付失敗告警使用上方獨立頻率設定。',
           },
           restockBroadcast: {
@@ -13379,6 +13381,7 @@ const messages = {
             restockSuccess: 'Product restocked',
             exceptionAlert: 'Exception alerts',
             ticketMessage: 'Ticket updates',
+            withdrawRequestSubmitted: 'Withdrawal awaiting review',
             exceptionThresholdHint: 'Exception alert thresholds reuse Dashboard Rules: low stock, out-of-stock products, pending orders, and payment failures. Inventory alerts, pending and failed payment alerts in the notification scheduler use the independent frequency setting above.',
           },
           restockBroadcast: {

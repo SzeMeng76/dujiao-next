@@ -4,6 +4,7 @@ import (
 	"context"
 
 	catalogmappingbootstrap "github.com/dujiao-next/internal/bootstrap/catalogmapping"
+	"github.com/dujiao-next/internal/bootstrap/resellernotify"
 	"github.com/dujiao-next/internal/bootstrap/restocknotify"
 	telegrambroadcast "github.com/dujiao-next/internal/bootstrap/telegrambroadcast"
 	"github.com/dujiao-next/internal/logger"
@@ -81,6 +82,11 @@ func (c *Container) initIntegrationServices() {
 	restockNotifier := restocknotify.New(c.NotificationService, c.SettingService)
 	c.CardSecretService.SetRestockNotifier(restockNotifier)
 	c.ProductWriteService.SetRestockNotifier(restockNotifier)
+	// 提现申请通知：走普通通知事件（与订单通知同一路径，发到通知中心收件人），
+	// 不是补货广播。两个模块共用同一个通知器实例。
+	withdrawNotifier := resellernotify.New(c.NotificationService, c.UserStore, c.SettingService)
+	c.ResellerAccountingWithdraw.SetWithdrawNotifier(withdrawNotifier)
+	c.AffiliateService.SetWithdrawNotifier(withdrawNotifier)
 	c.ApiCredentialService = apicredentialapp.NewService(c.ApiCredentialRepo)
 	c.SiteConnectionService = siteconnectionapp.NewService(c.SiteConnectionRepo, c.Config.App.SecretKey, "uploads")
 	mediaCore := contentapp.NewMediaService(

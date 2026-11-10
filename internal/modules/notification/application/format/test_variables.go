@@ -76,6 +76,16 @@ func BuildTestVariables(scene, locale string) map[string]interface{} {
 			"sender_label":    localizedNotificationText(locale, "张三 <zhangsan@example.com>", "張三 <zhangsan@example.com>", "Alex Zhang <zhangsan@example.com>"),
 			"content_excerpt": localizedNotificationText(locale, "我购买的卡密提示已被使用，但我还没有兑换过，请帮忙核实。", "我購買的卡密提示已被使用，但我還沒有兌換過，請幫忙核實。", "The card code I purchased says it's already used, but I haven't redeemed it yet. Please help check."),
 		}
+	case constants.NotificationEventWithdrawRequestSubmitted:
+		return map[string]interface{}{
+			"withdraw_scope":  localizedNotificationText(locale, "分销商", "分銷商", "Reseller"),
+			"withdraw_id":     "1024",
+			"applicant_label": localizedNotificationText(locale, "张三 <zhangsan@example.com>", "張三 <zhangsan@example.com>", "Alex Zhang <zhangsan@example.com>"),
+			"amount":          "150.00",
+			"currency":        "USD",
+			"channel":         "USDT-TRC20",
+			"account":         "TXyz...abcd",
+		}
 	default:
 		return map[string]interface{}{
 			"alert_type":             alertTypeLabelByType(locale, constants.NotificationAlertTypeLowStockProducts),

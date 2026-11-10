@@ -387,6 +387,7 @@ const (
 	NotificationEventExceptionAlert           = "exception_alert"
 	NotificationEventExceptionAlertCheck      = "exception_alert_check"
 	NotificationEventTicketMessage            = "ticket_message"
+	NotificationEventWithdrawRequestSubmitted = "withdraw_request_submitted"
 )
 
 // 通知中心渠道常量
@@ -587,6 +588,7 @@ const (
 	NotificationBizTypeProcurement     = "procurement"
 	NotificationBizTypeReconciliation  = "reconciliation"
 	NotificationBizTypeRestock         = "restock"
+	NotificationBizTypeWithdraw        = "withdraw"
 )
 
 // 对账差异类型常量

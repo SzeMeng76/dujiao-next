@@ -14,6 +14,19 @@ const (
 	affiliateClickDedupeWindow = 10 * time.Minute
 )
 
+// WithdrawNotifier 在提现申请创建后投递通知。
+// 由 SetWithdrawNotifier 延迟注入，解决容器装配顺序依赖
+// （NotificationService 构建晚于本服务）。
+//
+// 参数用基本类型而不是结构体：reseller 与 affiliate 模块各自声明该接口，
+// 同一份结构体会因包路径不同而无法被同一个实现同时满足。
+type WithdrawNotifier interface {
+	NotifyWithdrawSubmitted(scope string, requestID, userID uint, amount, currency, channel, account string)
+}
+
+// ScopeAffiliate 推广返利提现申请的类别标识。
+const ScopeAffiliate = "affiliate"
+
 // Service 推广返利业务服务
 type Service struct {
 	repo        affiliatecontract.Store
@@ -21,6 +34,15 @@ type Service struct {
 	orderRepo   affiliatecontract.OrderReader
 	productRepo affiliatecontract.ProductReader
 	settings    affiliatecontract.SettingsReader
+	notifier    WithdrawNotifier
+}
+
+// SetWithdrawNotifier 注入提现通知依赖（在容器构建 NotificationService 之后调用）。
+func (s *Service) SetWithdrawNotifier(notifier WithdrawNotifier) {
+	if s == nil {
+		return
+	}
+	s.notifier = notifier
 }
 
 // NewService 创建推广返利服务

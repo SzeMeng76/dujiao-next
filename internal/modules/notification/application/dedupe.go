@@ -24,7 +24,8 @@ func isNotificationEventSupported(eventType string) bool {
 		constants.NotificationEventRestockSuccess,
 		constants.NotificationEventExceptionAlert,
 		constants.NotificationEventExceptionAlertCheck,
-		constants.NotificationEventTicketMessage:
+		constants.NotificationEventTicketMessage,
+		constants.NotificationEventWithdrawRequestSubmitted:
 		return true
 	default:
 		return false

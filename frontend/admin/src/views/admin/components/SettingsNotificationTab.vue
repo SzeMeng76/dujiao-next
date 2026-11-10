@@ -55,6 +55,7 @@ interface NotificationData {
     restock_success: boolean
     exception_alert: boolean
     ticket_message: boolean
+    withdraw_request_submitted: boolean
   }
   templates: {
     wallet_recharge_success: NotificationSceneTemplate
@@ -63,6 +64,7 @@ interface NotificationData {
     restock_success: NotificationSceneTemplate
     exception_alert: NotificationSceneTemplate
     ticket_message: NotificationSceneTemplate
+    withdraw_request_submitted: NotificationSceneTemplate
   }
   restock_broadcast: {
     chat_id: string
@@ -133,6 +135,7 @@ const form = reactive({
     restock_success: true,
     exception_alert: true,
     ticket_message: true,
+    withdraw_request_submitted: true,
   },
   templates: {
     wallet_recharge_success: createNotificationSceneTemplate(),
@@ -141,6 +144,7 @@ const form = reactive({
     restock_success: createNotificationSceneTemplate(),
     exception_alert: createNotificationSceneTemplate(),
     ticket_message: createNotificationSceneTemplate(),
+    withdraw_request_submitted: createNotificationSceneTemplate(),
   },
   restock_broadcast: {
     chat_id: '',
@@ -171,6 +175,7 @@ const syncFromProps = () => {
   form.templates.restock_success = deepCloneTemplate(props.data.templates.restock_success)
   form.templates.exception_alert = deepCloneTemplate(props.data.templates.exception_alert)
   form.templates.ticket_message = deepCloneTemplate(props.data.templates.ticket_message)
+  form.templates.withdraw_request_submitted = deepCloneTemplate(props.data.templates.withdraw_request_submitted)
   form.restock_broadcast.chat_id = props.data.restock_broadcast?.chat_id || ''
 }
 
@@ -276,7 +281,7 @@ const removeIgnoredProduct = (productID: number) => {
 
 void syncIgnoredProductsFromText()
 
-const templateScenes = ['wallet_recharge_success', 'order_paid_success', 'manual_fulfillment_pending', 'restock_success', 'exception_alert', 'ticket_message'] as const
+const templateScenes = ['wallet_recharge_success', 'order_paid_success', 'manual_fulfillment_pending', 'restock_success', 'exception_alert', 'ticket_message', 'withdraw_request_submitted'] as const
 
 const handleAutoTranslate = async () => {
   const fields: Record<string, Record<string, string>> = {}
@@ -342,6 +347,7 @@ const save = async () => {
         restock_success: form.scenes.restock_success,
         exception_alert: form.scenes.exception_alert,
         ticket_message: form.scenes.ticket_message,
+        withdraw_request_submitted: form.scenes.withdraw_request_submitted,
       },
       templates: form.templates,
       restock_broadcast: {
@@ -595,6 +601,10 @@ defineExpose({ save, submitting })
               <Switch v-model="form.scenes.ticket_message" />
               <Label class="text-sm">{{ t('admin.settings.notification.scenes.ticketMessage') }}</Label>
             </div>
+            <div class="flex items-center gap-2 text-sm">
+              <Switch v-model="form.scenes.withdraw_request_submitted" />
+              <Label class="text-sm">{{ t('admin.settings.notification.scenes.withdrawRequestSubmitted') }}</Label>
+            </div>
           </div>
           <p class="mt-3 text-xs text-muted-foreground">{{ t('admin.settings.notification.scenes.exceptionThresholdHint') }}</p>
         </div>
@@ -666,6 +676,14 @@ defineExpose({ save, submitting })
               <div class="mt-3 space-y-2">
                 <Input v-model="form.templates.ticket_message[currentLang].title" :placeholder="t('admin.settings.notification.templates.titlePlaceholder')" />
                 <Textarea v-model="form.templates.ticket_message[currentLang].body" rows="4" :placeholder="t('admin.settings.notification.templates.bodyPlaceholder')" />
+              </div>
+            </div>
+
+            <div class="rounded-lg border border-border bg-muted/10 p-4">
+              <h4 class="text-sm font-medium">{{ t('admin.settings.notification.scenes.withdrawRequestSubmitted') }}</h4>
+              <div class="mt-3 space-y-2">
+                <Input v-model="form.templates.withdraw_request_submitted[currentLang].title" :placeholder="t('admin.settings.notification.templates.titlePlaceholder')" />
+                <Textarea v-model="form.templates.withdraw_request_submitted[currentLang].body" rows="4" :placeholder="t('admin.settings.notification.templates.bodyPlaceholder')" />
               </div>
             </div>
           </div>

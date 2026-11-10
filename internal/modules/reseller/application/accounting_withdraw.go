@@ -15,13 +15,35 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+// WithdrawNotifier 在提现申请创建后投递通知。
+// 由 SetWithdrawNotifier 延迟注入，解决容器装配顺序依赖
+// （NotificationService 构建晚于本服务）。
+//
+// 参数用基本类型而不是结构体：reseller 与 affiliate 模块各自声明该接口，
+// 同一份结构体会因包路径不同而无法被同一个实现同时满足。
+type WithdrawNotifier interface {
+	NotifyWithdrawSubmitted(scope string, requestID, userID uint, amount, currency, channel, account string)
+}
+
+// ScopeReseller 分销商提现申请的类别标识。
+const ScopeReseller = "reseller"
+
 // AccountingWithdrawService 分销提现申请与审核用例。
 type AccountingWithdrawService struct {
-	store resellercontract.AccountingWithdrawStore
+	store    resellercontract.AccountingWithdrawStore
+	notifier WithdrawNotifier
 }
 
 func NewAccountingWithdrawService(store resellercontract.AccountingWithdrawStore) *AccountingWithdrawService {
 	return &AccountingWithdrawService{store: store}
+}
+
+// SetWithdrawNotifier 注入提现通知依赖（在容器构建 NotificationService 之后调用）。
+func (s *AccountingWithdrawService) SetWithdrawNotifier(notifier WithdrawNotifier) {
+	if s == nil {
+		return
+	}
+	s.notifier = notifier
 }
 
 func (s *AccountingWithdrawService) ApplyUserWithdraw(userID uint, input resellercontract.WithdrawApplyInput) (*resellerdomain.WithdrawRequest, error) {
@@ -38,7 +60,13 @@ func (s *AccountingWithdrawService) ApplyUserWithdraw(userID uint, input reselle
 	if err := RequireActiveProfile(profile); err != nil {
 		return nil, err
 	}
-	return s.ApplyWithdraw(profile.ID, input)
+	row, err := s.ApplyWithdraw(profile.ID, input)
+	if err != nil {
+		return nil, err
+	}
+	// 事务已提交，此时才发通知：SQLite 单连接下不能在事务闭包内做其它查询/外部调用。
+	s.notifyWithdrawSubmitted(row, userID)
+	return row, nil
 }
 
 func (s *AccountingWithdrawService) ApplyWithdraw(resellerID uint, input resellercontract.WithdrawApplyInput) (*resellerdomain.WithdrawRequest, error) {
@@ -150,6 +178,22 @@ func (s *AccountingWithdrawService) ApplyWithdraw(resellerID uint, input reselle
 		return nil, err
 	}
 	return s.store.GetWithdrawRequestByID(createdID)
+}
+
+// notifyWithdrawSubmitted 投递提现申请通知；通知失败不影响提现结果。
+func (s *AccountingWithdrawService) notifyWithdrawSubmitted(row *resellerdomain.WithdrawRequest, userID uint) {
+	if s == nil || s.notifier == nil || row == nil {
+		return
+	}
+	s.notifier.NotifyWithdrawSubmitted(
+		ScopeReseller,
+		row.ID,
+		userID,
+		row.Amount.Decimal.Round(2).StringFixed(2),
+		row.Currency,
+		row.Channel,
+		row.Account,
+	)
 }
 
 func (s *AccountingWithdrawService) ReviewWithdraw(adminID uint, withdrawID uint, action string, rejectReason string) (*resellerdomain.WithdrawRequest, error) {
