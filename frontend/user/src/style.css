@@ -709,3 +709,20 @@ html[data-telegram-mini-app="true"] body {
 .theme-prose p:has(> img) + p:has(> img) > img {
   margin-top: 0;
 }
+
+/*
+ * 富文本里的平台视频嵌入（YouTube / Bilibili / Vimeo）。
+ * 后台编辑器给 iframe 加的 class（w-full aspect-video）来自 admin 前端，
+ * user 前端的 Tailwind 扫不到那些文件，不会生成对应规则；iframe 没有高度
+ * 就会退回浏览器默认的 150px，播放器被压成一条。这里直接按元素定尺寸。
+ */
+.theme-prose iframe,
+.prose iframe {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  height: auto;
+  border: 0;
+  border-radius: 0.5rem;
+  background-color: #000;
+}
