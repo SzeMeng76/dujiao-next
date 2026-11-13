@@ -18,6 +18,7 @@ import (
 	"math/big"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/dujiao-next/internal/constants"
@@ -210,10 +211,82 @@ func CreatePayment(ctx context.Context, cfg *Config, input CreateInput) (*Create
 	}, nil
 }
 
+// certPublicKeyCacheTTL 是公钥缓存有效期。
+// Binance 只在证书轮换时更换公钥，缓存 10 分钟既能避免每个回调都打一次
+// Query Certificate API（被刷回调时容易触发限流，把真实回调一起拖垮），
+// 又能在轮换后较快跟上。
+const certPublicKeyCacheTTL = 10 * time.Minute
+
+// certPublicKeyCache 缓存 certSerial -> certPublic。
+// key 由 APIBaseURL 与 certSerial 组成，避免多套配置/多环境互相串用公钥。
+var certPublicKeyCache = struct {
+	sync.RWMutex
+	entries map[string]certPublicKeyEntry
+}{entries: map[string]certPublicKeyEntry{}}
+
+type certPublicKeyEntry struct {
+	publicKey string
+	expiresAt time.Time
+}
+
+// resetCertPublicKeyCache 清空缓存，仅供测试使用。
+func resetCertPublicKeyCache() {
+	certPublicKeyCache.Lock()
+	certPublicKeyCache.entries = map[string]certPublicKeyEntry{}
+	certPublicKeyCache.Unlock()
+}
+
+func certPublicKeyCacheKey(cfg *Config, certSN string) string {
+	return strings.TrimRight(strings.TrimSpace(cfg.APIBaseURL), "/") + "|" + strings.TrimSpace(certSN)
+}
+
+func loadCachedCertPublicKey(cfg *Config, certSN string, now time.Time) (string, bool) {
+	key := certPublicKeyCacheKey(cfg, certSN)
+	certPublicKeyCache.RLock()
+	entry, ok := certPublicKeyCache.entries[key]
+	certPublicKeyCache.RUnlock()
+	if !ok || entry.expiresAt.Before(now) {
+		return "", false
+	}
+	return entry.publicKey, true
+}
+
+func storeCachedCertPublicKey(cfg *Config, certSN, publicKey string, now time.Time) {
+	key := certPublicKeyCacheKey(cfg, certSN)
+	certPublicKeyCache.Lock()
+	certPublicKeyCache.entries[key] = certPublicKeyEntry{
+		publicKey: publicKey,
+		expiresAt: now.Add(certPublicKeyCacheTTL),
+	}
+	certPublicKeyCache.Unlock()
+}
+
 // fetchCertPublicKey 从 Binance Pay 服务器拉取 RSA 公钥用于 webhook 验签。
-func fetchCertPublicKey(ctx context.Context, cfg *Config) (string, error) {
+//
+// certSN 来自 webhook 头 BinancePay-Certificate-SN（官方定义为公钥的 MD5，
+// 对应 Query Certificate 响应里的 certSerial）。必须按 SN 精确匹配：
+// 证书轮换期新旧公钥并存，盲取第一个会让用旧证书签名的真实回调验签失败。
+// 命中不到 SN 时回落到列表首个公钥（保持轮换期可用），由调用方记录告警。
+func fetchCertPublicKey(ctx context.Context, cfg *Config, certSN string) (string, error) {
+	now := time.Now()
+	certSN = strings.TrimSpace(certSN)
+	if certSN != "" {
+		if cached, ok := loadCachedCertPublicKey(cfg, certSN, now); ok {
+			return cached, nil
+		}
+	}
+
 	body, statusCode, err := doSignedRequest(ctx, cfg, "/binancepay/openapi/certificates", map[string]interface{}{})
 	if err != nil {
+		// 拉取失败时用过期缓存兜底：宁可短暂使用旧公钥，也不要让正常回调因网络抖动失败。
+		if certSN != "" {
+			certPublicKeyCache.RLock()
+			entry, ok := certPublicKeyCache.entries[certPublicKeyCacheKey(cfg, certSN)]
+			certPublicKeyCache.RUnlock()
+			if ok && entry.publicKey != "" {
+				return entry.publicKey, nil
+			}
+		}
 		return "", err
 	}
 	if statusCode < 200 || statusCode >= 300 {
@@ -230,15 +303,36 @@ func fetchCertPublicKey(ctx context.Context, cfg *Config) (string, error) {
 	if !ok || len(dataArr) == 0 {
 		return "", fmt.Errorf("%w: missing certificates data", ErrResponseInvalid)
 	}
-	first, ok := dataArr[0].(map[string]interface{})
-	if !ok {
-		return "", fmt.Errorf("%w: invalid certificate format", ErrResponseInvalid)
+
+	var fallback string
+	for _, item := range dataArr {
+		entry, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		publicKey := gatewaycommon.ReadString(entry, "certPublic")
+		if publicKey == "" {
+			continue
+		}
+		if fallback == "" {
+			fallback = publicKey
+		}
+		if certSN != "" && strings.EqualFold(gatewaycommon.ReadString(entry, "certSerial"), certSN) {
+			storeCachedCertPublicKey(cfg, certSN, publicKey, now)
+			return publicKey, nil
+		}
 	}
-	pubKey := gatewaycommon.ReadString(first, "certPublic")
-	if pubKey == "" {
+
+	if fallback == "" {
 		return "", fmt.Errorf("%w: missing certPublic", ErrResponseInvalid)
 	}
-	return pubKey, nil
+	// 回落：SN 未匹配到具体证书（可能是轮换前后的时序差异），仍用首个公钥尝试验签。
+	// 验签本身仍需 Binance 私钥，回落不构成伪造风险，只是兼容性保底。
+	//
+	// 注意这里**不写缓存**：certSN 来自 webhook 头，完全由请求方控制，
+	// 按任意 SN 缓存会产生无界增长的 map，也会把「错配的公钥 + 该 SN」固化 10 分钟，
+	// 让轮换后真正到来的回调持续验签失败。只有精确命中才缓存，条目数天然受证书列表限制。
+	return fallback, nil
 }
 
 // VerifyAndParseWebhook 校验并解析 Binance Pay webhook。
@@ -275,7 +369,10 @@ func VerifyAndParseWebhook(ctx context.Context, cfg *Config, headers map[string]
 		}
 	}
 
-	pubKeyPEM, err := fetchCertPublicKey(ctx, cfg)
+	// 按 webhook 头里的证书 SN 精确匹配公钥；证书轮换期新旧并存，
+	// 盲取第一个会导致用旧证书签名的真实回调验签失败。
+	certSN := getHeaderValue(headers, "BinancePay-Certificate-SN")
+	pubKeyPEM, err := fetchCertPublicKey(ctx, cfg, certSN)
 	if err != nil {
 		return nil, fmt.Errorf("%w: fetch public key: %v", ErrSignatureInvalid, err)
 	}
