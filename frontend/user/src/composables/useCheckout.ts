@@ -524,7 +524,6 @@ export function useCheckout() {
   const manualFieldError = (itemKey: string, fieldKey: string) => {
     return manualFormValidation.value.errors[manualFieldErrorKey(itemKey, fieldKey)] || ''
   }
-
   const buildManualFormDataPayload = () => {
     const payload: Record<string, any> = {}
     manualFormProducts.value.forEach((product) => {

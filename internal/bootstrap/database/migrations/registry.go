@@ -134,6 +134,9 @@ func AutoMigrate() error {
 	if err := ensurePaymentChannelBepusdtConfigMigration(); err != nil {
 		return err
 	}
+	if err := ensurePaymentChannelNameI18nMigration(); err != nil {
+		return err
+	}
 	if err := ensurePaymentFeePolicyMigration(); err != nil {
 		return err
 	}

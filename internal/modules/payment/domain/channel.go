@@ -1,8 +1,10 @@
 package domain
 
 import (
+	"strings"
 	"time"
 
+	"github.com/dujiao-next/internal/constants"
 	"github.com/dujiao-next/internal/shared/jsonmap"
 	"github.com/dujiao-next/internal/shared/jsonslice"
 	"github.com/dujiao-next/internal/shared/money"
@@ -11,7 +13,8 @@ import (
 // PaymentChannel 支付渠道配置
 type PaymentChannel struct {
 	ID                 uint              `gorm:"primarykey" json:"id"`                                    // 主键
-	Name               string            `gorm:"not null" json:"name"`                                    // 渠道名称
+	Name               string            `gorm:"not null" json:"name"`                                    // 渠道名称（zh-CN 快照，兼容旧接口与聚合）
+	NameI18n           jsonmap.JSON      `gorm:"type:json" json:"name_i18n"`                              // 多语言渠道名称 {zh-CN,zh-TW,en-US}
 	Icon               string            `gorm:"type:varchar(512);default:''" json:"icon"`                // 渠道图标（可选）
 	ProviderType       string            `gorm:"not null" json:"provider_type"`                           // 提供方类型（official/epay）
 	ChannelType        string            `gorm:"not null" json:"channel_type"`                            // 渠道类型（wechat/alipay/qqpay/paypal）
@@ -35,4 +38,38 @@ type PaymentChannel struct {
 // TableName 指定表名
 func (PaymentChannel) TableName() string {
 	return "payment_channels"
+}
+
+// LocalizedName 返回指定语言下的渠道名称。
+// 优先取多语言字段，缺失时回落到 zh-CN 快照 Name，最后取任一非空语言。
+func (channel PaymentChannel) LocalizedName(locale string) string {
+	locale = strings.TrimSpace(locale)
+	if locale != "" {
+		if value, ok := channel.NameI18n[locale]; ok {
+			if text := strings.TrimSpace(asLocalizedNameValue(value)); text != "" {
+				return text
+			}
+		}
+	}
+	if name := strings.TrimSpace(channel.Name); name != "" {
+		return name
+	}
+	if value, ok := channel.NameI18n[constants.LocaleZhCN]; ok {
+		if text := strings.TrimSpace(asLocalizedNameValue(value)); text != "" {
+			return text
+		}
+	}
+	for _, value := range channel.NameI18n {
+		if text := strings.TrimSpace(asLocalizedNameValue(value)); text != "" {
+			return text
+		}
+	}
+	return ""
+}
+
+func asLocalizedNameValue(value interface{}) string {
+	if text, ok := value.(string); ok {
+		return text
+	}
+	return ""
 }

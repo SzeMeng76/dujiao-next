@@ -228,6 +228,9 @@ func (s *PaymentService) GetAvailableChannels(filter AvailablePaymentChannelFilt
 			"interaction_mode": channel.InteractionMode, "min_amount": channel.MinAmount,
 			"max_amount": channel.MaxAmount, "hide_amount_out_range": channel.HideAmountOutRange,
 		}
+		if len(channel.NameI18n) > 0 {
+			item["name_i18n"] = channel.NameI18n
+		}
 		if customerFeeEnabled {
 			item["fee_policy"] = constants.PaymentFeePolicyCustomerSurcharge
 			item["fee_rate"] = channel.FeeRate

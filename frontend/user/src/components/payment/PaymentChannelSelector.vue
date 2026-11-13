@@ -9,7 +9,7 @@
       <div class="flex items-center justify-between gap-2">
         <div class="flex items-center gap-2">
           <img v-if="channel.icon" :src="getImageUrl(channel.icon)" loading="lazy" class="h-5 w-5 rounded object-contain shrink-0" />
-          <div class="text-foreground font-medium">{{ channel.name }}</div>
+          <div class="text-foreground font-medium">{{ channelDisplayName(channel) }}</div>
         </div>
         <Badge v-if="props.modelValue === channel.id && !isDisabled(channel)" variant="accent" size="xs">
           {{ t('payment.selected') }}
@@ -35,12 +35,17 @@
 import { useI18n } from 'vue-i18n'
 import { getImageUrl } from '../../utils/image'
 import { Badge } from '@/components/ui/badge'
+import { resolveLocalizedChannelName } from '../../utils/channelName'
+import { useAppStore } from '../../stores/app'
 
 const emit = defineEmits<{
   'update:modelValue': [value: number]
 }>()
 
 const { t } = useI18n()
+const appStore = useAppStore()
+
+const channelDisplayName = (channel?: any) => resolveLocalizedChannelName(channel, appStore.locale)
 
 const props = defineProps<{
   channels: any[]

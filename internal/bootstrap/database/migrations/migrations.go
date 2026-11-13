@@ -33,6 +33,7 @@ const (
 	paymentFeePolicyMigrationSettingKey             = "migration/payment_fee_policy_v1"
 	orderRefundPaymentFeeMigrationSettingKey        = "migration/order_refund_payment_fee_v1"
 	orderItemOriginalPriceMigrationKey              = "migration/order_item_original_price_v1"
+	paymentChannelNameI18nMigrationKey              = "migration/payment_channel_name_i18n_v1"
 	manualStockUnlimitedValue                       = -1
 	cartProductForeignKeyConstraint                 = "fk_cart_items_product"
 	cartSKUForeignKeyConstraint                     = "fk_cart_items_sku"
@@ -905,6 +906,56 @@ func ensureCategoryParentMigration() error {
 		ValueJSON: jsonmap.JSON{
 			"done":        true,
 			"migrated_at": time.Now().UTC().Format(time.RFC3339),
+		},
+	}
+	return gormdb.DB.Save(&doneMarker).Error
+}
+
+// ensurePaymentChannelNameI18nMigration 为历史支付渠道补充多语言名称快照。
+// 只回填 zh-CN，其余语言留空由后台按需翻译，避免猜测译文。
+func ensurePaymentChannelNameI18nMigration() error {
+	if gormdb.DB == nil {
+		return errors.New("database is not initialized")
+	}
+
+	var marker settingsstore.SettingRecord
+	if err := gormdb.DB.First(&marker, "key = ?", paymentChannelNameI18nMigrationKey).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+	} else if migrationDone(marker.ValueJSON) {
+		return nil
+	}
+
+	if !gormdb.DB.Migrator().HasColumn(&paymentdomain.PaymentChannel{}, "name_i18n") {
+		return nil
+	}
+
+	var channels []paymentdomain.PaymentChannel
+	if err := gormdb.DB.Where("name_i18n IS NULL").Find(&channels).Error; err != nil {
+		return err
+	}
+
+	migratedCount := 0
+	for _, channel := range channels {
+		name := strings.TrimSpace(channel.Name)
+		if name == "" {
+			continue
+		}
+		if err := gormdb.DB.Model(&paymentdomain.PaymentChannel{}).
+			Where("id = ?", channel.ID).
+			Update("name_i18n", jsonmap.JSON{constants.LocaleZhCN: name}).Error; err != nil {
+			return err
+		}
+		migratedCount++
+	}
+
+	doneMarker := settingsstore.SettingRecord{
+		Key: paymentChannelNameI18nMigrationKey,
+		ValueJSON: jsonmap.JSON{
+			"done":           true,
+			"migrated_at":    time.Now().UTC().Format(time.RFC3339),
+			"migrated_count": migratedCount,
 		},
 	}
 	return gormdb.DB.Save(&doneMarker).Error

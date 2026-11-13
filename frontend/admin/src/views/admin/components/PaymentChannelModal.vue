@@ -4,6 +4,8 @@ import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
 import type { AdminGatewaySecurityTestResult, AdminMemberLevel } from '@/api/types'
 import { getLocalizedText } from '@/utils/format'
+import { useAutoTranslate } from '@/composables/useAutoTranslate'
+import AutoTranslateButton from '@/components/admin/AutoTranslateButton.vue'
 import { resolveOkpayChannelTypeFromConfig } from '@/utils/paymentChannelDisplay'
 import MediaPicker from '@/components/admin/MediaPicker.vue'
 import { Button } from '@/components/ui/button'
@@ -26,6 +28,22 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const { translating, translateFields } = useAutoTranslate()
+const currentLang = ref('zh-CN')
+
+const languages = computed(() => [
+  { code: 'zh-CN', name: t('admin.common.lang.zhCN') },
+  { code: 'zh-TW', name: t('admin.common.lang.zhTW') },
+  { code: 'en-US', name: t('admin.common.lang.enUS') },
+])
+
+const getCurrentLangName = () => {
+  return languages.value.find((item) => item.code === currentLang.value)?.name || t('admin.common.lang.zhCN')
+}
+
+const handleAutoTranslate = () => {
+  translateFields({ name: form.name_i18n })
+}
 
 const isEditing = computed(() => props.channelId !== null)
 const error = ref('')
@@ -37,6 +55,7 @@ const wechatPublicKeyTestResult = ref<AdminGatewaySecurityTestResult | null>(nul
 
 const form = reactive({
   name: '',
+  name_i18n: { 'zh-CN': '', 'zh-TW': '', 'en-US': '' } as Record<string, string>,
   icon: '',
   provider_type: 'epay',
   channel_type: 'alipay',
@@ -1262,6 +1281,8 @@ function resetFormForCreate() {
   showAdvanced.value = false
   applyingChannelData.value = true
   form.name = ''
+  form.name_i18n = { 'zh-CN': '', 'zh-TW': '', 'en-US': '' }
+  currentLang.value = 'zh-CN'
   form.icon = ''
   form.provider_type = 'epay'
   form.channel_type = 'alipay'
@@ -1309,6 +1330,20 @@ watch(
         const response = await adminAPI.getPaymentChannel(id)
         const channel = response.data.data
         form.name = channel.name
+        const channelNameI18n = { 'zh-CN': '', 'zh-TW': '', 'en-US': '' }
+        if (channel.name_i18n && typeof channel.name_i18n === 'object') {
+          for (const key of Object.keys(channelNameI18n)) {
+            const value = (channel.name_i18n as Record<string, unknown>)[key]
+            if (value !== undefined && value !== null) {
+              channelNameI18n[key as keyof typeof channelNameI18n] = String(value)
+            }
+          }
+        }
+        if (!channelNameI18n['zh-CN']) {
+          channelNameI18n['zh-CN'] = String(channel.name || '')
+        }
+        form.name_i18n = channelNameI18n
+        currentLang.value = 'zh-CN'
         form.icon = channel.icon || ''
         form.provider_type = channel.provider_type
         form.channel_type = channel.channel_type
@@ -1514,7 +1549,8 @@ const handleSubmit = async () => {
   })
 
   const payload = {
-    name: form.name,
+    name: String(form.name_i18n['zh-CN'] || form.name || '').trim(),
+    name_i18n: { ...form.name_i18n },
     icon: form.icon || '',
     provider_type: form.provider_type,
     channel_type:
@@ -1566,10 +1602,31 @@ const closeModal = () => {
         <DialogTitle>{{ isEditing ? t('admin.paymentChannels.modal.editTitle') : t('admin.paymentChannels.modal.createTitle') }}</DialogTitle>
       </DialogHeader>
       <form class="space-y-4" @submit.prevent="handleSubmit">
+        <div class="border-b border-border">
+          <div class="flex flex-wrap items-center justify-between gap-2 pb-1">
+            <div class="flex gap-2 overflow-x-auto sm:gap-4">
+              <button
+                v-for="lang in languages"
+                :key="lang.code"
+                type="button"
+                class="shrink-0 border-b-2 px-3 py-2 text-sm font-medium sm:px-4"
+                :class="currentLang === lang.code ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'"
+                @click="currentLang = lang.code"
+              >
+                {{ lang.name }}
+              </button>
+            </div>
+            <AutoTranslateButton :loading="translating" @click="handleAutoTranslate" />
+          </div>
+        </div>
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2 [&>*]:min-w-0">
           <div class="min-w-0">
-            <label class="block text-xs font-medium text-muted-foreground mb-1.5">{{ t('admin.paymentChannels.modal.name') }}</label>
-            <Input v-model="form.name" required :placeholder="t('admin.paymentChannels.modal.namePlaceholder')" />
+            <label class="block text-xs font-medium text-muted-foreground mb-1.5">{{ t('admin.paymentChannels.modal.name', { lang: getCurrentLangName() }) }}</label>
+            <Input
+              v-model="form.name_i18n[currentLang]"
+              :required="currentLang === 'zh-CN'"
+              :placeholder="t('admin.paymentChannels.modal.namePlaceholder')"
+            />
           </div>
           <div class="min-w-0">
             <label class="block text-xs font-medium text-muted-foreground mb-1.5">{{ t('admin.paymentChannels.modal.icon') }}</label>

@@ -1409,7 +1409,7 @@ const messages = {
         modal: {
           createTitle: '新增渠道',
           editTitle: '编辑渠道',
-          name: '渠道名称',
+          name: '渠道名称（{lang}）',
           namePlaceholder: '输入渠道名称',
           icon: '渠道图标（选填）',
           iconUploadHint: '点击或拖拽上传图标',
@@ -6253,7 +6253,7 @@ const messages = {
         modal: {
           createTitle: '新增渠道',
           editTitle: '編輯渠道',
-          name: '渠道名稱',
+          name: '渠道名稱（{lang}）',
           namePlaceholder: '輸入渠道名稱',
           icon: '渠道圖示（選填）',
           iconUploadHint: '點擊或拖曳上傳圖示',
@@ -11098,7 +11098,7 @@ const messages = {
         modal: {
           createTitle: 'Create Channel',
           editTitle: 'Edit Channel',
-          name: 'Name',
+          name: 'Channel Name ({lang})',
           namePlaceholder: 'Enter name',
           icon: 'Icon (Optional)',
           iconUploadHint: 'Click or drag to upload icon',

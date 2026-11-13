@@ -141,6 +141,7 @@ const isChannelAllowedByConfig = (channel: any, allowedIdSet: Set<number> | null
 const mapChannel = (channel: any) => ({
   id: Number(channel.id),
   name: String(channel.name || channel.channel_type || channel.id),
+  name_i18n: channel.name_i18n && typeof channel.name_i18n === 'object' ? channel.name_i18n : null,
   channel_type: String(channel.channel_type || ''),
   fee_policy: String(channel.fee_policy || ''),
   fee_rate: String(channel.fee_rate ?? '0'),

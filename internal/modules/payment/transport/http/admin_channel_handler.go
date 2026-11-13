@@ -8,6 +8,8 @@ import (
 	paymentcontract "github.com/dujiao-next/internal/modules/payment/contract"
 	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
 
+	"github.com/dujiao-next/internal/constants"
+
 	ginutil "github.com/dujiao-next/internal/platform/http/ginutil"
 
 	"github.com/dujiao-next/internal/cache"
@@ -66,6 +68,7 @@ type AdminChannelCatalog interface {
 // CreatePaymentChannelRequest 创建支付渠道请求
 type CreatePaymentChannelRequest struct {
 	Name               string                 `json:"name" binding:"required"`
+	NameI18n           map[string]interface{} `json:"name_i18n"`
 	Icon               *string                `json:"icon"`
 	ProviderType       string                 `json:"provider_type" binding:"required"`
 	ChannelType        string                 `json:"channel_type" binding:"required"`
@@ -86,6 +89,7 @@ type CreatePaymentChannelRequest struct {
 // UpdatePaymentChannelRequest 更新支付渠道请求
 type UpdatePaymentChannelRequest struct {
 	Name               string                 `json:"name"`
+	NameI18n           map[string]interface{} `json:"name_i18n"`
 	Icon               *string                `json:"icon"`
 	ProviderType       string                 `json:"provider_type"`
 	ChannelType        string                 `json:"channel_type"`
@@ -125,6 +129,7 @@ func (h *AdminChannelHandler) CreatePaymentChannel(c *gin.Context) {
 
 	channel := &paymentdomain.PaymentChannel{
 		Name:            req.Name,
+		NameI18n:        normalizeChannelNameI18n(req.NameI18n, req.Name),
 		ProviderType:    req.ProviderType,
 		ChannelType:     req.ChannelType,
 		InteractionMode: req.InteractionMode,
@@ -205,6 +210,9 @@ func (h *AdminChannelHandler) UpdatePaymentChannel(c *gin.Context) {
 
 	if req.Name != "" {
 		channel.Name = req.Name
+	}
+	if req.NameI18n != nil {
+		channel.NameI18n = normalizeChannelNameI18n(req.NameI18n, channel.Name)
 	}
 	if req.Icon != nil {
 		channel.Icon = *req.Icon
@@ -382,6 +390,31 @@ func isSensitivePaymentConfigKey(providerType, key string) bool {
 	scoped := providerSensitivePaymentConfigKeys[strings.ToLower(strings.TrimSpace(providerType))]
 	_, ok := scoped[normalizedKey]
 	return ok
+}
+
+// normalizeChannelNameI18n 清洗渠道多语言名称：只保留三种受支持语言的非空字符串。
+// 若清洗后为空但提供了 zh-CN 快照名，则用快照补一条，保证前台始终有名称可展示。
+func normalizeChannelNameI18n(raw map[string]interface{}, fallbackZhCN string) jsonmap.JSON {
+	normalized := make(jsonmap.JSON, len(constants.SupportedLocales))
+	for _, locale := range constants.SupportedLocales {
+		value, ok := raw[locale]
+		if !ok {
+			continue
+		}
+		text, ok := value.(string)
+		if !ok {
+			continue
+		}
+		if trimmed := strings.TrimSpace(text); trimmed != "" {
+			normalized[locale] = trimmed
+		}
+	}
+	if fallback := strings.TrimSpace(fallbackZhCN); fallback != "" {
+		if _, ok := normalized[constants.LocaleZhCN]; !ok {
+			normalized[constants.LocaleZhCN] = fallback
+		}
+	}
+	return normalized
 }
 
 func redactPaymentChannel(channel *paymentdomain.PaymentChannel) *paymentdomain.PaymentChannel {

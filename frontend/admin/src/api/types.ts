@@ -489,6 +489,7 @@ export interface AdminPost {
 export interface AdminPaymentChannel {
   id: number
   name: string
+  name_i18n?: LocalizedText
   provider_type: string
   channel_type: string
   interaction_mode: string

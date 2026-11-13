@@ -9,6 +9,7 @@ import { fulfillmentTypeLabel } from '../utils/fulfillment'
 import { debounceAsync } from '../utils/debounce'
 import { copyText } from '../utils/clipboard'
 import { amountToCents, centsToAmount } from '../utils/money'
+import { resolveLocalizedChannelName } from '../utils/channelName'
 import { buildSkuDisplayTextFromSnapshot } from '../utils/sku'
 import {
   getCachedPaymentRestorePolicy,
@@ -171,11 +172,11 @@ export function usePayment() {
 
   const selectedChannelName = computed(() => resolveChannelName(selectedChannel.value, selectedChannel.value?.channel_type))
 
-  const cachedChannelName = computed(() => resolveChannelName(cachedChannel.value, cachedPayment.value?.channel_type, cachedPayment.value?.channel_name))
+  const cachedChannelName = computed(() => resolveChannelName(cachedChannel.value, cachedPayment.value?.channel_type, cachedPayment.value?.channel_name, cachedPayment.value?.channel_name_i18n))
 
   const resultChannel = computed(() => findChannelByID(paymentResult.value?.channel_id))
 
-  const resultChannelName = computed(() => resolveChannelName(resultChannel.value, paymentResult.value?.channel_type, paymentResult.value?.channel_name))
+  const resultChannelName = computed(() => resolveChannelName(resultChannel.value, paymentResult.value?.channel_type, paymentResult.value?.channel_name, paymentResult.value?.channel_name_i18n))
 
   const currentPaymentID = () => {
     const paymentID = Number(paymentResult.value?.payment_id || paymentResult.value?.id || 0)
@@ -1214,8 +1215,12 @@ export function usePayment() {
     return map[value] || value
   }
 
-  const resolveChannelName = (channel?: any, fallbackChannelType?: unknown, apiChannelName?: unknown) => {
-    if (channel?.name) return channel.name
+  const resolveChannelName = (channel?: any, fallbackChannelType?: unknown, apiChannelName?: unknown, apiChannelNameI18n?: unknown) => {
+    const localized = resolveLocalizedChannelName(
+      { name: channel?.name, name_i18n: channel?.name_i18n ?? apiChannelNameI18n, channel_type: channel?.channel_type ?? fallbackChannelType },
+      appStore.locale,
+    )
+    if (localized) return localized
     const name = String(apiChannelName || '').trim()
     if (name) return name
     const channelType = String(fallbackChannelType || '').trim()

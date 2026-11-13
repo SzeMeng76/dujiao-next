@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
 import type { AdminPaymentChannel } from '@/api/types'
 import { getImageUrl } from '@/utils/image'
+import { getLocalizedText } from '@/utils/format'
 import { resolveOkpayConfiguredCoin } from '@/utils/paymentChannelDisplay'
 import IdCell from '@/components/IdCell.vue'
 import { Button } from '@/components/ui/button'
@@ -409,7 +410,7 @@ watch(
             <TableCell class="min-w-[220px] px-6 py-4">
               <div class="flex items-center gap-2">
                 <img v-if="channel.icon" :src="getImageUrl(channel.icon)" class="h-6 w-6 shrink-0 rounded object-contain" />
-                <span class="break-words font-medium text-foreground">{{ channel.name }}</span>
+                <span class="break-words font-medium text-foreground">{{ getLocalizedText(channel.name_i18n) || channel.name }}</span>
               </div>
             </TableCell>
             <TableCell class="min-w-[220px] px-6 py-4 text-xs text-muted-foreground">

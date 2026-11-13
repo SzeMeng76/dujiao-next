@@ -5,6 +5,7 @@ import (
 
 	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
 
+	"github.com/dujiao-next/internal/shared/jsonmap"
 	"github.com/dujiao-next/internal/shared/money"
 )
 
@@ -33,6 +34,8 @@ type CreatePaymentResp struct {
 	TokenID         string       `json:"token_id,omitempty"`
 	ExpiresAt       *time.Time   `json:"expires_at,omitempty"`
 	ChannelName     string       `json:"channel_name,omitempty"`
+	// ChannelNameI18n 是渠道的多语言名称，前端按当前语言取值，缺失时回落到 ChannelName。
+	ChannelNameI18n jsonmap.JSON `json:"channel_name_i18n,omitempty"`
 }
 
 // CreatePaymentResultView 创建支付结果视图（供 HTTP 层构造响应，避免依赖 service）。
@@ -76,6 +79,7 @@ func NewCreatePaymentResp(result *CreatePaymentResultView) CreatePaymentResp {
 	}
 	if result.Channel != nil {
 		resp.ChannelName = result.Channel.Name
+		resp.ChannelNameI18n = result.Channel.NameI18n
 	}
 	return resp
 }

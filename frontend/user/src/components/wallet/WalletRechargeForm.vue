@@ -26,7 +26,7 @@
           <SelectContent>
             <SelectItem value="0">{{ t('personalCenter.wallet.channelPlaceholder') }}</SelectItem>
             <SelectItem v-for="channel in channels" :key="channel.id" :value="String(channel.id)">
-              {{ channel.name }}
+              {{ channelDisplayName(channel) }}
             </SelectItem>
           </SelectContent>
         </Select>
@@ -82,6 +82,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { resolveLocalizedChannelName } from '../../utils/channelName'
+import { useAppStore } from '../../stores/app'
 
 defineProps<{
   amount: string
@@ -105,4 +107,7 @@ defineEmits<{
 }>()
 
 const { t } = useI18n()
+const appStore = useAppStore()
+
+const channelDisplayName = (channel?: any) => resolveLocalizedChannelName(channel, appStore.locale)
 </script>
