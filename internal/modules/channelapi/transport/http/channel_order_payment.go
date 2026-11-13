@@ -38,6 +38,7 @@ type latestPaymentQuery struct {
 func (h *Handler) GetPaymentChannels(c *gin.Context) {
 	contextParam := strings.TrimSpace(c.Query("context"))
 	orderNo := strings.TrimSpace(c.Query("order_no"))
+	locale := channelLocaleValue(c, c.Query("locale"))
 
 	var channels []paymentdomain.PaymentChannel
 	var err error
@@ -133,7 +134,7 @@ func (h *Handler) GetPaymentChannels(c *gin.Context) {
 		}
 		items = append(items, channelItem{
 			ID:                 ch.ID,
-			Name:               ch.Name,
+			Name:               ch.LocalizedName(locale),
 			ProviderType:       ch.ProviderType,
 			ChannelType:        ch.ChannelType,
 			InteractionMode:    ch.InteractionMode,
@@ -282,7 +283,7 @@ func (h *Handler) CreatePayment(c *gin.Context) {
 		}
 	}
 	if result.Channel != nil {
-		resp["channel_name"] = result.Channel.Name
+		resp["channel_name"] = result.Channel.LocalizedName(channelLocaleValue(c, c.Query("locale")))
 	}
 	if order != nil {
 		// 手续费按订单币种计算，换汇渠道下 currency 是结算币种，需单独告知
