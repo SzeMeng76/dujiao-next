@@ -304,6 +304,7 @@ const translationData = reactive({
   has_api_key: false,
   base_url: '',
   model: '',
+  timeout_seconds: 90,
 })
 
 const createOrderEmailLocalizedTemplate = () => ({ subject: '', body: '' })
@@ -569,6 +570,7 @@ const fetchSettings = async () => {
       translationData.has_api_key = !!translation.has_api_key
       translationData.base_url = String(translation.base_url || '')
       translationData.model = String(translation.model || '')
+      translationData.timeout_seconds = Number(translation.timeout_seconds) || 45
     }
 
     if (dashboardRes.data && dashboardRes.data.data) {

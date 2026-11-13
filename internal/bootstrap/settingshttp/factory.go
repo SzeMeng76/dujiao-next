@@ -96,3 +96,39 @@ func (a settingsTranslationAdapter) Translate(ctx context.Context, fields map[st
 	}
 	return result, nil
 }
+
+func (a settingsTranslationAdapter) GenerateSeo(ctx context.Context, source settingstransport.SeoSource, locales []string) (map[string]settingstransport.SeoEntry, error) {
+	setting, err := a.settings.GetTranslationSetting()
+	if err != nil {
+		return nil, err
+	}
+	if !setting.Enabled || setting.APIKey == "" {
+		return nil, settingstransport.ErrTranslateNotConfigured
+	}
+
+	generated, err := a.client.GenerateSeo(ctx, setting, openaitranslate.SeoSource{
+		SiteName:    source.SiteName,
+		Title:       source.Title,
+		Category:    source.Category,
+		Price:       source.Price,
+		Description: source.Description,
+		Content:     source.Content,
+	}, locales)
+	if err != nil {
+		if errors.Is(err, openaitranslate.ErrNotConfigured) {
+			return nil, settingstransport.ErrTranslateNotConfigured
+		}
+		return nil, errors.Join(settingstransport.ErrTranslateFailed, err)
+	}
+
+	out := make(map[string]settingstransport.SeoEntry, len(generated))
+	for locale, entry := range generated {
+		out[locale] = settingstransport.SeoEntry{
+			Locale:      entry.Locale,
+			Title:       entry.Title,
+			Keywords:    entry.Keywords,
+			Description: entry.Description,
+		}
+	}
+	return out, nil
+}

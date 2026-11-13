@@ -28,6 +28,15 @@ const (
 	targetLocaleEnUS = "en-US"
 )
 
+// timeoutFor 返回本次调用的超时：优先用设置里的值，缺失时回落到默认值。
+func timeoutFor(cfg settingsintegration.TranslationSetting) time.Duration {
+	seconds := cfg.TimeoutSeconds
+	if seconds <= 0 {
+		return requestTimeout
+	}
+	return time.Duration(seconds) * time.Second
+}
+
 var (
 	ErrNotConfigured = errors.New("openai translate: not configured")
 	ErrRequestFailed = errors.New("openai translate: request failed")
@@ -46,8 +55,10 @@ type Client struct {
 }
 
 // New creates a translation client.
+// 不设 http.Client.Timeout：单次请求的超时由每次调用按配置用 context 控制，
+// 否则配置里调大超时会被固定的 client 超时提前截断。
 func New() Client {
-	return Client{httpClient: &http.Client{Timeout: requestTimeout}}
+	return Client{httpClient: &http.Client{}}
 }
 
 type chatMessage struct {
@@ -179,7 +190,7 @@ func (c Client) Translate(ctx context.Context, cfg settingsintegration.Translati
 		return nil, fmt.Errorf("%w: %v", ErrRequestFailed, err)
 	}
 
-	requestCtx, cancel := context.WithTimeout(ctx, requestTimeout)
+	requestCtx, cancel := context.WithTimeout(ctx, timeoutFor(cfg))
 	defer cancel()
 	request, err := http.NewRequestWithContext(requestCtx, http.MethodPost, baseURL+"/v1/chat/completions", strings.NewReader(string(bodyBytes)))
 	if err != nil {

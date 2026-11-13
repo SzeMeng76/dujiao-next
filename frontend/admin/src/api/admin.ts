@@ -459,6 +459,8 @@ export const adminAPI = {
   getTranslationSettings: () => api.get('/admin/settings/translation'),
   updateTranslationSettings: (data: Record<string, unknown>) => api.put('/admin/settings/translation', data),
   translateFields: (fields: Record<string, string>) => api.post('/admin/settings/translation/translate', { fields }, { timeoutMs: 110000 }),
+  generateSeo: (data: { locales?: string[]; source: Record<string, string> }) =>
+    api.post('/admin/settings/translation/generate-seo', data, { timeoutMs: 110000 }),
   submitTranslationJob: (fields: Record<string, string>) => api.post('/admin/settings/translation/jobs', { fields }),
   getTranslationJobStatus: (jobId: string) => api.get(`/admin/settings/translation/jobs/${jobId}`),
   getOrderEmailTemplateSettings: () => api.get('/admin/settings/order-email-template'),

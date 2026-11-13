@@ -16,7 +16,8 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { notifyError } from '@/utils/notify'
+import { Sparkles, Loader2 } from 'lucide-vue-next'
+import { notifyError, notifySuccess } from '@/utils/notify'
 import { getLocalizedText } from '@/utils/format'
 import { buildAdminCategoryPath, createAdminCategoryChildCountMap, createAdminCategoryMap, flattenAdminCategories, isAdminProductCategorySelectable } from '@/utils/category'
 
@@ -238,6 +239,75 @@ const handleAutoTranslate = () => {
     fields[`sku_spec_${index}`] = sku.spec_values
   })
   translateFields(fields)
+}
+
+// ——— AI SEO 生成 ———
+// 与「AI 翻译」不同：翻译要求已有中文内容，生成则从商品事实重新写文案，
+// 因此对采集来、SEO 字段为空的商品同样有效。
+const seoGenerating = ref(false)
+const seoPreview = ref<{ title: string; keywords: string; description: string } | null>(null)
+const seoPreviewOpen = ref(false)
+
+const buildSeoSource = () => {
+  const categoryName = (() => {
+    const id = form.category_id
+    if (!id) return ''
+    const category = categoryMap.value.get(id)
+    if (!category) return ''
+    const name = category.name as Record<string, string> | undefined
+    return (name?.[currentLang.value] || getLocalizedText(category.name) || '').trim()
+  })()
+  return {
+    site_name: '',
+    title: (form.title[currentLang.value] || form.title['zh-CN'] || '').trim(),
+    category: categoryName,
+    price: form.price_amount ? String(form.price_amount) : '',
+    description: (form.description[currentLang.value] || form.description['zh-CN'] || '').trim(),
+    content: (form.content[currentLang.value] || form.content['zh-CN'] || '').trim(),
+  }
+}
+
+const handleGenerateSeo = async () => {
+  const source = buildSeoSource()
+  if (!source.title) {
+    notifyError(t('common.translate.seoNoTitle'))
+    return
+  }
+
+  seoGenerating.value = true
+  try {
+    const res = await adminAPI.generateSeo({
+      locales: [currentLang.value],
+      source,
+    })
+    const entries = (res.data?.data?.entries || {}) as Record<string, { title?: string; keywords?: string; description?: string }>
+    const entry = entries[currentLang.value] || Object.values(entries)[0]
+    if (!entry || (!entry.title && !entry.description)) {
+      throw new Error('empty result')
+    }
+    seoPreview.value = {
+      title: entry.title || '',
+      keywords: entry.keywords || '',
+      description: entry.description || '',
+    }
+    seoPreviewOpen.value = true
+  } catch (err: any) {
+    const known = err as Error & { __notified?: boolean }
+    if (!known?.__notified) {
+      notifyError(err?.message || t('common.translate.seoFailed'))
+    }
+  } finally {
+    seoGenerating.value = false
+  }
+}
+
+// 只写入 SEO 字段，不覆盖商品标题 / 描述 / 正文。
+const applySeoPreview = () => {
+  if (!seoPreview.value) return
+  form.seo_meta.keywords[currentLang.value] = seoPreview.value.keywords
+  form.seo_meta.description[currentLang.value] = seoPreview.value.description
+  seoPreviewOpen.value = false
+  notifySuccess(t('common.translate.seoSuccess'))
 }
 
 const emptyI18nString = () => ({ 'zh-CN': '', 'zh-TW': '', 'en-US': '' })
@@ -776,7 +846,21 @@ watch(
                 {{ lang.name }}
               </button>
             </div>
-            <AutoTranslateButton :loading="translating" @click="handleAutoTranslate" />
+            <div class="flex flex-wrap items-center gap-2">
+              <AutoTranslateButton :loading="translating" @click="handleAutoTranslate" />
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                :disabled="seoGenerating"
+                class="gap-1.5"
+                @click="handleGenerateSeo"
+              >
+                <Loader2 v-if="seoGenerating" class="h-3.5 w-3.5 animate-spin" />
+                <Sparkles v-else class="h-3.5 w-3.5" />
+                {{ seoGenerating ? t('common.translate.generatingSeo') : t('common.translate.generateSeo') }}
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -1169,6 +1253,37 @@ watch(
           </Button>
         </div>
       </form>
+    </DialogScrollContent>
+  </Dialog>
+
+  <Dialog v-model:open="seoPreviewOpen">
+    <DialogScrollContent class="max-w-2xl">
+      <DialogHeader>
+        <DialogTitle>{{ t('common.translate.seoPreviewTitle') }}</DialogTitle>
+      </DialogHeader>
+      <div v-if="seoPreview" class="space-y-4">
+        <p class="text-xs text-muted-foreground">{{ t('common.translate.seoPreviewHint') }}</p>
+        <div class="space-y-2">
+          <label class="text-xs font-medium text-muted-foreground">{{ t('common.translate.seoTitleLabel') }}</label>
+          <Input :model-value="seoPreview.title" readonly class="bg-muted/40" />
+        </div>
+        <div class="space-y-2">
+          <label class="text-xs font-medium text-muted-foreground">{{ t('common.translate.seoKeywordsLabel') }}</label>
+          <Input :model-value="seoPreview.keywords" readonly class="bg-muted/40" />
+        </div>
+        <div class="space-y-2">
+          <label class="text-xs font-medium text-muted-foreground">{{ t('common.translate.seoDescriptionLabel') }}</label>
+          <Textarea :model-value="seoPreview.description" readonly class="min-h-[90px] bg-muted/40" />
+        </div>
+        <div class="flex flex-col-reverse gap-3 border-t border-border pt-4 sm:flex-row sm:justify-end">
+          <Button type="button" variant="outline" class="w-full sm:w-auto" @click="seoPreviewOpen = false">
+            {{ t('common.translate.seoCancel') }}
+          </Button>
+          <Button type="button" class="w-full sm:w-auto" @click="applySeoPreview">
+            {{ t('common.translate.seoApply') }}
+          </Button>
+        </div>
+      </div>
     </DialogScrollContent>
   </Dialog>
 </template>

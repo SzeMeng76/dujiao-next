@@ -3,6 +3,7 @@ package settingshttp
 import (
 	"context"
 	"errors"
+	"strings"
 
 	ginutil "github.com/dujiao-next/internal/platform/http/ginutil"
 
@@ -16,15 +17,35 @@ var (
 	ErrTranslateNotConfigured = errors.New("translate: not configured")
 	ErrTranslateFailed        = errors.New("translate: upstream call failed")
 	ErrJobNotFound            = errors.New("translation job not found")
+	ErrSeoSourceInvalid       = errors.New("seo: source text required")
 )
 
 const translateFieldsMax = 20
+
+// SeoSource 是生成 SEO 文案时提交给 AI 的商品事实。
+type SeoSource struct {
+	SiteName    string `json:"site_name"`
+	Title       string `json:"title"`
+	Category    string `json:"category"`
+	Price       string `json:"price"`
+	Description string `json:"description"`
+	Content     string `json:"content"`
+}
+
+// SeoEntry 是某一语言的生成结果。
+type SeoEntry struct {
+	Locale      string `json:"locale"`
+	Title       string `json:"title"`
+	Keywords    string `json:"keywords"`
+	Description string `json:"description"`
+}
 
 // TranslationAdminService 是后台 AI 翻译设置与翻译动作所需端口。
 type TranslationAdminService interface {
 	GetTranslationSetting() (settingsintegration.TranslationSetting, error)
 	PatchTranslationSetting(patch settingsintegration.TranslationSetting) (settingsintegration.TranslationSetting, error)
 	Translate(ctx context.Context, fields map[string]string) (map[string]map[string]string, error)
+	GenerateSeo(ctx context.Context, source SeoSource, locales []string) (map[string]SeoEntry, error)
 }
 
 // TranslationJobService 是异步翻译任务所需端口。
@@ -163,4 +184,42 @@ func (h *TranslationHandler) GetTranslateJobStatus(c *gin.Context) {
 	}
 
 	response.Success(c, job)
+}
+
+type generateSeoRequest struct {
+	Locales []string  `json:"locales"`
+	Source  SeoSource `json:"source" binding:"required"`
+}
+
+// GenerateSeo 根据商品事实生成各语言的 SEO 标题 / 关键词 / 描述。
+// 只返回生成结果，不写库——由后台在用户确认后再保存。
+func (h *TranslationHandler) GenerateSeo(c *gin.Context) {
+	var req generateSeoRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		ginutil.RespondBindError(c, err)
+		return
+	}
+	if strings.TrimSpace(req.Source.Title) == "" {
+		ginutil.RespondError(c, response.CodeBadRequest, "error.seo_source_required", nil)
+		return
+	}
+
+	result, err := h.translation.GenerateSeo(c.Request.Context(), req.Source, req.Locales)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrTranslateNotConfigured):
+			ginutil.RespondError(c, response.CodeBadRequest, "error.translation_not_configured", nil)
+		case errors.Is(err, ErrSeoSourceInvalid):
+			ginutil.RespondError(c, response.CodeBadRequest, "error.seo_source_required", nil)
+		default:
+			ginutil.RespondError(c, response.CodeInternal, "error.translation_failed", err)
+		}
+		return
+	}
+
+	locales := make([]string, 0, len(result))
+	for locale := range result {
+		locales = append(locales, locale)
+	}
+	response.Success(c, gin.H{"entries": result, "locales": locales})
 }

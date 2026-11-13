@@ -11,19 +11,32 @@ import (
 
 const defaultTranslationModel = "gpt-5-mini"
 
+// 单次 AI 请求超时（秒）的默认值与允许范围。
+// 默认值沿用改造前硬编码的 90 秒，避免升级后已有站点的长文本翻译
+// 因超时变短而失败；允许在设置里按需调低。
+const (
+	DefaultTranslationTimeoutSeconds = 90
+	MinTranslationTimeoutSeconds     = 5
+	MaxTranslationTimeoutSeconds     = 300
+)
+
 var ErrTranslationConfigInvalid = errors.New("translation config invalid")
 
-// TranslationSetting AI 翻译（机器翻译商品/内容多语言字段）配置。
+// TranslationSetting AI 翻译 / AI SEO 生成（调用 OpenAI 兼容接口）配置。
 type TranslationSetting struct {
-	Enabled bool   `json:"enabled"`
-	APIKey  string `json:"api_key"`
-	BaseURL string `json:"base_url"`
-	Model   string `json:"model"`
+	Enabled        bool   `json:"enabled"`
+	APIKey         string `json:"api_key"`
+	BaseURL        string `json:"base_url"`
+	Model          string `json:"model"`
+	TimeoutSeconds int    `json:"timeout_seconds"`
 }
 
 // DefaultTranslationSetting 返回稳定的翻译功能默认设置。
 func DefaultTranslationSetting() TranslationSetting {
-	return NormalizeTranslationSetting(TranslationSetting{Model: defaultTranslationModel})
+	return NormalizeTranslationSetting(TranslationSetting{
+		Model:          defaultTranslationModel,
+		TimeoutSeconds: DefaultTranslationTimeoutSeconds,
+	})
 }
 
 // NormalizeTranslationSetting 归一化翻译配置。
@@ -33,6 +46,15 @@ func NormalizeTranslationSetting(setting TranslationSetting) TranslationSetting 
 	setting.Model = strings.TrimSpace(setting.Model)
 	if setting.Model == "" {
 		setting.Model = defaultTranslationModel
+	}
+	if setting.TimeoutSeconds <= 0 {
+		setting.TimeoutSeconds = DefaultTranslationTimeoutSeconds
+	}
+	if setting.TimeoutSeconds < MinTranslationTimeoutSeconds {
+		setting.TimeoutSeconds = MinTranslationTimeoutSeconds
+	}
+	if setting.TimeoutSeconds > MaxTranslationTimeoutSeconds {
+		setting.TimeoutSeconds = MaxTranslationTimeoutSeconds
 	}
 	return setting
 }
@@ -47,6 +69,9 @@ func ValidateTranslationSetting(setting TranslationSetting) error {
 	}
 	if setting.Model == "" {
 		return fmt.Errorf("%w: 模型名称不能为空", ErrTranslationConfigInvalid)
+	}
+	if setting.TimeoutSeconds < MinTranslationTimeoutSeconds || setting.TimeoutSeconds > MaxTranslationTimeoutSeconds {
+		return fmt.Errorf("%w: 超时时间需在 %d-%d 秒之间", ErrTranslationConfigInvalid, MinTranslationTimeoutSeconds, MaxTranslationTimeoutSeconds)
 	}
 	return nil
 }
@@ -75,6 +100,11 @@ func DecodeTranslationSetting(raw jsonmap.JSON, fallback TranslationSetting) Tra
 			next.Model = text
 		}
 	}
+	if value, exists := raw["timeout_seconds"]; exists {
+		if seconds, err := settingsvalue.ParseInt(value); err == nil {
+			next.TimeoutSeconds = seconds
+		}
+	}
 	return NormalizeTranslationSetting(next)
 }
 
@@ -82,10 +112,11 @@ func DecodeTranslationSetting(raw jsonmap.JSON, fallback TranslationSetting) Tra
 func EncodeTranslationSetting(setting TranslationSetting) jsonmap.JSON {
 	normalized := NormalizeTranslationSetting(setting)
 	return jsonmap.JSON{
-		"enabled":  normalized.Enabled,
-		"api_key":  normalized.APIKey,
-		"base_url": normalized.BaseURL,
-		"model":    normalized.Model,
+		"enabled":         normalized.Enabled,
+		"api_key":         normalized.APIKey,
+		"base_url":        normalized.BaseURL,
+		"model":           normalized.Model,
+		"timeout_seconds": normalized.TimeoutSeconds,
 	}
 }
 
@@ -93,11 +124,12 @@ func EncodeTranslationSetting(setting TranslationSetting) jsonmap.JSON {
 func MaskTranslationSettingForAdmin(setting TranslationSetting) jsonmap.JSON {
 	normalized := NormalizeTranslationSetting(setting)
 	return jsonmap.JSON{
-		"enabled":     normalized.Enabled,
-		"api_key":     "",
-		"has_api_key": normalized.APIKey != "",
-		"base_url":    normalized.BaseURL,
-		"model":       normalized.Model,
+		"enabled":         normalized.Enabled,
+		"api_key":         "",
+		"has_api_key":     normalized.APIKey != "",
+		"base_url":        normalized.BaseURL,
+		"model":           normalized.Model,
+		"timeout_seconds": normalized.TimeoutSeconds,
 	}
 }
 
@@ -108,6 +140,7 @@ func ApplyTranslationSettingPatch(current TranslationSetting, patch TranslationS
 	next.Enabled = patch.Enabled
 	next.BaseURL = patch.BaseURL
 	next.Model = patch.Model
+	next.TimeoutSeconds = patch.TimeoutSeconds
 	if strings.TrimSpace(patch.APIKey) != "" {
 		next.APIKey = patch.APIKey
 	}

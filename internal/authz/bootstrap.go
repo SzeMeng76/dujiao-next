@@ -259,6 +259,7 @@ func BuiltinRoleSeeds() []RoleSeed {
 				{Object: "/admin/settings/affiliate", Action: "*"},
 				{Object: "/admin/settings/translation", Action: "*"},
 				{Object: "/admin/settings/translation/translate", Action: "POST"},
+				{Object: "/admin/settings/translation/generate-seo", Action: "POST"},
 				{Object: "/admin/settings/translation/jobs", Action: "POST"},
 				{Object: "/admin/settings/translation/jobs/:id", Action: "GET"},
 				{Object: "/admin/settings/telegram-bot", Action: "*"},

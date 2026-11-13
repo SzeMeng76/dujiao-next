@@ -15,6 +15,7 @@ interface TranslationData {
   has_api_key: boolean
   base_url: string
   model: string
+  timeout_seconds: number
 }
 
 const props = defineProps<{
@@ -33,6 +34,7 @@ const form = reactive({
   has_api_key: false,
   base_url: '',
   model: '',
+  timeout_seconds: 90,
 })
 
 const syncFromProps = () => {
@@ -41,6 +43,7 @@ const syncFromProps = () => {
   form.has_api_key = props.data.has_api_key
   form.base_url = props.data.base_url
   form.model = props.data.model
+  form.timeout_seconds = props.data.timeout_seconds || 90
 }
 
 syncFromProps()
@@ -63,6 +66,7 @@ const save = async () => {
       api_key: form.api_key,
       base_url: form.base_url,
       model: form.model,
+      timeout_seconds: Number(form.timeout_seconds) || 90,
     }
     const res = await adminAPI.updateTranslationSettings(payload)
     const data = res.data?.data as Record<string, unknown> | undefined
@@ -110,6 +114,11 @@ defineExpose({ save, submitting })
             <label class="text-xs font-medium text-muted-foreground">{{ t('admin.settings.translation.model') }}</label>
             <Input v-model="form.model" :placeholder="t('admin.settings.translation.modelPlaceholder')" />
             <p class="text-xs text-muted-foreground">{{ t('admin.settings.translation.modelHint') }}</p>
+          </div>
+          <div class="space-y-2">
+            <label class="text-xs font-medium text-muted-foreground">{{ t('admin.settings.translation.timeout') }}</label>
+            <Input v-model.number="form.timeout_seconds" type="number" min="5" max="300" :placeholder="t('admin.settings.translation.timeoutPlaceholder')" />
+            <p class="text-xs text-muted-foreground">{{ t('admin.settings.translation.timeoutHint') }}</p>
           </div>
         </div>
       </div>
