@@ -3,6 +3,7 @@ package ginutil
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/dujiao-next/internal/i18n"
@@ -123,6 +124,65 @@ const ServerErrorStatusKey = "error_log_status_code"
 // 4xx 挂上去会把正常的用户输错刷成 error 日志，所以 4xx 不能走 c.Error()。
 // 这个独立键解决的是「4xx 没有 c.Errors 可读、message 只能兜底成 server error」的问题。
 const ServerErrorMessageKey = "error_log_message"
+
+// ServerErrorLevelKey 是塞进 gin.Context 的错误级别键名，供 ErrorLogMiddleware 覆盖默认级别。
+//
+// 默认级别由状态码推导（5xx→error，4xx→warn）。但支付回调这类端点必须对网关返回
+// HTTP 200（否则会被网关当成投递失败无限重试），失败信息只能放在响应体里，
+// 状态码推导不出任何级别，只能由 handler 显式声明。
+const ServerErrorLevelKey = "error_log_level"
+
+// MarkErrorLog 把「对外返回 200、但业务上已经失败」的请求标记为需要写入后台错误日志。
+//
+// 典型场景是支付回调：网关要求回调端点无论处理结果如何都回 HTTP 200，
+// ErrorLogMiddleware 靠状态码无法识别失败，只能由 handler 主动标记。
+// level 取 "error" / "warn"；message 会作为后台错误日志的 message 保存。
+// 不修改响应内容，调用方仍需自行写出网关要求的响应体。
+func MarkErrorLog(c *gin.Context, level, message string) {
+	if c == nil {
+		return
+	}
+	if level != "" {
+		c.Set(ServerErrorLevelKey, level)
+	}
+	if message != "" {
+		c.Set(ServerErrorMessageKey, message)
+	}
+	// 以 5xx 触发记录：collect_4xx 关闭时 4xx 不会被收集，而这里标记的
+	// 恰恰是必须留痕的失败，不能依赖那个开关。真实级别由 ServerErrorLevelKey 决定。
+	c.Set(ServerErrorStatusKey, http.StatusInternalServerError)
+}
+
+// MarkAlertErrorLog 把一条支付/上游异常告警同时标记为后台错误日志。
+//
+// 支付回调端点必须对网关返回 HTTP 200（否则网关按投递失败无限重试），
+// webhook 端点即使返回 5xx 也可能被映射成 4xx，两者都进不了默认的错误日志收集条件。
+// 为了让「发了 TG 告警」与「后台留下记录」保持一致，这里按告警自身的字段生成日志：
+// 级别取 alert_level，内容取 alert_type + message，再拼上定位所需的业务标识。
+//
+// alertType / alertLevel / message 为空时分别回退到默认值，保证永远不会写出空日志。
+func MarkAlertErrorLog(c *gin.Context, alertType, alertLevel, message string) {
+	if c == nil {
+		return
+	}
+
+	level := "error"
+	if strings.EqualFold(strings.TrimSpace(alertLevel), "warning") ||
+		strings.EqualFold(strings.TrimSpace(alertLevel), "warn") {
+		level = "warn"
+	}
+
+	text := strings.TrimSpace(alertType)
+	if detail := strings.TrimSpace(message); detail != "" {
+		if text == "" {
+			text = detail
+		} else {
+			text += ": " + detail
+		}
+	}
+
+	MarkErrorLog(c, level, text)
+}
 
 // attachErrorContext 把业务状态码与错误描述挂到 gin.Context 上，供 ErrorLogMiddleware 落库。
 //

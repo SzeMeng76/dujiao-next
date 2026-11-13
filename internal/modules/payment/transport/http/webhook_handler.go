@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"crypto/subtle"
+	"fmt"
 	"html/template"
 	"io"
 	"net/http"
@@ -415,6 +416,16 @@ func (h *WebhookHandler) enqueuePaymentExceptionAlert(c *gin.Context, data jsonm
 	if c.Request.URL != nil {
 		path = strings.TrimSpace(c.Request.URL.Path)
 	}
+
+	// 与回调侧保持同一份事实：发了 TG 告警就必须在后台错误日志留痕。
+	// webhook 侧部分错误被映射成 4xx（见 paymentProviderGatewayErrorRules），
+	// 默认不落库，必须显式标记。
+	ginutil.MarkAlertErrorLog(c,
+		readWebhookAlertField(data, "alert_type"),
+		readWebhookAlertField(data, "alert_level"),
+		strings.TrimSpace(readWebhookAlertField(data, "message")),
+	)
+
 	if err := h.alerts.EnqueuePaymentExceptionAlert(
 		strings.TrimSpace(c.Request.Method),
 		path,
@@ -423,6 +434,18 @@ func (h *WebhookHandler) enqueuePaymentExceptionAlert(c *gin.Context, data jsonm
 	); err != nil {
 		ginutil.RequestLog(c).Warnw("enqueue_payment_exception_alert_failed", "error", err)
 	}
+}
+
+// readWebhookAlertField 读取告警字段的字符串形式，兼容 JSON 里可能出现的数字类型。
+func readWebhookAlertField(data jsonmap.JSON, key string) string {
+	v, ok := data[key]
+	if !ok || v == nil {
+		return ""
+	}
+	if s, ok := v.(string); ok {
+		return s
+	}
+	return fmt.Sprint(v)
 }
 
 func respondPaymentCallbackError(c *gin.Context, err error) {

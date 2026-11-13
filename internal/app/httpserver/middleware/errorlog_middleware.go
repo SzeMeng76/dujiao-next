@@ -129,6 +129,13 @@ func buildEntry(c *gin.Context, status int) *domain.ErrorLog {
 	if status < 500 {
 		level = domain.LevelWarn
 	}
+	// handler 可通过 ginutil.MarkErrorLog 显式声明级别：
+	// 对外返回 200 但业务失败的回调类端点，靠状态码推导不出真实严重程度。
+	if v, exists := c.Get(ginutil.ServerErrorLevelKey); exists {
+		if l, ok := v.(string); ok && (l == domain.LevelError || l == domain.LevelWarn) {
+			level = l
+		}
+	}
 
 	return &domain.ErrorLog{
 		Level:      level,

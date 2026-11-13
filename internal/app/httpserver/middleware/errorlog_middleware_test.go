@@ -169,6 +169,59 @@ type assertErr string
 
 func (e assertErr) Error() string { return string(e) }
 
+// 支付回调端点必须对网关返回 HTTP 200（否则网关无限重试），
+// 失败只能由 handler 通过 ginutil.MarkErrorLog 显式标记。
+// 若不支持这条路径，所有回调类失败都不会进入后台错误日志。
+func TestErrorLogMiddleware_RecordsMarkedErrorWithHTTP200(t *testing.T) {
+	repo := &captureRepo{}
+	r, svc := newTestRouter(repo, func(c *gin.Context) {
+		ginutil.MarkErrorLog(c, domain.LevelWarn, "globepay_callback_payment_not_found: foo [partner_order_id=X]")
+		c.String(http.StatusOK, "fail")
+	})
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/api/v1/payment/callback", nil))
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("前置假设错误：回调端点应返回 HTTP 200，实际 %d", w.Code)
+	}
+
+	svc.Stop()
+	logs := repo.all()
+	if len(logs) != 1 {
+		t.Fatalf("显式标记的回调失败应被记录 1 条，实际 %d 条", len(logs))
+	}
+	if logs[0].Level != domain.LevelWarn {
+		t.Fatalf("级别应取 handler 显式声明（warn），实际 %q", logs[0].Level)
+	}
+	if logs[0].Category != domain.CategoryPayment {
+		t.Fatalf("回调路径应归类为 payment，实际 %q", logs[0].Category)
+	}
+	if !strings.Contains(logs[0].Message, "globepay_callback_payment_not_found") {
+		t.Fatalf("message 应保留 alert_type，实际 %q", logs[0].Message)
+	}
+}
+
+// 显式标记的 error 级别不能被状态码推导覆盖成 warn。
+func TestErrorLogMiddleware_MarkedLevelOverridesStatusDerived(t *testing.T) {
+	repo := &captureRepo{}
+	r, svc := newTestRouter(repo, func(c *gin.Context) {
+		ginutil.MarkErrorLog(c, domain.LevelError, "epay_callback_handle_failed: sign mismatch")
+		c.String(http.StatusOK, "fail")
+	})
+
+	r.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/api/v1/payment/callback", nil))
+
+	svc.Stop()
+	logs := repo.all()
+	if len(logs) != 1 {
+		t.Fatalf("应记录 1 条，实际 %d 条", len(logs))
+	}
+	if logs[0].Level != domain.LevelError {
+		t.Fatalf("级别应为 error，实际 %q", logs[0].Level)
+	}
+}
+
 // collect_4xx=true 时，4xx 也应被记录为 warn 级别。
 func TestErrorLogMiddleware_Records4xxWhenEnabled(t *testing.T) {
 	repo := &captureRepo{}

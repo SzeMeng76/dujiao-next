@@ -2,6 +2,7 @@ package paymentcallbackhttp
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -109,6 +110,13 @@ func (h *Handler) PaymentCallback(c *gin.Context) {
 	c.AbortWithStatus(http.StatusNotFound)
 }
 
+// enqueuePaymentExceptionAlert 是回调侧所有异常告警的唯一出口，
+// 同时负责把同一条异常写入后台错误日志（error_logs 表）。
+//
+// 为什么要在这里写：支付回调端点必须对网关返回 HTTP 200（否则网关按投递失败
+// 无限重试），失败信息只存在于响应体和 TG 通知里。ErrorLogMiddleware 依赖状态码
+// 判断是否落库，对这类端点永远命中不了，导致后台错误日志一片空白、TG 消息滚走后
+// 无法追溯。这里显式标记，让所有渠道（alipay/epay/globepay/nihaopay/wechat）统一生效。
 func (h *Handler) enqueuePaymentExceptionAlert(c *gin.Context, data jsonmap.JSON) {
 	if h == nil || h.alerts == nil || c == nil || c.Request == nil {
 		return
@@ -117,6 +125,11 @@ func (h *Handler) enqueuePaymentExceptionAlert(c *gin.Context, data jsonmap.JSON
 	if c.Request.URL != nil {
 		path = strings.TrimSpace(c.Request.URL.Path)
 	}
+
+	// 与 TG 告警保持同一份事实：级别取 alert_level，内容取 alert_type + message，
+	// 再拼上定位异常所需的业务字段，避免后台只剩一句笼统的失败描述。
+	markCallbackErrorLog(c, data)
+
 	if err := h.alerts.EnqueuePaymentExceptionAlert(
 		strings.TrimSpace(c.Request.Method),
 		path,
@@ -125,6 +138,35 @@ func (h *Handler) enqueuePaymentExceptionAlert(c *gin.Context, data jsonmap.JSON
 	); err != nil {
 		ginutil.RequestLog(c).Warnw("enqueue_payment_exception_alert_failed", "error", err)
 	}
+}
+
+// markCallbackErrorLog 把回调异常标记给 ErrorLogMiddleware 落库。
+func markCallbackErrorLog(c *gin.Context, data jsonmap.JSON) {
+	message := strings.TrimSpace(readAlertString(data, "message"))
+	// 补上订单/支付标识：后台排查时这些字段比错误文案更关键。
+	for _, key := range []string{"payment_id", "partner_order_id", "out_trade_no", "reference", "channel_id", "provider"} {
+		if v := strings.TrimSpace(readAlertString(data, key)); v != "" {
+			message += " [" + key + "=" + v + "]"
+		}
+	}
+
+	ginutil.MarkAlertErrorLog(c,
+		readAlertString(data, "alert_type"),
+		readAlertString(data, "alert_level"),
+		message,
+	)
+}
+
+// readAlertString 读取告警字段的字符串形式，兼容 JSON 里可能出现的数字类型。
+func readAlertString(data jsonmap.JSON, key string) string {
+	v, ok := data[key]
+	if !ok || v == nil {
+		return ""
+	}
+	if s, ok := v.(string); ok {
+		return s
+	}
+	return fmt.Sprint(v)
 }
 
 func getFirstValue(form map[string][]string, key string) string {
