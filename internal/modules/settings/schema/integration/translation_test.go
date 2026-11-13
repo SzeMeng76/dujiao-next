@@ -4,9 +4,9 @@ import "testing"
 
 func TestNormalizeTranslationSettingTimeoutBounds(t *testing.T) {
 	tests := []struct {
-		name    string
-		input   int
-		want    int
+		name  string
+		input int
+		want  int
 	}{
 		{name: "zero falls back to default", input: 0, want: DefaultTranslationTimeoutSeconds},
 		{name: "negative falls back to default", input: -5, want: DefaultTranslationTimeoutSeconds},
