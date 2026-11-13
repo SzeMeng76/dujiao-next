@@ -244,8 +244,11 @@ const handleAutoTranslate = () => {
 // ——— AI SEO 生成 ———
 // 与「AI 翻译」不同：翻译要求已有中文内容，生成则从商品事实重新写文案，
 // 因此对采集来、SEO 字段为空的商品同样有效。
+// 生成一次直接产出全部语言，不需要再点翻译补另外两栏。
+type SeoPreviewEntry = { title: string; keywords: string; description: string }
 const seoGenerating = ref(false)
-const seoPreview = ref<{ title: string; keywords: string; description: string } | null>(null)
+const seoPreview = ref<Record<string, SeoPreviewEntry> | null>(null)
+const seoPreviewOrder = ref<string[]>([])
 const seoPreviewOpen = ref(false)
 
 const buildSeoSource = () => {
@@ -277,19 +280,26 @@ const handleGenerateSeo = async () => {
   seoGenerating.value = true
   try {
     const res = await adminAPI.generateSeo({
-      locales: [currentLang.value],
+      locales: languages.value.map((item) => item.code),
       source,
     })
-    const entries = (res.data?.data?.entries || {}) as Record<string, { title?: string; keywords?: string; description?: string }>
-    const entry = entries[currentLang.value] || Object.values(entries)[0]
-    if (!entry || (!entry.title && !entry.description)) {
+    const entries = (res.data?.data?.entries || {}) as Record<string, Partial<SeoPreviewEntry>>
+    const preview: Record<string, SeoPreviewEntry> = {}
+    for (const [locale, entry] of Object.entries(entries)) {
+      const title = (entry.title || '').trim()
+      const keywords = (entry.keywords || '').trim()
+      const description = (entry.description || '').trim()
+      // 空结果不展示：宁可提示失败，也不要让用户以为写入了内容。
+      if (!title && !description) continue
+      preview[locale] = { title, keywords, description }
+    }
+    if (Object.keys(preview).length === 0) {
       throw new Error('empty result')
     }
-    seoPreview.value = {
-      title: entry.title || '',
-      keywords: entry.keywords || '',
-      description: entry.description || '',
-    }
+    seoPreview.value = preview
+    seoPreviewOrder.value = languages.value
+      .map((item) => item.code)
+      .filter((code) => Boolean(preview[code]))
     seoPreviewOpen.value = true
   } catch (err: any) {
     const known = err as Error & { __notified?: boolean }
@@ -301,13 +311,23 @@ const handleGenerateSeo = async () => {
   }
 }
 
-// 只写入 SEO 字段，不覆盖商品标题 / 描述 / 正文。
+// 只写入 SEO 字段（关键词 / 描述），不覆盖商品标题、描述、正文。
 const applySeoPreview = () => {
   if (!seoPreview.value) return
-  form.seo_meta.keywords[currentLang.value] = seoPreview.value.keywords
-  form.seo_meta.description[currentLang.value] = seoPreview.value.description
+  let applied = 0
+  for (const [locale, entry] of Object.entries(seoPreview.value)) {
+    form.seo_meta.keywords[locale] = entry.keywords
+    form.seo_meta.description[locale] = entry.description
+    applied++
+  }
   seoPreviewOpen.value = false
-  notifySuccess(t('common.translate.seoSuccess'))
+  if (applied > 0) {
+    notifySuccess(t('common.translate.seoSuccess'))
+  }
+}
+
+const getLangLabel = (code: string) => {
+  return languages.value.find((item) => item.code === code)?.name || code
 }
 
 const emptyI18nString = () => ({ 'zh-CN': '', 'zh-TW': '', 'en-US': '' })
@@ -1263,17 +1283,20 @@ watch(
       </DialogHeader>
       <div v-if="seoPreview" class="space-y-4">
         <p class="text-xs text-muted-foreground">{{ t('common.translate.seoPreviewHint') }}</p>
-        <div class="space-y-2">
-          <label class="text-xs font-medium text-muted-foreground">{{ t('common.translate.seoTitleLabel') }}</label>
-          <Input :model-value="seoPreview.title" readonly class="bg-muted/40" />
-        </div>
-        <div class="space-y-2">
-          <label class="text-xs font-medium text-muted-foreground">{{ t('common.translate.seoKeywordsLabel') }}</label>
-          <Input :model-value="seoPreview.keywords" readonly class="bg-muted/40" />
-        </div>
-        <div class="space-y-2">
-          <label class="text-xs font-medium text-muted-foreground">{{ t('common.translate.seoDescriptionLabel') }}</label>
-          <Textarea :model-value="seoPreview.description" readonly class="min-h-[90px] bg-muted/40" />
+        <div v-for="code in seoPreviewOrder" :key="code" class="space-y-3 rounded-lg border border-border bg-muted/10 p-4">
+          <div class="text-sm font-medium">{{ getLangLabel(code) }}</div>
+          <div class="space-y-2">
+            <label class="text-xs font-medium text-muted-foreground">{{ t('common.translate.seoTitleLabel') }}</label>
+            <Input :model-value="seoPreview[code]?.title" readonly class="bg-muted/40" />
+          </div>
+          <div class="space-y-2">
+            <label class="text-xs font-medium text-muted-foreground">{{ t('common.translate.seoKeywordsLabel') }}</label>
+            <Input :model-value="seoPreview[code]?.keywords" readonly class="bg-muted/40" />
+          </div>
+          <div class="space-y-2">
+            <label class="text-xs font-medium text-muted-foreground">{{ t('common.translate.seoDescriptionLabel') }}</label>
+            <Textarea :model-value="seoPreview[code]?.description" readonly class="min-h-[80px] bg-muted/40" />
+          </div>
         </div>
         <div class="flex flex-col-reverse gap-3 border-t border-border pt-4 sm:flex-row sm:justify-end">
           <Button type="button" variant="outline" class="w-full sm:w-auto" @click="seoPreviewOpen = false">
