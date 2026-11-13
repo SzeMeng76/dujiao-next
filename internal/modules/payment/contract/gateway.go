@@ -100,6 +100,18 @@ type GatewayCallbackVerifier interface {
 	VerifyCallback(cfg jsonmap.JSON, form map[string][]string, body []byte) (*GatewayCallbackResult, error)
 }
 
+// GatewayCallbackConfirmer 表示该网关的回调签名不足以证明业务事实。
+//
+// 当网关的签名只覆盖鉴权参数（时间戳、随机串）而不覆盖订单号、金额、币种时，
+// 验签通过仅说明请求方见过一组合法签名，不能说明这笔订单真的收到了钱。
+// 实现该接口的网关在验签通过后，必须由服务端主动回查官方订单状态并以其为准。
+type GatewayCallbackConfirmer interface {
+	GatewayProvider
+	GatewayCapturer
+	// RequireCallbackQuery 返回 true 时，回调必须经官方订单状态查询确认后才能落库。
+	RequireCallbackQuery() bool
+}
+
 // GatewayRegistry 是应用层使用的只读网关注册表端口。
 type GatewayRegistry interface {
 	Lookup(providerType, channelType string) (GatewayProvider, bool)

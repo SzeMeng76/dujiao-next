@@ -59,6 +59,17 @@ func (s *PaymentService) HandleSyncCallback(
 		return nil, err
 	}
 
+	// 部分网关（目前是 Globepay）的签名只覆盖鉴权参数，不覆盖订单号与金额，
+	// 而创建支付时返回给买家的付款链接必然携带同一组签名，等于把合法签名交给了买家。
+	// 这类网关必须以官方订单状态回查结果为准，回调内容只能用来定位订单。
+	if confirmer, ok := p.(paymentcontract.GatewayCallbackConfirmer); ok && confirmer.RequireCallbackQuery() {
+		confirmed, confirmErr := s.confirmCallbackWithGatewayQuery(confirmer, channel, payment, result)
+		if confirmErr != nil {
+			return nil, confirmErr
+		}
+		result = confirmed
+	}
+
 	payload := jsonmap.JSON{}
 	if result.Payload != nil {
 		payload = result.Payload
@@ -76,6 +87,134 @@ func (s *PaymentService) HandleSyncCallback(
 		Payload:     payload,
 	}
 	return s.HandleCallback(callbackInput)
+}
+
+// confirmCallbackWithGatewayQuery 用官方订单状态回查结果替换回调自述的事实。
+//
+// 适用于签名不覆盖业务字段的网关（见 paymentcontract.GatewayCallbackConfirmer）：
+// 回调正文只用于定位订单，到账与否、金额、币种、支付时间一律以官方查询为准。
+// 查询失败或查无此单时返回错误，绝不按"未支付"或"已支付"放行。
+// gatewayConfirmPendingRetryDelays 是回查遇到"网关仍显示待支付"时的重试间隔。
+//
+// 回调先于网关订单状态落定到达是正常现象（网关异步更新状态），若立刻判定为未支付
+// 会把真实付款卡在待支付。这里做短暂轮询；总等待约 3.5s，远小于网关自身的重试周期，
+// 不会拖垮回调接口。轮询完仍是待支付时，返回 ErrPaymentGatewayResponseInvalid，
+// 让网关按其重试策略重新投递（文档说明最多重试 3 次）。
+var gatewayConfirmPendingRetryDelays = []time.Duration{
+	400 * time.Millisecond,
+	600 * time.Millisecond,
+	1000 * time.Millisecond,
+	1500 * time.Millisecond,
+}
+
+// queryGatewayWithPendingRetry 回查官方订单状态，遇到待支付时短暂重试。
+// 查询本身失败（网络错误、签名错误、订单不存在）不重试，直接返回。
+func (s *PaymentService) queryGatewayWithPendingRetry(
+	confirmer paymentcontract.GatewayCallbackConfirmer,
+	channel *paymentdomain.PaymentChannel,
+	queryRef string,
+	log *zap.SugaredLogger,
+) (*paymentcontract.GatewayQueryResult, error) {
+	var lastResult *paymentcontract.GatewayQueryResult
+
+	attempts := len(gatewayConfirmPendingRetryDelays) + 1
+	for attempt := 0; attempt < attempts; attempt++ {
+		if attempt > 0 {
+			time.Sleep(gatewayConfirmPendingRetryDelays[attempt-1])
+		}
+
+		ctx, cancel := detachOutboundRequestContext(context.Background())
+		queried, err := confirmer.QueryPayment(ctx, channel.ConfigJSON, queryRef)
+		cancel()
+
+		if err != nil {
+			// 回查失败一律拒绝落库：宁可让订单停留在待支付，也不能凭一份未证实的回调履约。
+			log.Errorw("payment_callback_confirm_query_failed",
+				"query_ref", queryRef, "attempt", attempt+1, "error", err)
+			return nil, mapProviderErrorToService(err)
+		}
+		if queried == nil {
+			log.Warnw("payment_callback_confirm_query_empty", "query_ref", queryRef)
+			return nil, ErrPaymentGatewayResponseInvalid
+		}
+
+		lastResult = queried
+		status := strings.TrimSpace(queried.Status)
+		if status != "" && status != constants.PaymentStatusPending {
+			return queried, nil
+		}
+
+		log.Infow("payment_callback_confirm_query_pending",
+			"query_ref", queryRef, "attempt", attempt+1, "max_attempts", attempts)
+	}
+
+	// 轮询结束仍是待支付：返回错误让网关重试投递，绝不当作成功履约。
+	log.Warnw("payment_callback_confirm_query_still_pending",
+		"query_ref", queryRef, "attempts", attempts,
+		"query_status", lastResult.Status)
+	return nil, ErrPaymentGatewayResponseInvalid
+}
+
+func (s *PaymentService) confirmCallbackWithGatewayQuery(
+	confirmer paymentcontract.GatewayCallbackConfirmer,
+	channel *paymentdomain.PaymentChannel,
+	payment *paymentdomain.Payment,
+	callback *paymentcontract.GatewayCallbackResult,
+) (*paymentcontract.GatewayCallbackResult, error) {
+	log := paymentLogger(
+		"provider_type", channel.ProviderType,
+		"channel_id", channel.ID,
+		"payment_id", payment.ID,
+		"callback_order_no", strings.TrimSpace(callback.OrderNo),
+	)
+
+	// 回查必须使用创建时实际提交给网关的商户订单号（partner_order_id），
+	// 而不是回调自述的单号，也不是网关流水号。
+	queryRef := strings.TrimSpace(payment.GatewayOrderNo)
+	if queryRef == "" {
+		queryRef = strings.TrimSpace(payment.ProviderRef)
+	}
+	if queryRef == "" {
+		log.Warnw("payment_callback_confirm_missing_query_ref")
+		return nil, ErrPaymentInvalid
+	}
+
+	queried, err := s.queryGatewayWithPendingRetry(confirmer, channel, queryRef, log)
+	if err != nil {
+		return nil, err
+	}
+
+	status := strings.TrimSpace(queried.Status)
+	if status == "" {
+		status = constants.PaymentStatusPending
+	}
+	log.Infow("payment_callback_confirmed_by_query",
+		"query_ref", queryRef,
+		"query_status", status,
+		"query_amount", queried.Amount.String(),
+		"query_currency", queried.Currency,
+	)
+
+	payload := callback.Payload
+	if payload == nil {
+		payload = jsonmap.JSON{}
+	}
+	// 保留回调原文供取证，同时标明"该回调已由官方查询确认"，避免事后误判。
+	payload["_dujiao_next_confirmed_by_query"] = true
+	payload["_dujiao_next_query_status"] = status
+	if queried.Payload != nil {
+		payload["_dujiao_next_query_payload"] = queried.Payload
+	}
+
+	return &paymentcontract.GatewayCallbackResult{
+		OrderNo:     callback.OrderNo,
+		ProviderRef: pickFirstNonEmpty(queried.ProviderRef, callback.ProviderRef),
+		Status:      status,
+		Amount:      queried.Amount,
+		Currency:    strings.ToUpper(strings.TrimSpace(queried.Currency)),
+		PaidAt:      queried.PaidAt,
+		Payload:     payload,
+	}, nil
 }
 
 // HandlePaypalWebhook 处理 PayPal webhook。

@@ -71,6 +71,35 @@ type APIResponse struct {
 	PayURL     string `json:"pay_url"`
 }
 
+// 订单查询结果状态（result_code 字段）。
+const (
+	QueryResultPaying        = "PAYING"
+	QueryResultCreateFail    = "CREATE_FAIL"
+	QueryResultClosed        = "CLOSED"
+	QueryResultPayFail       = "PAY_FAIL"
+	QueryResultPaySuccess    = "PAY_SUCCESS"
+	QueryResultPartialRefund = "PARTIAL_REFUND"
+	QueryResultFullRefund    = "FULL_REFUND"
+)
+
+// QueryResponse 订单状态查询响应。
+// 字段定义见 https://docs.globepay.co/en/common-api/order-status/
+type QueryResponse struct {
+	ReturnCode     string  `json:"return_code"`
+	ReturnMsg      string  `json:"return_msg"`
+	ResultCode     string  `json:"result_code"`
+	OrderID        string  `json:"order_id"`
+	PartnerOrderID string  `json:"partner_order_id"`
+	TotalFee       int64   `json:"total_fee"`
+	RealFee        int64   `json:"real_fee"`
+	Rate           float64 `json:"rate"`
+	CustomerID     string  `json:"customer_id"`
+	PayTime        string  `json:"pay_time"`
+	CreateTime     string  `json:"create_time"`
+	Currency       string  `json:"currency"`
+	Channel        string  `json:"channel"`
+}
+
 // ParseConfig 解析配置
 func ParseConfig(raw map[string]interface{}) (*Config, error) {
 	data, err := json.Marshal(raw)
@@ -285,6 +314,61 @@ func sendRequest(ctx context.Context, url string, params map[string]interface{})
 		return nil, fmt.Errorf("%w: unmarshal response failed: %v", ErrResponseInvalid, err)
 	}
 	return &apiResp, nil
+}
+
+// QueryOrder 查询订单状态。
+// 文档：GET /api/v1.0/gateway/partners/{partner_code}/orders/{order_id}
+// https://docs.globepay.co/en/common-api/order-status/
+//
+// 这是 Globepay 渠道唯一可以信任的到账事实来源：回调签名不覆盖订单号和金额，
+// 必须由服务端主动回查，才能确认该订单确实 PAY_SUCCESS 且金额一致。
+func QueryOrder(ctx context.Context, cfg *Config, orderID string) (*QueryResponse, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("%w: nil config", ErrConfigInvalid)
+	}
+	orderID = strings.TrimSpace(orderID)
+	if orderID == "" {
+		return nil, fmt.Errorf("%w: empty order id", ErrRequestFailed)
+	}
+
+	baseURL := strings.TrimSpace(cfg.APIBaseURL)
+	if baseURL == "" {
+		baseURL = defaultAPIBaseURL
+	}
+
+	timestamp := getTimestamp()
+	nonceStr := randString(30)
+	sign := generateSign(cfg.PartnerCode, timestamp, nonceStr, cfg.CredentialCode)
+	url := fmt.Sprintf("%s/api/v1.0/gateway/partners/%s/orders/%s?time=%d&nonce_str=%s&sign=%s",
+		baseURL, cfg.PartnerCode, orderID, timestamp, nonceStr, sign)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("%w: create request failed: %v", ErrRequestFailed, err)
+	}
+	req.Header.Set("Accept", "application/json")
+
+	client := &http.Client{Timeout: defaultTimeout}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("%w: http request failed: %v", ErrRequestFailed, err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("%w: read response failed: %v", ErrRequestFailed, err)
+	}
+	var queryResp QueryResponse
+	if err := json.Unmarshal(respBody, &queryResp); err != nil {
+		return nil, fmt.Errorf("%w: unmarshal response failed: %v", ErrResponseInvalid, err)
+	}
+	// return_code 非 SUCCESS 时 result_code 无意义（ORDER_NOT_EXIST / INVALID_SIGN 等），
+	// 必须当作查询失败，绝不能当成"未支付"放行或"已支付"记账。
+	if !strings.EqualFold(strings.TrimSpace(queryResp.ReturnCode), "SUCCESS") {
+		return nil, fmt.Errorf("%w: %s %s", ErrResponseInvalid, queryResp.ReturnCode, queryResp.ReturnMsg)
+	}
+	return &queryResp, nil
 }
 
 func exchangeCNYtoGBP(ctx context.Context, amountCNY string) (string, error) {
