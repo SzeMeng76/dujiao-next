@@ -6,7 +6,7 @@
     <!-- 顶部居中悬浮玻璃岛导航（Floating Island Dock） -->
     <div class="pointer-events-none fixed inset-x-0 top-0 z-50 px-3 pt-3 sm:px-6 sm:pt-3.5">
       <header
-        class="prism-dock pointer-events-auto mx-auto flex h-[54px] w-full max-w-[1160px] items-center justify-between gap-3 rounded-full px-3 backdrop-blur-xl backdrop-saturate-150 sm:px-4"
+        class="prism-dock pointer-events-auto mx-auto flex h-[54px] w-full max-w-[1536px] items-center justify-between gap-3 rounded-full px-3 backdrop-blur-xl backdrop-saturate-150 sm:px-4"
       >
         <!-- 左：棱镜品牌标志 + 站点名 + 主导航 -->
         <div class="flex min-w-0 items-center gap-4 lg:gap-5">
