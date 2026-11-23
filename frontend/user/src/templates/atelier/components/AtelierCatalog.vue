@@ -133,7 +133,7 @@
           <h2 class="truncate text-lg font-bold tracking-[-0.02em] text-foreground">
             {{ selectedName || t('atelier.catalogHeading') }}
           </h2>
-          <span v-if="!loading && displayTotal > 0" class="font-mono text-xs text-muted-foreground">
+          <span v-if="!loading && displayTotal > 0 && totalPages > 0" class="font-mono text-xs text-muted-foreground">
             {{ displayTotal }}
           </span>
         </div>

@@ -17,9 +17,9 @@
       <!-- Placeholder while config is loading -->
       <div v-else class="h-8 w-32 bg-muted/30 animate-pulse rounded"></div>
 
-      <!-- Desktop Menu -->
-      <div class="hidden lg:flex items-center space-x-1 min-w-0 overflow-x-auto scrollbar-hide">
-        <template v-for="item in menuItems" :key="item.key">
+      <!-- Desktop Menu：放不下的项自动收进「更多」，避免英文等长标签被裁断 -->
+      <div ref="menuRef" class="hidden lg:flex items-center space-x-1 min-w-0 overflow-hidden">
+        <template v-for="item in visibleMenuItems" :key="item.key">
           <Button v-if="item.type === 'route'" as-child variant="ghost" size="sm"
             class="gap-1.5 text-muted-foreground whitespace-nowrap shrink-0">
             <router-link :to="item.path" active-class="!bg-secondary !text-foreground">
@@ -35,6 +35,31 @@
             </a>
           </Button>
         </template>
+
+        <Popover v-if="hiddenMenuItems.length" v-model:open="moreOpen">
+          <PopoverTrigger as-child>
+            <Button variant="ghost" size="sm" class="gap-1.5 text-muted-foreground whitespace-nowrap shrink-0">
+              <Ellipsis class="w-4 h-4 shrink-0 opacity-70" />
+              <span>{{ t('navbar.more') }}</span>
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="end" class="w-56 p-1.5">
+            <template v-for="item in hiddenMenuItems" :key="item.key">
+              <RouterLink v-if="item.type === 'route'" :to="item.path"
+                class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                active-class="!bg-secondary !text-foreground" @click="moreOpen = false">
+                <component :is="item.icon" class="h-4 w-4 shrink-0 opacity-70" />
+                <span class="truncate">{{ item.label }}</span>
+              </RouterLink>
+              <a v-else :href="item.path" :target="item.target" rel="noopener noreferrer"
+                class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                @click="moreOpen = false">
+                <component :is="item.icon" class="h-4 w-4 shrink-0 opacity-70" />
+                <span class="truncate">{{ item.label }}</span>
+              </a>
+            </template>
+          </PopoverContent>
+        </Popover>
       </div>
 
       <!-- Right Side Actions -->
@@ -206,7 +231,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '../stores/app'
 import { useCartStore } from '../stores/cart'
@@ -216,7 +241,7 @@ import { getImageUrl } from '../utils/image'
 import { useNavConfig } from '../composables/useNavConfig'
 import {
   Sun, Moon, ShoppingCart, ClipboardList, LogIn, User, LogOut, Languages,
-  EllipsisVertical, X,
+  Ellipsis, EllipsisVertical, X,
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -234,6 +259,54 @@ const scrolled = ref(false)
 const cartBounce = ref(false)
 
 const menuItems = primaryNavItems
+
+// 桌面导航自适应：放不下的项收进「更多」，避免英文等长标签被裁断
+const menuRef = ref<HTMLElement | null>(null)
+const moreOpen = ref(false)
+const visibleCount = ref(Number.MAX_SAFE_INTEGER)
+const MORE_BUTTON_WIDTH = 96
+const MENU_GAP = 4
+
+const visibleMenuItems = computed(() => menuItems.value.slice(0, visibleCount.value))
+const hiddenMenuItems = computed(() => menuItems.value.slice(visibleCount.value))
+
+let fitScheduled = false
+const scheduleMenuFit = () => {
+  if (fitScheduled) return
+  fitScheduled = true
+  requestAnimationFrame(() => {
+    fitScheduled = false
+    void recalcMenuFit()
+  })
+}
+
+const recalcMenuFit = async () => {
+  if (typeof window === 'undefined') return
+  // 先把全部项渲染出来，才能量到每项的真实宽度
+  if (visibleCount.value !== menuItems.value.length) {
+    visibleCount.value = menuItems.value.length
+    await nextTick()
+  }
+  const container = menuRef.value
+  if (!container) return
+  const items = Array.from(container.children) as HTMLElement[]
+  if (items.length === 0) return
+
+  const available = container.clientWidth
+  const widths = items.map((el) => el.getBoundingClientRect().width)
+  const total = widths.reduce((sum, width) => sum + width, 0) + MENU_GAP * Math.max(0, widths.length - 1)
+  if (total <= available) return
+
+  let used = 0
+  let fit = 0
+  for (const width of widths) {
+    const next = used + width + (fit > 0 ? MENU_GAP : 0)
+    if (next > available - MORE_BUTTON_WIDTH) break
+    used = next
+    fit++
+  }
+  visibleCount.value = Math.max(1, fit)
+}
 
 // Mobile drawer only shows items NOT in the bottom nav (Home, Products, Cart, Me are in bottom nav)
 const mobileDrawerItems = secondaryNavItems
@@ -283,12 +356,35 @@ watch(cartCount, (newVal, oldVal) => {
   }
 })
 
-onMounted(() => {
+let menuFitRaf = 0
+const handleResize = () => {
+  if (menuFitRaf) cancelAnimationFrame(menuFitRaf)
+  menuFitRaf = requestAnimationFrame(() => {
+    menuFitRaf = 0
+    scheduleMenuFit()
+  })
+}
+
+// 导航项、语言、购物车数量、登录态变化都会改变可用宽度或标签长度，重新计算一次
+watch(menuItems, () => scheduleMenuFit())
+watch(cartCount, () => scheduleMenuFit())
+watch(() => userAuthStore.isAuthenticated, () => scheduleMenuFit())
+
+onMounted(async () => {
   window.addEventListener('scroll', handleScroll, { passive: true })
+  window.addEventListener('resize', handleResize, { passive: true })
+  await nextTick()
+  await recalcMenuFit()
+  // 字体加载完成后文字宽度会变，再量一次
+  if (document.fonts?.ready) {
+    document.fonts.ready.then(() => scheduleMenuFit()).catch(() => {})
+  }
 })
 
 onUnmounted(() => {
   window.removeEventListener('scroll', handleScroll)
+  window.removeEventListener('resize', handleResize)
+  if (menuFitRaf) cancelAnimationFrame(menuFitRaf)
 })
 </script>
 
