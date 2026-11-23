@@ -1,18 +1,21 @@
 <template>
   <div>
-    <!-- 与商品卡同一套语言：同图虚化做底，原图浮在上面；无图时用首字母占位 -->
+    <!-- 与商品卡同一套语言：4:3 满幅铺满，800×600 原图完整显示；无图时用首字母占位 -->
     <div
-      class="relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-[22px] p-6 md:rounded-[28px] md:p-12"
+      class="relative aspect-[4/3] overflow-hidden rounded-[22px] md:rounded-[28px]"
       :class="shownImage ? 'bg-muted' : 'bg-[hsl(var(--h)_62%_94%)] dark:bg-[hsl(var(--h)_32%_17%)]'"
       :style="{ '--h': hue }"
       @touchstart.passive="onTouchStart"
       @touchend.passive="onTouchEnd"
     >
-      <template v-if="shownImage">
-        <img :src="currentImage" alt="" aria-hidden="true" class="absolute inset-0 h-full w-full scale-150 object-cover opacity-50 blur-3xl saturate-150" />
-        <img :src="currentImage" :alt="productTitle" @error="failedImage = currentImage" class="stage-tile relative max-h-full min-h-[55%] max-w-full rounded-2xl object-contain" />
-      </template>
-      <span v-else class="select-none text-8xl font-black text-[hsl(var(--h)_55%_38%)] md:text-[160px] dark:text-[hsl(var(--h)_60%_76%)]" aria-hidden="true">
+      <img
+        v-if="shownImage"
+        :src="currentImage"
+        :alt="productTitle"
+        class="absolute inset-0 h-full w-full object-cover"
+        @error="failedImage = currentImage"
+      />
+      <span v-else class="absolute inset-0 grid select-none place-items-center text-8xl font-black text-[hsl(var(--h)_55%_38%)] md:text-[160px] dark:text-[hsl(var(--h)_60%_76%)]" aria-hidden="true">
         {{ Array.from(productTitle.trim())[0] }}
       </span>
     </div>

@@ -74,13 +74,13 @@
         <div v-if="loading" :class="isList ? 'theme-float rounded-[22px] bg-card p-2 md:p-3' : gridClass" aria-hidden="true">
           <template v-if="isList">
             <div v-for="i in 8" :key="i" class="flex items-center gap-3 px-2 py-2 md:px-3">
-              <div class="h-12 w-12 shrink-0 rounded-xl theme-skeleton"></div>
+              <div class="aspect-[4/3] h-12 shrink-0 rounded-xl theme-skeleton"></div>
               <div class="h-4 w-1/3 rounded theme-skeleton"></div>
               <div class="ml-auto h-5 w-20 rounded theme-skeleton"></div>
             </div>
           </template>
           <div v-for="i in 12" v-else :key="i" class="theme-float rounded-[22px] bg-card p-1.5">
-            <div class="aspect-[16/10] rounded-2xl theme-skeleton"></div>
+            <div class="aspect-[4/3] rounded-2xl theme-skeleton"></div>
             <div class="space-y-2 px-2.5 pb-2 pt-3">
               <div class="h-4 w-full rounded theme-skeleton"></div>
               <div class="h-3 w-16 rounded theme-skeleton"></div>
@@ -254,7 +254,7 @@ const groups = useProductListGroups(products, categoryMap)
 
 // 大屏左侧有分类栏，网格比通栏时少一列
 const isList = computed(() => props.layout === 'list')
-const gridClass = 'grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4 lg:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-6'
+const gridClass = 'grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4 xl:grid-cols-4'
 // 大卡占 2 列 2 行，分类里商品凑不满两行时旁边会留空，所以够多才放大首位
 const LEAD_MIN_GROUP_SIZE = 7
 
