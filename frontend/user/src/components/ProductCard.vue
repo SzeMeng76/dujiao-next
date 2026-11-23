@@ -119,7 +119,7 @@
         {{ monogram }}
       </span>
 
-      <span v-if="flag" class="pcard-flag absolute left-2 top-2" :class="flag.class">{{ flag.label }}</span>
+      <span v-if="flag" class="pcard-flag absolute right-2 top-2" :class="flag.class">{{ flag.label }}</span>
     </div>
 
     <div class="flex min-w-0 flex-1 flex-col px-2.5 pb-2 pt-3" :class="lead && 'md:flex-none md:px-3.5 md:pb-3 md:pt-4'">
