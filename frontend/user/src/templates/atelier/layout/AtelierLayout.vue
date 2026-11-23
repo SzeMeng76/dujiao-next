@@ -57,11 +57,11 @@
               <PopoverTrigger as-child>
                 <button
                   type="button"
-                  class="grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                  class="inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
                   :aria-label="t('navbar.more')"
-                  :title="t('navbar.more')"
                 >
                   <Ellipsis class="h-4 w-4" />
+                  <span>{{ t('navbar.more') }}</span>
                 </button>
               </PopoverTrigger>
               <PopoverContent align="end" class="w-52 p-1.5">
@@ -535,7 +535,7 @@ const cartBounce = ref(false)
 // 桌面导航自适应：放不下的项收进「更多」，避免英文等长标签被裁断
 const navRef = ref<HTMLElement | null>(null)
 const visibleCount = ref(Number.MAX_SAFE_INTEGER)
-const NAV_MORE_WIDTH = 40
+const NAV_MORE_WIDTH = 84
 const NAV_GAP = 2
 
 const visibleNavItems = computed(() => primaryNavItems.value.slice(0, visibleCount.value))
