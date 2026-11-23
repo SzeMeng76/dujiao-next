@@ -12,7 +12,7 @@
   >
     <div class="flex min-w-0 items-center gap-3 max-md:flex-1">
       <div
-        class="atelier-stage relative grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-[10px]"
+        class="atelier-stage relative grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-[12px]"
         :class="soldOut && 'grayscale'"
       >
         <img
@@ -27,7 +27,7 @@
         <span
           v-else
           aria-hidden="true"
-          class="text-sm font-extrabold tracking-tight text-[hsl(var(--h)_48%_var(--at-glyph-l))]"
+          class="text-lg font-extrabold tracking-tight text-[hsl(var(--h)_48%_var(--at-glyph-l))]"
         >
           {{ monogram }}
         </span>
@@ -115,7 +115,7 @@
     </button>
   </article>
 
-  <!-- 方案 B 精密科技卡片模式：横向头像头区 + 真实简介 + 技术规格芯片 + 底部虚线价格与配置选购 -->
+  <!-- 方案 B 精密科技卡片模式：满宽 4:3 商品封面 + 真实简介 + 技术规格芯片 + 底部虚线价格与配置选购 -->
   <article
     v-else
     class="prism-pcard prism-card group relative flex h-full cursor-pointer flex-col rounded-[16px] bg-card p-4.5 text-card-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
@@ -126,52 +126,51 @@
     @click="$emit('click', product.slug)"
     @keydown.enter="$emit('click', product.slug)"
   >
-    <!-- 顶部横向信息头：左侧 48px 精密展位 + 右侧分类/徽标/标题 -->
-    <div class="flex items-start gap-3.5">
-      <div
-        class="atelier-stage relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-[12px]"
-        :class="soldOut && 'grayscale'"
+    <!-- 顶部满宽 4:3 商品封面：与 800×600 商品原图同比，完整显示不裁切 -->
+    <div
+      class="atelier-stage relative mb-3.5 aspect-[4/3] w-full shrink-0 overflow-hidden rounded-[12px]"
+      :class="soldOut && 'grayscale'"
+    >
+      <img
+        v-if="hasImage"
+        :src="displayImageSrc"
+        :alt="title"
+        loading="lazy"
+        decoding="async"
+        class="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+        @error="handleImageError"
+      />
+      <span
+        v-else
+        role="img"
+        :aria-label="title"
+        class="absolute inset-0 grid select-none place-items-center text-5xl font-extrabold tracking-[-0.04em] text-[hsl(var(--h)_48%_var(--at-glyph-l))]"
       >
-        <img
-          v-if="hasImage"
-          :src="displayImageSrc"
-          :alt="title"
-          loading="lazy"
-          decoding="async"
-          class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-          @error="handleImageError"
-        />
-        <span
-          v-else
-          role="img"
-          :aria-label="title"
-          class="select-none text-lg font-extrabold tracking-tight text-[hsl(var(--h)_48%_var(--at-glyph-l))]"
-        >
-          {{ monogram }}
-        </span>
-      </div>
+        {{ monogram }}
+      </span>
 
-      <div class="min-w-0 flex-1">
-        <div class="flex items-center justify-between gap-2">
-          <span v-if="categoryLabel" class="truncate text-[11px] font-semibold text-muted-foreground">
-            {{ categoryLabel }}
-          </span>
-          <span v-else class="text-[11px] font-semibold text-muted-foreground">
-            {{ product.fulfillment_type === 'auto' ? t('atelier.autoShort') : t('atelier.manualShort') }}
-          </span>
-          <span
-            v-if="flag"
-            class="inline-flex h-[20px] shrink-0 items-center rounded-[6px] border px-1.5 text-[10.5px] font-semibold"
-            :class="flag.chipClass"
-          >
-            {{ flag.label }}
-          </span>
-        </div>
+      <!-- 真实徽标浮层：促销 / 会员 / 批发 / 售罄（数据与下方价格体系一致） -->
+      <span
+        v-if="flag"
+        class="absolute right-2 top-2 inline-flex h-[22px] items-center rounded-[6px] border px-2 text-[10.5px] font-semibold shadow-sm backdrop-blur-md"
+        :class="flag.chipClass"
+      >
+        {{ flag.label }}
+      </span>
+    </div>
 
-        <h3 class="mt-1 line-clamp-2 text-[15px] font-bold leading-snug tracking-[-0.015em] text-foreground transition-colors group-hover:text-primary">
-          {{ title }}
-        </h3>
-      </div>
+    <!-- 分类 + 标题 -->
+    <div class="min-w-0">
+      <span v-if="categoryLabel" class="block truncate text-[11px] font-semibold text-muted-foreground">
+        {{ categoryLabel }}
+      </span>
+      <span v-else class="block text-[11px] font-semibold text-muted-foreground">
+        {{ product.fulfillment_type === 'auto' ? t('atelier.autoShort') : t('atelier.manualShort') }}
+      </span>
+
+      <h3 class="mt-1 line-clamp-2 text-[15px] font-bold leading-snug tracking-[-0.015em] text-foreground transition-colors group-hover:text-primary">
+        {{ title }}
+      </h3>
     </div>
 
     <!-- 中段：真实商品简介 -->

@@ -6,7 +6,7 @@
         <div class="h-5 w-48 rounded theme-skeleton"></div>
         <div class="grid gap-5 lg:grid-cols-12">
           <div class="space-y-4 lg:col-span-7 xl:col-span-8">
-            <div class="h-44 rounded-[16px] theme-skeleton"></div>
+            <div class="aspect-[4/3] rounded-[16px] theme-skeleton"></div>
             <div class="h-40 rounded-[16px] theme-skeleton"></div>
             <div class="h-20 rounded-[16px] theme-skeleton"></div>
           </div>
@@ -32,22 +32,20 @@
         <div class="grid items-start gap-5 lg:grid-cols-12">
           <!-- 左侧配置器流（头卡 + 画廊 + 步骤 01 SKU + 步骤 02 数量 + 步骤 03 详情与关联文章） -->
           <div class="min-w-0 space-y-4 lg:col-span-7 xl:col-span-8">
-            <!-- 商品概览头卡 -->
-            <section class="prism-card rounded-[16px] bg-card p-5 sm:p-6">
-              <div class="flex flex-col gap-5 sm:flex-row sm:items-start">
-                <!-- 商品缩略/多图展台 -->
-                <div class="w-full shrink-0 sm:w-[196px]">
-                  <AtelierProductStage
-                    :images="images"
-                    :current-image="currentImage"
-                    :product-title="getLocalizedText(product.title)"
-                    :product-id="product.id"
-                    @update:current-image="currentImage = $event"
-                  />
-                </div>
+            <!-- 商品概览头卡：满宽 4:3 主图 + 标题、简介与真实属性芯片 -->
+            <section class="prism-card rounded-[16px] bg-card p-4 sm:p-5">
+              <!-- 商品多图展台：与 800×600 商品原图同比，完整显示不裁切 -->
+              <AtelierProductStage
+                :images="images"
+                :current-image="currentImage"
+                :product-title="getLocalizedText(product.title)"
+                :product-id="product.id"
+                class="mb-4"
+                @update:current-image="currentImage = $event"
+              />
 
-                <!-- 标题、简介与真实属性芯片 -->
-                <div class="min-w-0 flex-1">
+              <!-- 标题、简介与真实属性芯片 -->
+              <div class="min-w-0 px-0.5 sm:px-1">
                   <div class="flex flex-wrap items-center gap-2">
                     <span
                       v-if="categoryName"
@@ -103,7 +101,6 @@
                       {{ tag }}
                     </span>
                   </div>
-                </div>
               </div>
 
               <!-- 真实阶梯批发价 -->

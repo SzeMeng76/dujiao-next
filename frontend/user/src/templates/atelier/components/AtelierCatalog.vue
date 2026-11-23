@@ -170,20 +170,18 @@
       >
         <template v-if="isTableView">
           <div v-for="i in 8" :key="i" class="flex items-center gap-3.5 border-b px-5 py-3.5 last:border-b-0">
-            <div class="h-10 w-10 shrink-0 rounded-[10px] theme-skeleton"></div>
+            <div class="h-14 w-14 shrink-0 rounded-[12px] theme-skeleton"></div>
             <div class="h-4 w-1/3 rounded theme-skeleton"></div>
             <div class="ml-auto h-5 w-20 rounded theme-skeleton"></div>
           </div>
         </template>
         <div v-for="i in 6" v-else :key="i" class="prism-card rounded-[16px] bg-card p-4.5">
-          <div class="flex items-start gap-3.5">
-            <div class="h-12 w-12 shrink-0 rounded-[12px] theme-skeleton"></div>
-            <div class="min-w-0 flex-1 space-y-2">
-              <div class="h-3 w-20 rounded theme-skeleton"></div>
-              <div class="h-4 w-4/5 rounded theme-skeleton"></div>
-            </div>
+          <div class="aspect-[4/3] w-full rounded-[12px] theme-skeleton"></div>
+          <div class="mt-3.5 space-y-2">
+            <div class="h-3 w-20 rounded theme-skeleton"></div>
+            <div class="h-4 w-4/5 rounded theme-skeleton"></div>
           </div>
-          <div class="mt-3.5 h-3.5 w-full rounded theme-skeleton"></div>
+          <div class="mt-3 h-3.5 w-full rounded theme-skeleton"></div>
           <div class="mt-2 h-3.5 w-2/3 rounded theme-skeleton"></div>
           <div class="mt-5 flex items-center justify-between border-t pt-3.5">
             <div class="h-6 w-20 rounded theme-skeleton"></div>

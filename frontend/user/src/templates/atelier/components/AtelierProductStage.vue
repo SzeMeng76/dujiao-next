@@ -1,8 +1,8 @@
 <template>
   <div>
-    <!-- 紧凑精密展台（适配方案 B 头卡，支持多图缩略图切换、触摸滑动与坏图降级） -->
+    <!-- 满宽 4:3 主图展台：与 800×600 商品原图同比，完整显示不裁切；支持多图切换、触摸滑动与坏图降级 -->
     <div
-      class="atelier-stage relative flex aspect-square items-center justify-center overflow-hidden rounded-[14px] p-4 sm:aspect-[4/3]"
+      class="atelier-stage relative aspect-[4/3] w-full overflow-hidden rounded-[14px]"
       :style="{ '--h': hue }"
       @touchstart.passive="onTouchStart"
       @touchend.passive="onTouchEnd"
@@ -11,24 +11,24 @@
         v-if="shownImage"
         :src="currentImage"
         :alt="productTitle"
-        class="max-h-full max-w-full rounded-[10px] object-contain shadow-md"
+        class="absolute inset-0 h-full w-full object-cover"
         @error="markFailed(currentImage)"
       />
       <span
         v-else
-        class="select-none text-5xl font-extrabold tracking-[-0.04em] text-[hsl(var(--h)_48%_var(--at-glyph-l))] sm:text-6xl"
+        class="absolute inset-0 grid select-none place-items-center text-6xl font-extrabold tracking-[-0.04em] text-[hsl(var(--h)_48%_var(--at-glyph-l))] sm:text-7xl"
         aria-hidden="true"
       >
         {{ Array.from(productTitle.trim())[0] }}
       </span>
     </div>
 
-    <div v-if="images.length > 1" class="mt-2 flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-hide">
+    <div v-if="images.length > 1" class="mt-2.5 flex gap-2 overflow-x-auto pb-0.5 scrollbar-hide">
       <button
         v-for="(image, index) in images"
         :key="index"
         type="button"
-        class="grid h-10 w-12 shrink-0 place-items-center overflow-hidden rounded-[8px] border bg-secondary/70 transition-all focus-visible:outline-2 focus-visible:outline-primary"
+        class="grid h-12 w-16 shrink-0 place-items-center overflow-hidden rounded-[8px] border bg-secondary/70 transition-all focus-visible:outline-2 focus-visible:outline-primary"
         :class="currentImage === image ? 'border-primary opacity-100 ring-1 ring-primary' : 'border-border opacity-60 hover:opacity-100'"
         :aria-label="`${productTitle} ${index + 1}`"
         :aria-pressed="currentImage === image"
