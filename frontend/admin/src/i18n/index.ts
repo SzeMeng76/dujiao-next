@@ -4031,6 +4031,7 @@ const messages = {
           availableAt: '可用时间',
           withdrawRequest: '提现单',
           createdAt: '创建时间',
+          channelFeeHint: '毛利 {gross} · 通道费 −{fee}',
         },
         types: {
           order_profit: '订单收益',
@@ -9012,6 +9013,7 @@ const messages = {
           availableAt: '可用時間',
           withdrawRequest: '提現單',
           createdAt: '建立時間',
+          channelFeeHint: '毛利 {gross} · 通道費 −{fee}',
         },
         types: {
           order_profit: '訂單收益',
@@ -13993,6 +13995,7 @@ const messages = {
           availableAt: 'Available At',
           withdrawRequest: 'Withdraw',
           createdAt: 'Created At',
+          channelFeeHint: 'Gross {gross} · channel fee −{fee}',
         },
         types: {
           order_profit: 'Order Profit',
