@@ -30,8 +30,8 @@
             <span class="max-w-[38vw] truncate sm:max-w-[12rem]">{{ brandSiteName }}</span>
           </RouterLink>
 
-          <nav class="hidden min-w-0 items-center gap-0.5 overflow-x-auto scrollbar-hide lg:flex" :aria-label="t('nav.home')">
-            <template v-for="item in primaryNavItems" :key="item.key">
+          <nav ref="navRef" class="hidden min-w-0 items-center gap-0.5 overflow-hidden lg:flex" :aria-label="t('nav.home')">
+            <template v-for="item in visibleNavItems" :key="item.key">
               <RouterLink
                 v-if="item.type === 'route'"
                 :to="item.path"
@@ -51,6 +51,43 @@
                 {{ item.label }}
               </a>
             </template>
+
+            <!-- 放不下的导航项收进「更多」，避免英文等长标签被裁断 -->
+            <Popover v-if="hiddenNavItems.length" v-model:open="navMoreOpen">
+              <PopoverTrigger as-child>
+                <button
+                  type="button"
+                  class="grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                  :aria-label="t('navbar.more')"
+                  :title="t('navbar.more')"
+                >
+                  <Ellipsis class="h-4 w-4" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent align="end" class="w-52 p-1.5">
+                <template v-for="item in hiddenNavItems" :key="`nav-more-${item.key}`">
+                  <RouterLink
+                    v-if="item.type === 'route'"
+                    :to="item.path"
+                    class="flex w-full items-center rounded-[10px] px-3 py-2 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                    active-class="!bg-secondary !font-semibold !text-foreground"
+                    @click="navMoreOpen = false"
+                  >
+                    {{ item.label }}
+                  </RouterLink>
+                  <a
+                    v-else
+                    :href="item.path"
+                    :target="item.target"
+                    rel="noopener noreferrer"
+                    class="flex w-full items-center rounded-[10px] px-3 py-2 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                    @click="navMoreOpen = false"
+                  >
+                    {{ item.label }}
+                  </a>
+                </template>
+              </PopoverContent>
+            </Popover>
           </nav>
         </div>
 
@@ -438,11 +475,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import {
   ClipboardList,
+  Ellipsis,
   Github,
   Headphones,
   Languages,
@@ -491,7 +529,64 @@ const {
 
 const showMobileMenu = ref(false)
 const langOpen = ref(false)
+const navMoreOpen = ref(false)
 const cartBounce = ref(false)
+
+// 桌面导航自适应：放不下的项收进「更多」，避免英文等长标签被裁断
+const navRef = ref<HTMLElement | null>(null)
+const visibleCount = ref(Number.MAX_SAFE_INTEGER)
+const NAV_MORE_WIDTH = 40
+const NAV_GAP = 2
+
+const visibleNavItems = computed(() => primaryNavItems.value.slice(0, visibleCount.value))
+const hiddenNavItems = computed(() => primaryNavItems.value.slice(visibleCount.value))
+
+const recalcNavFit = async () => {
+  if (typeof window === 'undefined') return
+  // 先把全部项渲染出来，才能量到每项的真实宽度
+  if (visibleCount.value !== primaryNavItems.value.length) {
+    visibleCount.value = primaryNavItems.value.length
+    await nextTick()
+  }
+  const container = navRef.value
+  if (!container) return
+  const items = Array.from(container.children) as HTMLElement[]
+  if (items.length === 0) return
+
+  const available = container.clientWidth
+  const widths = items.map((el) => el.getBoundingClientRect().width)
+  const total = widths.reduce((sum, width) => sum + width, 0) + NAV_GAP * Math.max(0, widths.length - 1)
+  if (total <= available) return
+
+  let used = 0
+  let fit = 0
+  for (const width of widths) {
+    const next = used + width + (fit > 0 ? NAV_GAP : 0)
+    if (next > available - NAV_MORE_WIDTH) break
+    used = next
+    fit++
+  }
+  visibleCount.value = Math.max(1, fit)
+}
+
+let navFitScheduled = false
+const scheduleNavFit = () => {
+  if (navFitScheduled) return
+  navFitScheduled = true
+  requestAnimationFrame(() => {
+    navFitScheduled = false
+    void recalcNavFit()
+  })
+}
+
+let navFitRaf = 0
+const handleNavResize = () => {
+  if (navFitRaf) cancelAnimationFrame(navFitRaf)
+  navFitRaf = requestAnimationFrame(() => {
+    navFitRaf = 0
+    scheduleNavFit()
+  })
+}
 
 const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent)
 const shortcutLabel = isMac ? '⌘K' : 'Ctrl K'
@@ -553,15 +648,29 @@ watch(cartCount, (newVal, oldVal) => {
   }
 })
 
-onMounted(() => {
+// 导航项、语言、购物车数量、登录态变化都会改变可用宽度或标签长度，重新计算一次
+watch(primaryNavItems, () => scheduleNavFit())
+watch(cartCount, () => scheduleNavFit())
+watch(() => userAuthStore.isAuthenticated, () => scheduleNavFit())
+
+onMounted(async () => {
   // Teleport 到 body 的浮层（弹窗/Toast/Select）依靠 body.atelier-tokens 继承 Prism 令牌
   document.body.classList.add('atelier-tokens')
   window.addEventListener('keydown', onGlobalKeydown)
+  window.addEventListener('resize', handleNavResize, { passive: true })
+  await nextTick()
+  await recalcNavFit()
+  // 字体加载完成后文字宽度会变，再量一次
+  if (document.fonts?.ready) {
+    document.fonts.ready.then(() => scheduleNavFit()).catch(() => {})
+  }
 })
 
 onUnmounted(() => {
   document.body.classList.remove('atelier-tokens')
   window.removeEventListener('keydown', onGlobalKeydown)
+  window.removeEventListener('resize', handleNavResize)
+  if (navFitRaf) cancelAnimationFrame(navFitRaf)
 })
 </script>
 
