@@ -1,5 +1,10 @@
 <template>
   <div class="min-h-screen pb-16 pt-[88px] text-foreground">
+    <!-- 公告跑马灯（后台公告展示方式选“跑马灯”时显示，与弹窗共用同一个公告） -->
+    <div v-if="tickerAnnouncement" class="mx-auto w-full max-w-[1240px] px-4 sm:px-6">
+      <AnnouncementTicker :announcement="tickerAnnouncement" @close="closeTicker" />
+    </div>
+
     <!-- 命令搜索中枢 + Bento 精选展位（真实 Banner / 真实公告动态） + 实时商品货架 -->
     <AtelierCatalog
       :layout="isListMode ? 'list' : 'grid'"
@@ -182,6 +187,7 @@ import { useAppStore } from '../../stores/app'
 import { useAnnouncement, type HomeAnnouncement } from '../../composables/useAnnouncement'
 import AtelierCatalog from './components/AtelierCatalog.vue'
 import AnnouncementModal from '../../components/AnnouncementModal.vue'
+import AnnouncementTicker from '../../components/AnnouncementTicker.vue'
 
 const { t } = useI18n()
 const { getLocalizedText } = useLocalized()
@@ -193,9 +199,21 @@ const { brandSiteName } = useFooterConfig()
 const latestSectionVisible = computed(() => blogEnabled.value || noticeEnabled.value)
 
 const posts = ref<any[]>([])
-const { shouldShow } = useAnnouncement()
+const { shouldShow, shouldShowTicker, closeTickerForSession } = useAnnouncement()
 const activeAnnouncement = ref<HomeAnnouncement | null>(null)
 const announcementVisible = ref(false)
+
+// 跑马灯：公告展示方式为 ticker 时显示，且不再弹窗
+const tickerClosed = ref(false)
+const tickerAnnouncement = computed(() => {
+  if (tickerClosed.value) return null
+  const announcement = appStore.config?.announcement as HomeAnnouncement | undefined
+  return announcement && shouldShowTicker(announcement) ? announcement : null
+})
+const closeTicker = () => {
+  if (tickerAnnouncement.value) closeTickerForSession(tickerAnnouncement.value.version)
+  tickerClosed.value = true
+}
 
 const {
   banners,
@@ -250,7 +268,7 @@ const loadLatestPosts = async () => {
 
 const showAnnouncementIfNeeded = () => {
   const announcement = appStore.config?.announcement as HomeAnnouncement | undefined
-  if (announcement && shouldShow(announcement)) {
+  if (announcement && announcement.display !== 'ticker' && shouldShow(announcement)) {
     activeAnnouncement.value = announcement
     announcementVisible.value = true
   }
