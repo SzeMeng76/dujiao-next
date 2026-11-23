@@ -80,6 +80,7 @@ const replaceError = ref('')
 const replaceSuccess = ref('')
 const replaceDelivered = ref<AdminDeliveredSecret[]>([])
 const replaceStock = ref<AdminStockSecret[]>([])
+// 已交付卡密可能存在重复文本，这里按交付内容行号（line_index）勾选，不依赖卡密记录 ID。
 const replaceSelectedDelivered = ref<number[]>([])
 const replaceSelectedStock = ref<number[]>([])
 const replaceForm = reactive({
@@ -503,10 +504,10 @@ const loadReplaceCandidates = async (orderId: number) => {
   }
 }
 
-const toggleReplaceDelivered = (id: number, checked: boolean) => {
+const toggleReplaceDelivered = (lineIndex: number, checked: boolean) => {
   const next = new Set(replaceSelectedDelivered.value)
-  if (checked) next.add(id)
-  else next.delete(id)
+  if (checked) next.add(lineIndex)
+  else next.delete(lineIndex)
   replaceSelectedDelivered.value = [...next]
 }
 
@@ -528,18 +529,18 @@ const submitReplaceSecrets = async () => {
   if (!selectedOrder.value || replaceTargetId.value == null) return
   replaceError.value = ''
   replaceSuccess.value = ''
-  const oldIDs = replaceSelectedDelivered.value
+  const oldLineIndexes = replaceSelectedDelivered.value
   const newIDs = replaceSelectedStock.value
-  if (oldIDs.length === 0) {
+  if (oldLineIndexes.length === 0) {
     replaceError.value = t('admin.orders.replaceSecretsNeedDelivered')
     return
   }
-  if (newIDs.length !== oldIDs.length) {
+  if (newIDs.length !== oldLineIndexes.length) {
     replaceError.value = t('admin.orders.replaceSecretsCountMismatch')
     return
   }
-  const pairs = oldIDs.map((oldID, index) => ({
-    old_secret_id: oldID,
+  const pairs = oldLineIndexes.map((lineIndex, index) => ({
+    old_line_index: lineIndex,
     new_secret_id: newIDs[index] as number,
   }))
   const confirmed = await confirmAction({
@@ -1181,14 +1182,14 @@ watch(
                   <div v-if="replaceDelivered.length" class="max-h-56 space-y-1 overflow-y-auto">
                     <label
                       v-for="item in replaceDelivered"
-                      :key="`delivered-${item.id}`"
+                      :key="`delivered-${item.line_index}`"
                       class="flex cursor-pointer items-start gap-2 rounded px-1 py-1 hover:bg-muted/60"
                     >
                       <Checkbox
                         class="mt-0.5"
-                        :model-value="replaceSelectedDelivered.includes(item.id)"
+                        :model-value="replaceSelectedDelivered.includes(item.line_index)"
                         :disabled="replaceSubmitting"
-                        @update:model-value="(checked) => toggleReplaceDelivered(item.id, checked === true)"
+                        @update:model-value="(checked) => toggleReplaceDelivered(item.line_index, checked === true)"
                       />
                       <span class="min-w-0 flex-1 break-all font-mono text-xs text-foreground">{{ item.secret }}</span>
                     </label>

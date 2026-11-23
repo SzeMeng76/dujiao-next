@@ -249,7 +249,8 @@ export interface AdminManualRefundPayload {
 }
 
 export interface AdminReplaceSecretPair {
-  old_secret_id: number
+  old_line_index?: number
+  old_secret_id?: number
   new_secret_id: number
 }
 
@@ -261,6 +262,7 @@ export interface AdminReplaceSecretsPayload {
 
 export interface AdminDeliveredSecret {
   id: number
+  line_index: number
   secret: string
   product_id: number
   sku_id: number

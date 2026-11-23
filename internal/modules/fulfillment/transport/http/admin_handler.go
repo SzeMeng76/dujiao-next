@@ -36,15 +36,19 @@ type ReplaceSecretsInput struct {
 	Reason  string
 }
 
-// SecretPair 指定用库存中的哪条卡密替换订单里的哪条已交付卡密。
+// SecretPair 指定用库存中的哪条卡密替换交付内容里的哪一行。
+// OldLineIndex 为 -1 时回退到 OldSecretID，兼容旧调用方。
 type SecretPair struct {
-	OldSecretID uint
-	NewSecretID uint
+	OldLineIndex int
+	OldSecretID  uint
+	NewSecretID  uint
 }
 
 // DeliveredSecretView 订单当前交付内容中的一条卡密。
+// line_index 是交付内容中的行号，也是替换时的定位依据；卡密历史被清理后依然有效。
 type DeliveredSecretView struct {
 	ID        uint       `json:"id"`
+	LineIndex int        `json:"line_index"`
 	Secret    string     `json:"secret"`
 	ProductID uint       `json:"product_id"`
 	SKUID     uint       `json:"sku_id"`
@@ -110,10 +114,12 @@ type AdminReplaceSecretsRequest struct {
 	Reason  string                    `json:"reason" binding:"max=500"`
 }
 
-// AdminReplaceSecretsPair 旧卡密 ID 与库存新卡密 ID 的配对；非空时优先于 secrets。
+// AdminReplaceSecretsPair 旧卡密所在行与库存新卡密 ID 的配对；非空时优先于 secrets。
+// 未传 old_line_index 时回退到 old_secret_id，兼容旧调用方。
 type AdminReplaceSecretsPair struct {
-	OldSecretID uint `json:"old_secret_id"`
-	NewSecretID uint `json:"new_secret_id"`
+	OldLineIndex *int `json:"old_line_index"`
+	OldSecretID  uint `json:"old_secret_id"`
+	NewSecretID  uint `json:"new_secret_id"`
 }
 
 // AdminListReplaceCandidates 管理端查询可替换的已交付卡密与同规格库存（最旧在前）。
@@ -172,7 +178,11 @@ func (h *AdminHandler) AdminReplaceFulfillmentSecrets(c *gin.Context) {
 	}
 	pairs := make([]SecretPair, 0, len(req.Pairs))
 	for _, pair := range req.Pairs {
-		pairs = append(pairs, SecretPair{OldSecretID: pair.OldSecretID, NewSecretID: pair.NewSecretID})
+		oldLineIndex := -1
+		if pair.OldLineIndex != nil && *pair.OldLineIndex >= 0 {
+			oldLineIndex = *pair.OldLineIndex
+		}
+		pairs = append(pairs, SecretPair{OldLineIndex: oldLineIndex, OldSecretID: pair.OldSecretID, NewSecretID: pair.NewSecretID})
 	}
 	fulfillment, replaced, err := h.replacer.ReplaceSecrets(ReplaceSecretsInput{
 		OrderID: orderID,

@@ -241,11 +241,11 @@ func (f *replaceSecretsFixture) secretID(t *testing.T, text string) uint {
 func TestReplaceSecretsWithExplicitPairsUsesChosenStock(t *testing.T) {
 	f := newReplaceSecretsFixture(t, constants.OrderStatusCompleted, "NEW-1", "NEW-2", "NEW-3")
 
-	// 管理员跳过最旧的 NEW-1，指定用 NEW-3 替换 OLD-2。
+	// 管理员跳过最旧的 NEW-1，指定用 NEW-3 替换第 1 行（OLD-2）。
 	_, replaced, err := f.svc.ReplaceSecrets(ReplaceSecretsInput{
 		OrderID: f.order.ID,
 		AdminID: 9,
-		Pairs:   []SecretReplacement{{OldSecretID: f.secretID(t, "OLD-2"), NewSecretID: f.secretID(t, "NEW-3")}},
+		Pairs:   []SecretReplacement{{OldLineIndex: 1, NewSecretID: f.secretID(t, "NEW-3")}},
 	})
 	if err != nil {
 		t.Fatalf("replace with pairs failed: %v", err)
@@ -266,13 +266,14 @@ func TestReplaceSecretsWithExplicitPairsUsesChosenStock(t *testing.T) {
 
 func TestReplaceSecretsWithPairsRejectsInvalidPairs(t *testing.T) {
 	f := newReplaceSecretsFixture(t, constants.OrderStatusCompleted, "NEW-1", "NEW-2")
-	old1, old2 := f.secretID(t, "OLD-1"), f.secretID(t, "OLD-2")
+	old2 := f.secretID(t, "OLD-2")
 	new1 := f.secretID(t, "NEW-1")
 
 	cases := map[string][]SecretReplacement{
-		"stock id not available (already used)": {{OldSecretID: old1, NewSecretID: old2}},
-		"old id not in order":                   {{OldSecretID: new1, NewSecretID: f.secretID(t, "NEW-2")}},
-		"duplicate new id":                      {{OldSecretID: old1, NewSecretID: new1}, {OldSecretID: old2, NewSecretID: new1}},
+		"stock id not available (already used)": {{OldLineIndex: 0, NewSecretID: old2}},
+		"old line out of range":                 {{OldLineIndex: 99, NewSecretID: f.secretID(t, "NEW-2")}},
+		"neither line nor secret id":            {{OldLineIndex: -1, NewSecretID: f.secretID(t, "NEW-2")}},
+		"duplicate new id":                      {{OldLineIndex: 0, NewSecretID: new1}, {OldLineIndex: 1, NewSecretID: new1}},
 	}
 	for name, pairs := range cases {
 		if _, _, err := f.svc.ReplaceSecrets(ReplaceSecretsInput{OrderID: f.order.ID, AdminID: 9, Pairs: pairs}); !errors.Is(err, ErrFulfillmentInvalid) {
@@ -281,5 +282,152 @@ func TestReplaceSecretsWithPairsRejectsInvalidPairs(t *testing.T) {
 	}
 	if got := f.currentPayload(t); got != "OLD-1\nOLD-2" {
 		t.Fatalf("payload must stay unchanged, got %q", got)
+	}
+}
+
+func TestReplaceSecretsStillWorksAfterUsedCardSecretsPurged(t *testing.T) {
+	f := newReplaceSecretsFixture(t, constants.OrderStatusCompleted, "NEW-1", "NEW-2")
+	// 模拟定时清理任务：把该订单的 used 卡密记录物理删除。
+	if err := f.db.Unscoped().Where("order_id = ?", f.order.ID).Delete(&cardsecretdomain.Secret{}).Error; err != nil {
+		t.Fatalf("purge used secrets failed: %v", err)
+	}
+
+	candidates, err := f.svc.ListReplaceCandidates(f.order.ID)
+	if err != nil {
+		t.Fatalf("list candidates failed: %v", err)
+	}
+	if len(candidates.Delivered) != 2 {
+		t.Fatalf("delivered must be recovered from payload, got %+v", candidates.Delivered)
+	}
+	if candidates.Delivered[0].LineIndex != 0 || candidates.Delivered[0].Secret != "OLD-1" ||
+		candidates.Delivered[0].ProductID != 100 || candidates.Delivered[0].SKUID != 1001 {
+		t.Fatalf("unexpected first delivered line: %+v", candidates.Delivered[0])
+	}
+	if candidates.Delivered[1].LineIndex != 1 || candidates.Delivered[1].Secret != "OLD-2" {
+		t.Fatalf("unexpected second delivered line: %+v", candidates.Delivered[1])
+	}
+	if len(candidates.Stock) != 2 || candidates.Stock[0].Secret != "NEW-1" {
+		t.Fatalf("stock must still be listed by order items: %+v", candidates.Stock)
+	}
+
+	_, replaced, err := f.svc.ReplaceSecrets(ReplaceSecretsInput{
+		OrderID: f.order.ID,
+		AdminID: 9,
+		Pairs:   []SecretReplacement{{OldLineIndex: 1, NewSecretID: f.secretID(t, "NEW-2")}},
+	})
+	if err != nil {
+		t.Fatalf("replace with line index failed: %v", err)
+	}
+	if replaced != 1 {
+		t.Fatalf("replaced want 1 got %d", replaced)
+	}
+	if got := f.currentPayload(t); got != "OLD-1\nNEW-2" {
+		t.Fatalf("payload want OLD-1\\nNEW-2 got %q", got)
+	}
+
+	// 按文本替换同样不依赖 used 记录。
+	_, replaced, err = f.svc.ReplaceSecrets(ReplaceSecretsInput{
+		OrderID: f.order.ID,
+		AdminID: 9,
+		Secrets: []string{"OLD-1"},
+	})
+	if err != nil {
+		t.Fatalf("replace by text failed: %v", err)
+	}
+	if replaced != 1 {
+		t.Fatalf("replaced want 1 got %d", replaced)
+	}
+	if got := f.currentPayload(t); got != "NEW-1\nNEW-2" {
+		t.Fatalf("payload want NEW-1\\nNEW-2 got %q", got)
+	}
+}
+
+func TestReplaceCandidatesMapPayloadLinesToOrderItems(t *testing.T) {
+	db := setupFulfillmentServiceTestDB(t)
+	now := time.Now()
+	order := &orderdomain.Order{
+		OrderNo:          "REPLACE-SECRET-MULTI-SKU",
+		UserID:           1,
+		Status:           constants.OrderStatusCompleted,
+		Currency:         "CNY",
+		OriginalAmount:   money.FromDecimal(decimal.NewFromInt(30)),
+		DiscountAmount:   money.FromDecimal(decimal.Zero),
+		TotalAmount:      money.FromDecimal(decimal.NewFromInt(30)),
+		WalletPaidAmount: money.FromDecimal(decimal.Zero),
+		OnlinePaidAmount: money.FromDecimal(decimal.NewFromInt(30)),
+		RefundedAmount:   money.FromDecimal(decimal.Zero),
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	}
+	if err := db.Create(order).Error; err != nil {
+		t.Fatalf("create order failed: %v", err)
+	}
+	items := []orderdomain.OrderItem{
+		{OrderID: order.ID, ProductID: 100, SKUID: 1001, TitleJSON: jsonmap.JSON{"zh-CN": "A"}, Quantity: 2, FulfillmentType: constants.FulfillmentTypeAuto, CreatedAt: now, UpdatedAt: now},
+		{OrderID: order.ID, ProductID: 200, SKUID: 2002, TitleJSON: jsonmap.JSON{"zh-CN": "B"}, Quantity: 1, FulfillmentType: constants.FulfillmentTypeAuto, CreatedAt: now, UpdatedAt: now},
+	}
+	for _, item := range items {
+		if err := db.Create(&item).Error; err != nil {
+			t.Fatalf("create order item failed: %v", err)
+		}
+	}
+	fulfillment := &fulfillmentdomain.Fulfillment{
+		OrderID: order.ID, Type: constants.FulfillmentTypeAuto, Status: constants.FulfillmentStatusDelivered,
+		Payload: "A-1\nA-2\nB-1", DeliveredAt: &now, CreatedAt: now, UpdatedAt: now,
+	}
+	if err := db.Create(fulfillment).Error; err != nil {
+		t.Fatalf("create fulfillment failed: %v", err)
+	}
+	for _, stock := range []cardsecretdomain.Secret{
+		{ProductID: 100, SKUID: 1001, Secret: "A-NEW", Status: cardsecretdomain.StatusAvailable, CreatedAt: now, UpdatedAt: now},
+		{ProductID: 200, SKUID: 2002, Secret: "B-NEW", Status: cardsecretdomain.StatusAvailable, CreatedAt: now, UpdatedAt: now},
+	} {
+		if err := db.Create(&stock).Error; err != nil {
+			t.Fatalf("create stock failed: %v", err)
+		}
+	}
+	svc := New(Options{
+		OrderStore:       ordergormstore.New(db, "test-guest-credential-secret-with-32-bytes"),
+		FulfillmentStore: fulfillmentgormstore.New(db),
+	})
+
+	candidates, err := svc.ListReplaceCandidates(order.ID)
+	if err != nil {
+		t.Fatalf("list candidates failed: %v", err)
+	}
+	if len(candidates.Delivered) != 3 {
+		t.Fatalf("delivered want 3 got %+v", candidates.Delivered)
+	}
+	want := [][2]uint{{100, 1001}, {100, 1001}, {200, 2002}}
+	for i, line := range candidates.Delivered {
+		if line.LineIndex != i || line.ProductID != want[i][0] || line.SKUID != want[i][1] {
+			t.Fatalf("line %d mapped to %d/%d, want %d/%d", i, line.ProductID, line.SKUID, want[i][0], want[i][1])
+		}
+	}
+	if len(candidates.Stock) != 2 {
+		t.Fatalf("stock must cover both SKUs, got %+v", candidates.Stock)
+	}
+
+	var bNew cardsecretdomain.Secret
+	if err := db.Where("secret = ?", "B-NEW").First(&bNew).Error; err != nil {
+		t.Fatalf("query stock failed: %v", err)
+	}
+	_, replaced, err := svc.ReplaceSecrets(ReplaceSecretsInput{
+		OrderID: order.ID,
+		AdminID: 9,
+		Pairs:   []SecretReplacement{{OldLineIndex: 2, NewSecretID: bNew.ID}},
+	})
+	if err != nil {
+		t.Fatalf("replace line 2 failed: %v", err)
+	}
+	if replaced != 1 {
+		t.Fatalf("replaced want 1 got %d", replaced)
+	}
+	var row fulfillmentdomain.Fulfillment
+	if err := db.First(&row, fulfillment.ID).Error; err != nil {
+		t.Fatalf("query fulfillment failed: %v", err)
+	}
+	if row.Payload != "A-1\nA-2\nB-NEW" {
+		t.Fatalf("payload want A-1\\nA-2\\nB-NEW got %q", row.Payload)
 	}
 }

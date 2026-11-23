@@ -431,15 +431,19 @@ type ReplaceSecretsInput struct {
 	Reason  string
 }
 
-// SecretReplacement 指定用库存中的哪条卡密替换订单里的哪条已交付卡密。
+// SecretReplacement 指定用库存中的哪条卡密替换交付内容里的哪一行。
+// OldLineIndex 为 payload 按换行切分后的行号；传 -1 时回退到 OldSecretID（兼容旧调用方）。
 type SecretReplacement struct {
-	OldSecretID uint
-	NewSecretID uint
+	OldLineIndex int
+	OldSecretID  uint
+	NewSecretID  uint
 }
 
 // DeliveredSecret 订单当前交付内容中的一条卡密。
+// LineIndex 是 payload 中的行号，也是替换时定位这一行的依据，不依赖卡密历史记录。
 type DeliveredSecret struct {
 	ID        uint
+	LineIndex int
 	Secret    string
 	ProductID uint
 	SKUID     uint
@@ -462,6 +466,110 @@ type ReplaceCandidates struct {
 }
 
 const replaceCandidateStockLimit = 100
+
+// deliveredLine 描述交付内容中的一行及其对应的商品/SKU。
+// 卡密历史被定时清理后，行号与订单项仍能还原规格，替换不再依赖 used 卡密记录。
+type deliveredLine struct {
+	LineIndex int
+	Secret    string
+	ProductID uint
+	SKUID     uint
+	UsedRowID uint
+	UsedAt    *time.Time
+}
+
+// orderItemRefs 按订单项顺序展开商品/SKU，与自动交付 payload 的生成顺序一致。
+func orderItemRefs(items []orderdomain.OrderItem) [][2]uint {
+	refs := make([][2]uint, 0)
+	for _, item := range items {
+		quantity := item.Quantity
+		if quantity < 0 {
+			quantity = 0
+		}
+		for i := 0; i < quantity; i++ {
+			refs = append(refs, [2]uint{item.ProductID, item.SKUID})
+		}
+	}
+	return refs
+}
+
+// resolveDeliveredLines 把交付内容逐行映射回商品/SKU。used 卡密记录仍存在时优先采用它的商品/SKU，
+// 并附带记录 ID 供追溯；记录已被清理时按订单项顺序还原。
+func resolveDeliveredLines(payload string, items []orderdomain.OrderItem, usedRows []cardsecretdomain.Secret) []deliveredLine {
+	refs := orderItemRefs(items)
+	usedByText := make(map[string][]cardsecretdomain.Secret, len(usedRows))
+	for _, row := range usedRows {
+		text := strings.TrimSpace(row.Secret)
+		if text == "" {
+			continue
+		}
+		usedByText[text] = append(usedByText[text], row)
+	}
+	consumed := make(map[uint]bool, len(usedRows))
+	lines := make([]deliveredLine, 0, len(refs))
+	position := 0
+	for idx, raw := range strings.Split(payload, "\n") {
+		text := strings.TrimSpace(raw)
+		if text == "" {
+			continue
+		}
+		line := deliveredLine{LineIndex: idx, Secret: text}
+		for _, row := range usedByText[text] {
+			if consumed[row.ID] {
+				continue
+			}
+			consumed[row.ID] = true
+			line.UsedRowID = row.ID
+			line.UsedAt = row.UsedAt
+			line.ProductID = row.ProductID
+			line.SKUID = row.SKUID
+			break
+		}
+		if line.ProductID == 0 && position < len(refs) {
+			line.ProductID = refs[position][0]
+			line.SKUID = refs[position][1]
+		}
+		position++
+		lines = append(lines, line)
+	}
+	return lines
+}
+
+// stockGroupRefs 返回需要查询库存的商品/SKU：以订单项为准，订单项缺失时回退到已交付行。
+func stockGroupRefs(items []orderdomain.OrderItem, lines []deliveredLine) [][2]uint {
+	seen := make(map[string]bool)
+	groups := make([][2]uint, 0)
+	add := func(productID, skuID uint) {
+		if productID == 0 {
+			return
+		}
+		key := orderdomain.ItemKey(productID, skuID)
+		if seen[key] {
+			return
+		}
+		seen[key] = true
+		groups = append(groups, [2]uint{productID, skuID})
+	}
+	for _, ref := range orderItemRefs(items) {
+		add(ref[0], ref[1])
+	}
+	for _, line := range lines {
+		add(line.ProductID, line.SKUID)
+	}
+	return groups
+}
+
+// resolvePairLine 定位配对里的旧卡密所在行：优先用行号，兼容只给 used 卡密 ID 的旧调用方。
+func resolvePairLine(pair SecretReplacement, byUsedID map[uint]int) (int, bool) {
+	if pair.OldLineIndex >= 0 {
+		return pair.OldLineIndex, true
+	}
+	if pair.OldSecretID != 0 {
+		lineIndex, ok := byUsedID[pair.OldSecretID]
+		return lineIndex, ok
+	}
+	return 0, false
+}
 
 // ListReplaceCandidates 列出订单已交付的卡密，以及同商品/SKU 下按添加时间从旧到新的可用库存。
 func (s *Service) ListReplaceCandidates(orderID uint) (*ReplaceCandidates, error) {
@@ -494,35 +602,19 @@ func (s *Service) ListReplaceCandidates(orderID uint) (*ReplaceCandidates, error
 			return ErrFulfillmentNotAuto
 		}
 		secretRepo := tx.CardSecrets()
+		// used 记录可能已被定时清理，这里只是尽力而为：没有记录时按订单项还原规格。
 		usedRows, err := secretRepo.ListByOrderAndStatus(orderID, cardsecretdomain.StatusUsed)
 		if err != nil {
 			return err
 		}
-		matched := make(map[uint]bool)
-		seenGroup := make(map[string]bool)
-		var groupKeys [][2]uint
-		for _, line := range strings.Split(current.Payload, "\n") {
-			text := strings.TrimSpace(line)
-			if text == "" {
-				continue
-			}
-			for _, row := range usedRows {
-				if matched[row.ID] || strings.TrimSpace(row.Secret) != text {
-					continue
-				}
-				matched[row.ID] = true
-				result.Delivered = append(result.Delivered, DeliveredSecret{
-					ID: row.ID, Secret: row.Secret, ProductID: row.ProductID, SKUID: row.SKUID, UsedAt: row.UsedAt,
-				})
-				key := orderdomain.ItemKey(row.ProductID, row.SKUID)
-				if !seenGroup[key] {
-					seenGroup[key] = true
-					groupKeys = append(groupKeys, [2]uint{row.ProductID, row.SKUID})
-				}
-				break
-			}
+		lines := resolveDeliveredLines(current.Payload, order.Items, usedRows)
+		for _, line := range lines {
+			result.Delivered = append(result.Delivered, DeliveredSecret{
+				ID: line.UsedRowID, LineIndex: line.LineIndex, Secret: line.Secret,
+				ProductID: line.ProductID, SKUID: line.SKUID, UsedAt: line.UsedAt,
+			})
 		}
-		for _, group := range groupKeys {
+		for _, group := range stockGroupRefs(order.Items, lines) {
 			rows, err := secretRepo.ListAvailableByProduct(group[0], group[1], replaceCandidateStockLimit)
 			if err != nil {
 				return err
@@ -593,60 +685,48 @@ func (s *Service) ReplaceSecrets(input ReplaceSecretsInput) (*fulfillmentdomain.
 		}
 
 		secretRepo := tx.CardSecrets()
+		// used 记录可能已被定时清理，这里只是尽力而为：没有记录时按订单项还原规格。
 		usedRows, err := secretRepo.ListByOrderAndStatus(input.OrderID, cardsecretdomain.StatusUsed)
 		if err != nil {
 			return err
 		}
 
-		// 把交付内容的每一行对应回卡密记录，一行只对应一条记录。
+		// 以交付内容本身为准逐行定位，商品/SKU 由行号 + 订单项还原，不再依赖卡密历史。
 		lines := strings.Split(current.Payload, "\n")
+		delivered := resolveDeliveredLines(current.Payload, order.Items, usedRows)
 		type pick struct {
-			old     cardsecretdomain.Secret
+			line    deliveredLine
 			lineIdx int
 		}
 		var picks []pick
-		matched := make(map[uint]bool)
-		deliveredByID := make(map[uint]pick)
-		pairMode := len(input.Pairs) > 0
-		for idx, line := range lines {
-			text := strings.TrimSpace(line)
-			if text == "" {
-				continue
-			}
-			for _, row := range usedRows {
-				if matched[row.ID] || strings.TrimSpace(row.Secret) != text {
-					continue
-				}
-				matched[row.ID] = true
-				deliveredByID[row.ID] = pick{old: row, lineIdx: idx}
-				if pairMode {
-					break
-				}
-				if wantAll {
-					picks = append(picks, pick{old: row, lineIdx: idx})
-				} else if wanted[text] > 0 {
-					wanted[text]--
-					picks = append(picks, pick{old: row, lineIdx: idx})
-				}
-				break
+		byLine := make(map[int]deliveredLine, len(delivered))
+		byUsedID := make(map[uint]int, len(delivered))
+		for _, line := range delivered {
+			byLine[line.LineIndex] = line
+			if line.UsedRowID != 0 {
+				byUsedID[line.UsedRowID] = line.LineIndex
 			}
 		}
 
 		var replacements []cardsecretdomain.Secret
 		var newIDs []uint
-		if pairMode {
-			// 管理员指定「旧卡密 → 库存新卡密」：旧卡密必须是本单当前交付内容，新卡密必须仍可用且规格一致。
-			seenOld := make(map[uint]bool, len(input.Pairs))
+		if len(input.Pairs) > 0 {
+			// 管理员指定「旧卡密行 → 库存新卡密」：旧行必须是本单当前交付内容，新卡密必须仍可用且规格一致。
+			seenOld := make(map[int]bool, len(input.Pairs))
 			seenNew := make(map[uint]bool, len(input.Pairs))
 			wantNewIDs := make([]uint, 0, len(input.Pairs))
 			for _, pair := range input.Pairs {
-				target, ok := deliveredByID[pair.OldSecretID]
-				if !ok || pair.NewSecretID == 0 || seenOld[pair.OldSecretID] || seenNew[pair.NewSecretID] {
+				lineIndex, ok := resolvePairLine(pair, byUsedID)
+				if !ok || pair.NewSecretID == 0 {
 					return ErrFulfillmentInvalid
 				}
-				seenOld[pair.OldSecretID] = true
+				line, ok := byLine[lineIndex]
+				if !ok || seenOld[lineIndex] || seenNew[pair.NewSecretID] || line.ProductID == 0 {
+					return ErrFulfillmentInvalid
+				}
+				seenOld[lineIndex] = true
 				seenNew[pair.NewSecretID] = true
-				picks = append(picks, target)
+				picks = append(picks, pick{line: line, lineIdx: lineIndex})
 				wantNewIDs = append(wantNewIDs, pair.NewSecretID)
 			}
 			rows, err := secretRepo.ListByIDs(wantNewIDs)
@@ -660,13 +740,25 @@ func (s *Service) ReplaceSecrets(input ReplaceSecretsInput) (*fulfillmentdomain.
 			for i, id := range wantNewIDs {
 				row, ok := byID[id]
 				if !ok || row.Status != cardsecretdomain.StatusAvailable ||
-					row.ProductID != picks[i].old.ProductID || row.SKUID != picks[i].old.SKUID {
+					row.ProductID != picks[i].line.ProductID || row.SKUID != picks[i].line.SKUID {
 					return ErrFulfillmentInvalid
 				}
 				replacements = append(replacements, row)
 				newIDs = append(newIDs, id)
 			}
 		} else {
+			for _, line := range delivered {
+				if !wantAll {
+					if wanted[line.Secret] <= 0 {
+						continue
+					}
+					wanted[line.Secret]--
+				}
+				if line.ProductID == 0 {
+					return ErrFulfillmentInvalid
+				}
+				picks = append(picks, pick{line: line, lineIdx: line.LineIndex})
+			}
 			for _, left := range wanted {
 				if left > 0 {
 					return ErrFulfillmentInvalid
@@ -680,7 +772,7 @@ func (s *Service) ReplaceSecrets(input ReplaceSecretsInput) (*fulfillmentdomain.
 			groups := make(map[string][]int)
 			var groupOrder []string
 			for i, p := range picks {
-				key := orderdomain.ItemKey(p.old.ProductID, p.old.SKUID)
+				key := orderdomain.ItemKey(p.line.ProductID, p.line.SKUID)
 				if _, ok := groups[key]; !ok {
 					groupOrder = append(groupOrder, key)
 				}
@@ -690,7 +782,7 @@ func (s *Service) ReplaceSecrets(input ReplaceSecretsInput) (*fulfillmentdomain.
 			newIDs = make([]uint, 0, len(picks))
 			for _, key := range groupOrder {
 				idxs := groups[key]
-				first := picks[idxs[0]].old
+				first := picks[idxs[0]].line
 				rows, err := secretRepo.ListAvailableByProductForUpdate(first.ProductID, first.SKUID, len(idxs))
 				if err != nil {
 					return err
@@ -716,9 +808,13 @@ func (s *Service) ReplaceSecrets(input ReplaceSecretsInput) (*fulfillmentdomain.
 		}
 
 		oldIDs := make([]uint, 0, len(picks))
+		oldLineIndexes := make([]int, 0, len(picks))
 		for i, p := range picks {
 			lines[p.lineIdx] = replacements[i].Secret
-			oldIDs = append(oldIDs, p.old.ID)
+			oldLineIndexes = append(oldLineIndexes, p.lineIdx)
+			if p.line.UsedRowID != 0 {
+				oldIDs = append(oldIDs, p.line.UsedRowID)
+			}
 		}
 		payload := strings.Join(lines, "\n")
 		if err := tx.Fulfillments().UpdatePayload(current.ID, payload, now); err != nil {
@@ -732,6 +828,7 @@ func (s *Service) ReplaceSecrets(input ReplaceSecretsInput) (*fulfillmentdomain.
 			"order_id", input.OrderID,
 			"admin_id", input.AdminID,
 			"reason", strings.TrimSpace(input.Reason),
+			"old_line_indexes", oldLineIndexes,
 			"old_secret_ids", oldIDs,
 			"new_secret_ids", newIDs,
 		)

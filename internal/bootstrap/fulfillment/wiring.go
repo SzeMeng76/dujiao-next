@@ -33,7 +33,11 @@ type fulfillmentSecretReplacerAdapter struct {
 func (a fulfillmentSecretReplacerAdapter) ReplaceSecrets(input fulfillmenttransport.ReplaceSecretsInput) (*fulfillmentdomain.Fulfillment, int, error) {
 	pairs := make([]fulfillmentapp.SecretReplacement, 0, len(input.Pairs))
 	for _, pair := range input.Pairs {
-		pairs = append(pairs, fulfillmentapp.SecretReplacement{OldSecretID: pair.OldSecretID, NewSecretID: pair.NewSecretID})
+		pairs = append(pairs, fulfillmentapp.SecretReplacement{
+			OldLineIndex: pair.OldLineIndex,
+			OldSecretID:  pair.OldSecretID,
+			NewSecretID:  pair.NewSecretID,
+		})
 	}
 	res, replaced, err := a.svc.ReplaceSecrets(fulfillmentapp.ReplaceSecretsInput{
 		OrderID: input.OrderID,
@@ -56,7 +60,8 @@ func (a fulfillmentSecretReplacerAdapter) ListReplaceCandidates(orderID uint) (*
 	}
 	for _, item := range res.Delivered {
 		view.Delivered = append(view.Delivered, fulfillmenttransport.DeliveredSecretView{
-			ID: item.ID, Secret: item.Secret, ProductID: item.ProductID, SKUID: item.SKUID, UsedAt: item.UsedAt,
+			ID: item.ID, LineIndex: item.LineIndex, Secret: item.Secret,
+			ProductID: item.ProductID, SKUID: item.SKUID, UsedAt: item.UsedAt,
 		})
 	}
 	for _, item := range res.Stock {
