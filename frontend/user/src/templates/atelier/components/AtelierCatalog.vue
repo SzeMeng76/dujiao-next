@@ -366,6 +366,8 @@ const {
 } = useProductList({
   pageSize: 24,
   homeRouteName: props.homeRouteName,
+  // 首页未筛选时用分类精选（每类固定 N 个），商品列表页保持原有分页
+  showcase: props.homeRouteName === 'home' ? { perCategory: 4, maxCategories: 12 } : undefined,
   getScrollTop: () => Math.max(0, (shelfRef.value?.getBoundingClientRect().top ?? 0) + window.scrollY - 92),
 })
 

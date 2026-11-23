@@ -35,6 +35,13 @@ func (adapter publicProductAdapter) ListPublicForTenant(
 	return adapter.products.ListPublicForTenant(tenant, adapter.hidden, categoryID, search, page, pageSize)
 }
 
+func (adapter publicProductAdapter) ListShowcaseForTenant(
+	tenant reseller.TenantContext,
+	perCategory, maxCategories int,
+) ([]productdomain.Product, error) {
+	return adapter.products.ListShowcaseForTenant(tenant, adapter.hidden, perCategory, maxCategories)
+}
+
 func (adapter publicProductAdapter) GetPublicBySlugForTenant(
 	tenant reseller.TenantContext,
 	slug string,

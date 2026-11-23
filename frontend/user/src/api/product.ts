@@ -2,6 +2,8 @@ import { api } from './client'
 
 export const productAPI = {
     list: (params?: any) => api.get('/public/products', { params }),
+    /** 首页分类精选：每类固定取 N 个商品 */
+    showcase: (params?: any) => api.get('/public/products/showcase', { params }),
     detail: (slug: string) => api.get(`/public/products/${slug}`),
 }
 

@@ -3,6 +3,7 @@ package producthttp
 import (
 	"context"
 	"errors"
+	"strconv"
 	"strings"
 
 	promotiondomain "github.com/dujiao-next/internal/modules/promotion/domain"
@@ -30,6 +31,7 @@ const publicRelatedPostsLimit = 6
 // PublicProductQueries 是公开商品列表/详情所需的最小用例接口。
 type PublicProductQueries interface {
 	ListPublicForTenant(tenant reseller.TenantContext, categoryID, search string, page, pageSize int) ([]productdomain.Product, int64, error)
+	ListShowcaseForTenant(tenant reseller.TenantContext, perCategory, maxCategories int) ([]productdomain.Product, error)
 	GetPublicBySlugForTenant(tenant reseller.TenantContext, slug string) (*productdomain.Product, error)
 	ApplyAutoStockCounts(products []productdomain.Product) error
 }
@@ -118,22 +120,54 @@ func (h *PublicHandler) GetProducts(c *gin.Context) {
 		return
 	}
 
-	if err := h.products.ApplyAutoStockCounts(products); err != nil {
-		ginutil.RespondError(c, response.CodeInternal, "error.product_fetch_failed", err)
+	decorated, err := h.decoratePublicProductList(tenant, products)
+	if err != nil {
+		h.respondProductListError(c, err)
 		return
+	}
+
+	pagination := response.BuildPagination(page, pageSize, total)
+	response.SuccessWithPage(c, decorated, pagination)
+}
+
+// GetProductShowcase 获取首页分类精选：每个一级分类取前 per_category 个上架商品。
+// 分类顺序沿用后台分类排序，分类内商品顺序沿用商品列表排序；不返回分页信息。
+func (h *PublicHandler) GetProductShowcase(c *gin.Context) {
+	perCategory := parseNonNegativeInt(c.Query("per_category"))
+	maxCategories := parseNonNegativeInt(c.Query("max_categories"))
+	tenant := tenantFromRequest(c)
+
+	products, err := h.products.ListShowcaseForTenant(tenant, perCategory, maxCategories)
+	if err != nil {
+		h.respondProductListError(c, err)
+		return
+	}
+
+	decorated, err := h.decoratePublicProductList(tenant, products)
+	if err != nil {
+		h.respondProductListError(c, err)
+		return
+	}
+
+	response.Success(c, decorated)
+}
+
+// decoratePublicProductList 统一补齐库存、分销展示价，并装饰促销与会员价。
+func (h *PublicHandler) decoratePublicProductList(tenant reseller.TenantContext, products []productdomain.Product) ([]productpresenter.Product, error) {
+	if err := h.products.ApplyAutoStockCounts(products); err != nil {
+		return nil, err
 	}
 
 	var resellerBatch *reseller.DisplayPricingBatch
 	if isResellerTenant(tenant) {
 		if h.pricer == nil {
-			ginutil.RespondError(c, response.CodeNotFound, "error.product_not_found", nil)
-			return
+			return nil, productcontract.ErrResellerProductNotListed
 		}
-		resellerBatch, err = h.pricer.LoadDisplayPricingBatch(tenant, products)
+		batch, err := h.pricer.LoadDisplayPricingBatch(tenant, products)
 		if err != nil {
-			ginutil.RespondError(c, response.CodeInternal, "error.product_fetch_failed", err)
-			return
+			return nil, err
 		}
+		resellerBatch = batch
 	}
 
 	decorated := make([]productpresenter.Product, 0, len(products))
@@ -143,14 +177,28 @@ func (h *PublicHandler) GetProducts(c *gin.Context) {
 			if errors.Is(derr, productcontract.ErrResellerProductNotListed) {
 				continue
 			}
-			ginutil.RespondError(c, response.CodeInternal, "error.product_fetch_failed", derr)
-			return
+			return nil, derr
 		}
 		decorated = append(decorated, item)
 	}
+	return decorated, nil
+}
 
-	pagination := response.BuildPagination(page, pageSize, total)
-	response.SuccessWithPage(c, decorated, pagination)
+func (h *PublicHandler) respondProductListError(c *gin.Context, err error) {
+	if errors.Is(err, productcontract.ErrResellerProductNotListed) {
+		ginutil.RespondError(c, response.CodeNotFound, "error.product_not_found", nil)
+		return
+	}
+	ginutil.RespondError(c, response.CodeInternal, "error.product_fetch_failed", err)
+}
+
+// parseNonNegativeInt 解析非负整数参数；缺省或非法值返回 0，由应用层套用默认值与上限。
+func parseNonNegativeInt(raw string) int {
+	value, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil || value < 0 {
+		return 0
+	}
+	return value
 }
 
 // GetProductBySlug 根据 slug 获取商品详情

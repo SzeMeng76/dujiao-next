@@ -2,6 +2,8 @@ package producthttp
 
 import (
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	productcontract "github.com/dujiao-next/internal/modules/catalog/product/contract"
@@ -9,6 +11,7 @@ import (
 
 	reseller "github.com/dujiao-next/internal/modules/reseller/contract"
 	"github.com/dujiao-next/internal/shared/money"
+	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
 )
 
@@ -182,5 +185,57 @@ func TestDecoratePublicProductForTenantInvalidDisplayPricingIsHidden(t *testing.
 				t.Fatalf("expected ErrResellerProductNotListed, got %v", err)
 			}
 		})
+	}
+}
+
+type showcaseQueriesStub struct{}
+
+func (showcaseQueriesStub) ListPublicForTenant(reseller.TenantContext, string, string, int, int) ([]productdomain.Product, int64, error) {
+	return nil, 0, nil
+}
+
+func (showcaseQueriesStub) ListShowcaseForTenant(reseller.TenantContext, int, int) ([]productdomain.Product, error) {
+	return nil, nil
+}
+
+func (showcaseQueriesStub) GetPublicBySlugForTenant(reseller.TenantContext, string) (*productdomain.Product, error) {
+	return nil, nil
+}
+
+func (showcaseQueriesStub) ApplyAutoStockCounts([]productdomain.Product) error {
+	return nil
+}
+
+// 保证 /products/showcase 与 /products/:slug 可以共存，且静态段优先命中精选接口。
+func TestRegisterPublicRoutesRegistersShowcase(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	handler := &PublicHandler{products: showcaseQueriesStub{}}
+
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			t.Fatalf("RegisterPublicRoutes panicked: %v", recovered)
+		}
+	}()
+	RegisterPublicRoutes(router.Group("/api/v1/public"), handler)
+
+	paths := make(map[string]bool)
+	for _, route := range router.Routes() {
+		paths[route.Path] = true
+	}
+	for _, want := range []string{
+		"/api/v1/public/products",
+		"/api/v1/public/products/showcase",
+		"/api/v1/public/products/:slug",
+	} {
+		if !paths[want] {
+			t.Fatalf("route %s not registered, got %v", want, paths)
+		}
+	}
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/public/products/showcase", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("showcase request want 200, got %d: %s", rec.Code, rec.Body.String())
 	}
 }

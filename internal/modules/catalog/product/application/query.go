@@ -79,6 +79,108 @@ func (s *Service) ListPublic(categoryID, search string, page, pageSize int) ([]p
 	return s.products.List(filter)
 }
 
+// 首页分类精选的默认与上限。每个一级分类取 perCategory 个商品，最多取 maxCategories 个分类。
+const (
+	DefaultShowcasePerCategory   = 4
+	DefaultShowcaseMaxCategories = 12
+	MaxShowcasePerCategory       = 20
+	MaxShowcaseMaxCategories     = 50
+)
+
+// ListShowcase 获取首页分类精选：每个一级分类（含其子分类）取前 perCategory 个上架商品。
+// 分类顺序沿用分类列表顺序；分类内商品顺序沿用商品列表排序。
+func (s *Service) ListShowcase(perCategory, maxCategories int) ([]productdomain.Product, error) {
+	return s.listShowcase(nil, perCategory, maxCategories)
+}
+
+// ListShowcaseForTenant 获取当前租户上下文的首页分类精选。
+func (s *Service) ListShowcaseForTenant(tenant reseller.TenantContext, resellerRepo HiddenProductRepository, perCategory, maxCategories int) ([]productdomain.Product, error) {
+	if !tenant.IsReseller() {
+		return s.ListShowcase(perCategory, maxCategories)
+	}
+	if tenant.ResellerID == nil || resellerRepo == nil {
+		return nil, productcontract.ErrResellerProductNotListed
+	}
+	hiddenIDs, err := resellerRepo.ListHiddenProductIDs(*tenant.ResellerID)
+	if err != nil {
+		return nil, err
+	}
+	return s.listShowcase(hiddenIDs, perCategory, maxCategories)
+}
+
+func (s *Service) listShowcase(excludeProductIDs []uint, perCategory, maxCategories int) ([]productdomain.Product, error) {
+	perCategory = clampShowcaseLimit(perCategory, DefaultShowcasePerCategory, MaxShowcasePerCategory)
+	maxCategories = clampShowcaseLimit(maxCategories, DefaultShowcaseMaxCategories, MaxShowcaseMaxCategories)
+	if s.categories == nil || s.products == nil {
+		return nil, nil
+	}
+
+	categories, err := s.categories.List()
+	if err != nil {
+		return nil, err
+	}
+
+	activeIDs := make(map[uint]struct{}, len(categories))
+	children := make(map[uint][]uint)
+	topLevel := make([]categorydomain.Category, 0, len(categories))
+	for _, category := range categories {
+		if category.IsActive {
+			activeIDs[category.ID] = struct{}{}
+		}
+	}
+	for _, category := range categories {
+		if !category.IsActive {
+			continue
+		}
+		if category.ParentID > 0 {
+			if _, parentActive := activeIDs[category.ParentID]; parentActive {
+				children[category.ParentID] = append(children[category.ParentID], category.ID)
+			}
+			continue
+		}
+		topLevel = append(topLevel, category)
+	}
+
+	result := make([]productdomain.Product, 0, maxCategories*perCategory)
+	groups := 0
+	for _, category := range topLevel {
+		if groups >= maxCategories {
+			break
+		}
+		categoryIDs := make([]uint, 0, 1+len(children[category.ID]))
+		categoryIDs = append(categoryIDs, category.ID)
+		categoryIDs = append(categoryIDs, children[category.ID]...)
+
+		products, _, listErr := s.products.List(productcontract.ListFilter{
+			Page:              1,
+			PageSize:          perCategory,
+			CategoryIDs:       categoryIDs,
+			ExcludeProductIDs: excludeProductIDs,
+			OnlyActive:        true,
+			WithCategory:      true,
+		})
+		if listErr != nil {
+			return nil, listErr
+		}
+		if len(products) == 0 {
+			continue
+		}
+		result = append(result, products...)
+		groups++
+	}
+	return result, nil
+}
+
+func clampShowcaseLimit(value, fallback, max int) int {
+	if value <= 0 {
+		return fallback
+	}
+	if value > max {
+		return max
+	}
+	return value
+}
+
 // ListPublicForTenant 获取当前租户上下文的公开商品列表。
 func (s *Service) ListPublicForTenant(tenant reseller.TenantContext, resellerRepo HiddenProductRepository, categoryID, search string, page, pageSize int) ([]productdomain.Product, int64, error) {
 	if !tenant.IsReseller() {

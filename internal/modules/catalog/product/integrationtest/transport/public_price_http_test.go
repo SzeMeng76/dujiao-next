@@ -35,6 +35,10 @@ func (s staticPublicProductQueries) ListPublicForTenant(reseller.TenantContext, 
 	return []productdomain.Product{s.product}, 1, nil
 }
 
+func (s staticPublicProductQueries) ListShowcaseForTenant(reseller.TenantContext, int, int) ([]productdomain.Product, error) {
+	return []productdomain.Product{s.product}, nil
+}
+
 func (s staticPublicProductQueries) GetPublicBySlugForTenant(reseller.TenantContext, string) (*productdomain.Product, error) {
 	product := s.product
 	return &product, nil

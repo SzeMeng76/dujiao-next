@@ -224,7 +224,12 @@ const {
   clearSearch,
   initialize: listInitialize,
   cleanup: listCleanup,
-} = useProductList({ pageSize: 20, homeRouteName: 'home' })
+} = useProductList({
+  pageSize: 20,
+  homeRouteName: 'home',
+  // 首页未筛选时用分类精选（每类固定 N 个），避免只取列表第一页导致分类缺席
+  showcase: { perCategory: 4, maxCategories: 12 },
+})
 
 const listProductGroups = useProductListGroups(listProducts, listCategoryMap)
 

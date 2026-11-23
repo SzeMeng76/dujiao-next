@@ -11,6 +11,11 @@ export interface UseProductListOptions {
   /** 翻页后滚动到的纵向位置，默认回到页面顶部 */
   getScrollTop?: () => number
   categoryRouteName?: string
+  /**
+   * 首页分类精选：未筛选、未搜索、第一页时改为请求 showcase 接口，
+   * 每类固定展示 N 个商品，而不是只取列表第一页。
+   */
+  showcase?: { perCategory: number; maxCategories: number }
 }
 
 export function useProductList(options: UseProductListOptions = {}) {
@@ -19,6 +24,7 @@ export function useProductList(options: UseProductListOptions = {}) {
     homeRouteName = 'home',
     getScrollTop = () => 0,
     categoryRouteName = 'category-products',
+    showcase,
   } = options
 
   const router = useRouter()
@@ -130,7 +136,20 @@ export function useProductList(options: UseProductListOptions = {}) {
     const keyword = searchQuery.value.trim()
     appliedPage = page
     appliedKeyword = keyword
+    // 首页未筛选、未搜索且在第一页时走分类精选：每个分类固定露出 N 个，避免只取列表第一页导致长尾分类缺席
+    const useShowcase = Boolean(showcase) && page === 1 && !selectedCategory.value && !keyword
     try {
+      if (useShowcase && showcase) {
+        const response = await productAPI.showcase({
+          per_category: showcase.perCategory,
+          max_categories: showcase.maxCategories,
+        })
+        products.value = response.data.data || []
+        totalPages.value = 0
+        total.value = products.value.length
+        return
+      }
+
       const params: any = {
         page,
         page_size: pageSize.value,
