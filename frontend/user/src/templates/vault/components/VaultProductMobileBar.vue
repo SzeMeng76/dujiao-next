@@ -9,6 +9,7 @@
   >
     <div
       v-if="visible"
+      data-purchase-bar
       class="theme-safe-bottom fixed bottom-0 left-0 right-0 z-40 border-t bg-card/95 shadow-[var(--shadow)] backdrop-blur-xl lg:hidden"
     >
       <div class="flex items-center gap-3 pl-4 pr-20 py-3">
