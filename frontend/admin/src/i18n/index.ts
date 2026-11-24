@@ -923,6 +923,7 @@ const messages = {
         },
         inventoryAlerts: {
           title: '库存异常明细',
+          skuSpec: 'SKU: {spec}',
           outOfStock: '售罄',
           lowStock: '低库存',
           loadMore: '加载更多 ({count} 条)',
@@ -5905,6 +5906,7 @@ const messages = {
         },
         inventoryAlerts: {
           title: '庫存異常明細',
+          skuSpec: 'SKU: {spec}',
           outOfStock: '售罄',
           lowStock: '低庫存',
           loadMore: '載入更多 ({count} 條)',
@@ -10888,6 +10890,7 @@ const messages = {
         },
         inventoryAlerts: {
           title: 'Inventory Alerts',
+          skuSpec: 'SKU: {spec}',
           outOfStock: 'Out of stock',
           lowStock: 'Low stock',
           loadMore: 'Load more ({count} items)',
