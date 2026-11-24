@@ -68,6 +68,7 @@
     "allCategories": "全部分類",
     "viewGrid": "網格檢視",
     "viewList": "列表檢視",
+    "viewToggleLabel": "商品檢視切換",
     "resultsCount": "共 {count} 件商品",
     "footer": {
       "shop": "商城",

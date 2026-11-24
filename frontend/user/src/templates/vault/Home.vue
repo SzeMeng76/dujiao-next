@@ -125,23 +125,37 @@
           <p class="min-w-0 truncate text-[13.5px] font-semibold text-muted-foreground">
             {{ t('vault.resultsCount', { count: listTotal || listProducts.length }) }}
           </p>
-          <Button variant="ghost" size="sm" class="rounded-full" @click="searchQuery = ''">
-            {{ t('products.clearFilters') }}
-          </Button>
+          <div class="flex items-center gap-2">
+            <VaultViewToggle v-model="viewMode" />
+            <Button variant="ghost" size="sm" class="rounded-full" @click="searchQuery = ''">
+              {{ t('products.clearFilters') }}
+            </Button>
+          </div>
         </div>
 
         <div v-if="listLoading" class="grid gap-4 grid-cols-[repeat(auto-fill,minmax(228px,1fr))]">
           <div v-for="i in 9" :key="i" class="h-[280px] rounded-lg border bg-card"></div>
         </div>
-        <div v-else-if="listProducts.length" class="grid gap-4 grid-cols-[repeat(auto-fill,minmax(228px,1fr))]">
-          <VaultProductCard
-            v-for="(product, idx) in listProducts"
-            :key="product.id"
-            :product="product"
-            :index="idx"
-            @quick-buy="openQuickBuy"
-          />
-        </div>
+        <template v-else-if="listProducts.length">
+          <div v-if="viewMode === 'grid'" class="grid gap-4 grid-cols-[repeat(auto-fill,minmax(228px,1fr))]">
+            <VaultProductCard
+              v-for="(product, idx) in listProducts"
+              :key="product.id"
+              :product="product"
+              :index="idx"
+              @quick-buy="openQuickBuy"
+            />
+          </div>
+          <div v-else class="grid gap-2">
+            <VaultProductListItem
+              v-for="(product, idx) in listProducts"
+              :key="product.id"
+              :product="product"
+              :index="idx"
+              @quick-buy="openQuickBuy"
+            />
+          </div>
+        </template>
         <EmptyState v-else size="lg" icon="search" :title="t('products.emptyFiltered')">
           <template #action>
             <Button variant="secondary" class="rounded-full" @click="searchQuery = ''">{{ t('products.clearFilters') }}</Button>
@@ -216,21 +230,35 @@
         <section class="mx-auto w-full max-w-[1180px] px-4 py-9 sm:px-6">
           <div class="mb-[22px] flex flex-wrap items-end justify-between gap-4">
             <h2 class="text-[28px] font-extrabold">{{ t('home.featured.title') }}</h2>
-            <Button as-child variant="outline" size="sm" class="rounded-full"><RouterLink to="/products">{{ t('home.featured.viewAll') }}</RouterLink></Button>
+            <div class="flex items-center gap-2">
+              <VaultViewToggle v-model="viewMode" />
+              <Button as-child variant="outline" size="sm" class="rounded-full"><RouterLink to="/products">{{ t('home.featured.viewAll') }}</RouterLink></Button>
+            </div>
           </div>
 
           <div v-if="productsLoading" class="grid gap-4 grid-cols-[repeat(auto-fill,minmax(228px,1fr))]">
             <div v-for="i in 10" :key="i" class="h-[280px] rounded-lg border bg-card"></div>
           </div>
-          <div v-else-if="products.length" class="grid gap-4 grid-cols-[repeat(auto-fill,minmax(228px,1fr))]">
-            <VaultProductCard
-              v-for="(product, idx) in products"
-              :key="product.id"
-              :product="product"
-              :index="idx"
-              @quick-buy="openQuickBuy"
-            />
-          </div>
+          <template v-else-if="products.length">
+            <div v-if="viewMode === 'grid'" class="grid gap-4 grid-cols-[repeat(auto-fill,minmax(228px,1fr))]">
+              <VaultProductCard
+                v-for="(product, idx) in products"
+                :key="product.id"
+                :product="product"
+                :index="idx"
+                @quick-buy="openQuickBuy"
+              />
+            </div>
+            <div v-else class="grid gap-2">
+              <VaultProductListItem
+                v-for="(product, idx) in products"
+                :key="product.id"
+                :product="product"
+                :index="idx"
+                @quick-buy="openQuickBuy"
+              />
+            </div>
+          </template>
           <div v-else class="flex flex-col items-center gap-3 rounded-lg border border-dashed py-14 text-center text-muted-foreground">
             <PackageOpen class="h-12 w-12 opacity-60" />
             <p>{{ t('home.featured.empty') }}</p>
@@ -273,6 +301,7 @@ import { usePageSeo } from '../../composables/usePageSeo'
 import { useAppStore } from '../../stores/app'
 import VaultProductCard from './components/VaultProductCard.vue'
 import VaultProductListItem from './components/VaultProductListItem.vue'
+import VaultViewToggle from './components/VaultViewToggle.vue'
 import VaultCategorySidebar from './components/VaultCategorySidebar.vue'
 import VaultBannerHero from './components/VaultBannerHero.vue'
 import ProductQuickBuy from '../../components/ProductQuickBuy.vue'
@@ -286,6 +315,9 @@ const { getLocalizedText } = useLocalized()
 const appStore = useAppStore()
 
 const isListMode = computed(() => appStore.config?.template_mode === 'list')
+
+// 卡片模式：热门商品与搜索结果共用同一个视图偏好，切换后两处保持一致
+const viewMode = ref<'grid' | 'list'>('grid')
 
 // ==================== 快速购买 ====================
 const quickBuyProduct = ref<any>(null)

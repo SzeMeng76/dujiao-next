@@ -68,6 +68,7 @@
     "allCategories": "All categories",
     "viewGrid": "Grid view",
     "viewList": "List view",
+    "viewToggleLabel": "Switch product view",
     "resultsCount": "{count} products",
     "footer": {
       "shop": "Shop",
