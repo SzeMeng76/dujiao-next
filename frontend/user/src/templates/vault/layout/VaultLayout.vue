@@ -156,7 +156,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   Search, Moon, Sun, ShoppingCart, Languages, Menu, X, User, Info, ClipboardList, LogOut, Github,
@@ -195,8 +195,10 @@ const moreEl = ref<HTMLElement | null>(null)
 const navMoreEl = ref<HTMLElement | null>(null)
 const navContainer = ref<HTMLElement | null>(null)
 
-const visibleMenuItems = ref<NavItem[]>([])
-const overflowMenuItems = ref<NavItem[]>([])
+const visibleCount = ref(Number.MAX_SAFE_INTEGER)
+// 「更多」按钮预留宽度（文字 + ▾ + padding），实测约 90px，留点余量
+const NAV_MORE_WIDTH = 96
+const NAV_GAP = 2
 
 // ResizeObserver 实例，需要在 cleanup 时 unobserve
 let navResizeObserver: ResizeObserver | null = null
@@ -230,6 +232,9 @@ const menuItems = computed<NavItem[]>(() => {
   return items
 })
 
+const visibleMenuItems = computed(() => menuItems.value.slice(0, visibleCount.value))
+const overflowMenuItems = computed(() => menuItems.value.slice(visibleCount.value))
+
 /** 后台配置的自定义页脚链接 */
 const footerLinks = computed(() => {
   const links = appStore.config?.footer_links
@@ -258,51 +263,52 @@ const changeLanguage = (code: string) => {
 }
 
 // 监听 menuItems 变化(语言切换导致的 label 变化等),重新计算
-watch(menuItems, () => {
-  calculateVisibleItems()
-}, { deep: true })
+watch(menuItems, () => scheduleNavFit())
 
 const toggleLang = () => { langOpen.value = !langOpen.value; moreOpen.value = false; navMoreOpen.value = false }
 const toggleMore = () => { moreOpen.value = !moreOpen.value; langOpen.value = false; navMoreOpen.value = false }
 const toggleNavMore = () => { navMoreOpen.value = !navMoreOpen.value; langOpen.value = false; moreOpen.value = false }
 
 /** Priority+ Navigation: 根据容器宽度动态计算可见/溢出菜单项 */
-const calculateVisibleItems = () => {
+const recalcNavFit = async () => {
   if (!navContainer.value || menuItems.value.length === 0) {
-    visibleMenuItems.value = menuItems.value
-    overflowMenuItems.value = []
+    visibleCount.value = Number.MAX_SAFE_INTEGER
     return
   }
-
-  // 容器可用宽度（减去 gap 等）
-  const containerWidth = navContainer.value.offsetWidth
-  // More 按钮预估宽度（含文字 + padding + gap，实测约 80-90px）
-  const moreButtonWidth = 90
-
-  let totalWidth = 0
-  let visibleCount = 0
-
-  // 遍历所有菜单项，累加宽度直到放不下
-  for (let i = 0; i < menuItems.value.length; i++) {
-    const item = menuItems.value[i]
-    if (!item) break
-
-    const estimatedWidth = item.label.length * 10 + 28 // 粗略估算：字符宽度 + padding
-    const needMoreButton = i < menuItems.value.length - 1 // 不是最后一项时需要预留 More 按钮空间
-
-    if (totalWidth + estimatedWidth + (needMoreButton ? moreButtonWidth : 0) <= containerWidth) {
-      totalWidth += estimatedWidth + 2 // gap 0.5 = 2px
-      visibleCount++
-    } else {
-      break
-    }
+  // 先把全部项渲染出来，才能量到每项的真实宽度
+  if (visibleCount.value !== menuItems.value.length) {
+    visibleCount.value = menuItems.value.length
+    await nextTick()
   }
+  const container = navContainer.value
+  if (!container) return
+  const items = Array.from(container.children) as HTMLElement[]
+  if (items.length === 0) return
 
-  // 至少显示 1 项（即使会溢出），避免全部收起来
-  if (visibleCount === 0 && menuItems.value.length > 0) visibleCount = 1
+  const available = container.clientWidth
+  const widths = items.map((el) => el.getBoundingClientRect().width)
+  const total = widths.reduce((sum, width) => sum + width, 0) + NAV_GAP * Math.max(0, widths.length - 1)
+  if (total <= available) return
 
-  visibleMenuItems.value = menuItems.value.slice(0, visibleCount)
-  overflowMenuItems.value = menuItems.value.slice(visibleCount)
+  let used = 0
+  let fit = 0
+  for (const width of widths) {
+    const next = used + width + (fit > 0 ? NAV_GAP : 0)
+    if (next > available - NAV_MORE_WIDTH) break
+    used = next
+    fit++
+  }
+  visibleCount.value = Math.max(1, fit)
+}
+
+let navFitScheduled = false
+const scheduleNavFit = () => {
+  if (navFitScheduled) return
+  navFitScheduled = true
+  requestAnimationFrame(() => {
+    navFitScheduled = false
+    void recalcNavFit()
+  })
 }
 
 const onDocClick = (e: MouseEvent) => {
@@ -312,18 +318,23 @@ const onDocClick = (e: MouseEvent) => {
   if (navMoreOpen.value && navMoreEl.value && !navMoreEl.value.contains(target)) navMoreOpen.value = false
 }
 
-onMounted(() => {
+onMounted(async () => {
   document.addEventListener('click', onDocClick)
   // Teleport 到 body 的浮层（Toast / ConfirmDialog / 公告弹窗 / Select 下拉）在
   // .vault-scope 之外，靠 body 上的这个 class 拿到 vault 配色，详见 styles/vault.css
   document.body.classList.add('vault-tokens')
 
-  // Priority+ Navigation: 初始计算 + 窗口 resize 时重新计算
-  calculateVisibleItems()
+  // Priority+ Navigation: 初始计算 + 容器尺寸变化时重新计算
+  await nextTick()
+  await recalcNavFit()
+  // 字体加载完成后文字宽度会变，再量一次
+  if (document.fonts?.ready) {
+    document.fonts.ready.then(() => scheduleNavFit()).catch(() => {})
+  }
 
   if (navContainer.value) {
     navResizeObserver = new ResizeObserver(() => {
-      calculateVisibleItems()
+      scheduleNavFit()
     })
     navResizeObserver.observe(navContainer.value)
   }
