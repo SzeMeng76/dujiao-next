@@ -85,16 +85,16 @@
 
     <!-- ==================== 卡片模式（默认） ==================== -->
     <template v-else>
-      <!-- 搜索中枢：提交后交给商品列表页（/products?q=，useProductList 会从 URL 恢复关键词） -->
+      <!-- 搜索中枢：输入即过滤，命中时下方落地页内容整体换成结果网格 -->
       <section class="mx-auto w-full max-w-[1180px] px-4 pt-6 sm:px-6">
         <form
           class="mx-auto flex max-w-[640px] items-center gap-2 rounded-lg border bg-card p-1.5 shadow-[var(--shadow)] transition-colors focus-within:border-hairline-strong"
           role="search"
-          @submit.prevent="submitHomeSearch"
+          @submit.prevent="scrollToHomeResults"
         >
           <Search class="ml-2.5 h-[18px] w-[18px] shrink-0 text-muted-foreground" aria-hidden="true" />
           <input
-            v-model="homeSearchQuery"
+            v-model="searchQuery"
             type="search"
             enterkeyhint="search"
             class="vault-home-search h-10 min-w-0 flex-1 border-none bg-transparent px-1 text-[15px] text-foreground outline-none placeholder:text-muted-foreground"
@@ -102,11 +102,11 @@
             :aria-label="t('products.searchLabel')"
           />
           <button
-            v-if="homeSearchQuery"
+            v-if="searchQuery"
             type="button"
             class="grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
             :aria-label="t('blog.searchClear')"
-            @click="homeSearchQuery = ''"
+            @click="searchQuery = ''"
           >
             <X class="h-4 w-4" />
           </button>
@@ -119,82 +119,124 @@
         </form>
       </section>
 
-      <!-- 横幅轮播 + 最新动态：大屏并排，窄屏上下堆叠 -->
-      <VaultBannerHero :with-aside="latestPanelVisible">
-        <template #aside>
-          <aside class="flex h-full flex-col rounded-lg border bg-card p-[18px] shadow-[var(--shadow)]">
-            <div class="flex items-center justify-between gap-3 border-b pb-3">
-              <h2 class="text-[15px] font-extrabold">{{ t('home.latest.title') }}</h2>
-              <div class="flex items-center gap-3 text-[12.5px] font-bold text-muted-foreground">
-                <RouterLink v-if="blogEnabled" to="/blog" class="transition-colors hover:text-primary">{{ t('nav.blog') }}</RouterLink>
-                <RouterLink v-if="noticeEnabled" to="/notice" class="transition-colors hover:text-primary">{{ t('nav.notice') }}</RouterLink>
-              </div>
-            </div>
-            <ol class="mt-1 flex-1 divide-y">
-              <li v-for="post in posts" :key="post.id">
-                <RouterLink
-                  :to="`/blog/${post.slug}`"
-                  class="flex items-center gap-2.5 py-2.5 text-[13px] text-foreground transition-colors hover:text-primary"
-                >
-                  <span class="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[10.5px] font-bold text-muted-foreground">
-                    {{ postTypeLabel(post) }}
-                  </span>
-                  <span class="min-w-0 flex-1 truncate font-semibold">{{ getLocalizedText(post.title) }}</span>
-                  <time class="shrink-0 text-[11px] font-semibold text-muted-foreground">{{ formatShortDate(post.published_at) }}</time>
-                </RouterLink>
-              </li>
-            </ol>
-          </aside>
-        </template>
-      </VaultBannerHero>
-
-      <!-- 分类块 -->
-      <section v-if="topCategories.length" class="mx-auto w-full max-w-[1180px] px-4 py-9 sm:px-6">
-        <div class="mb-[22px] flex flex-wrap items-end justify-between gap-4">
-          <h2 class="text-[28px] font-extrabold">{{ t('vault.categoriesTitle') }}</h2>
-          <Button as-child variant="ghost" size="sm" class="rounded-full"><RouterLink to="/products">{{ t('vault.allCategories') }} <ChevronRight /></RouterLink></Button>
-        </div>
-        <div class="grid gap-3.5 grid-cols-[repeat(auto-fill,minmax(150px,1fr))]">
-          <RouterLink
-            v-for="(cat, idx) in topCategories"
-            :key="cat.id"
-            class="relative flex min-h-[116px] flex-col justify-between gap-2.5 overflow-hidden rounded-lg p-[18px] transition hover:-translate-y-[3px] hover:shadow-[var(--shadow)]"
-            :class="catColor(idx)"
-            :to="`/categories/${cat.slug}`"
-          >
-            <span class="grid h-10 w-10 place-items-center rounded-xl bg-white/20">
-              <img v-if="cat.icon" :src="getImageUrl(cat.icon)" :alt="catName(cat)" loading="lazy" class="h-6 w-6 object-contain" />
-              <Tag v-else class="h-[22px] w-[22px]" />
-            </span>
-            <div class="min-w-0"><div class="line-clamp-2 break-words font-bold">{{ catName(cat) }}</div></div>
-          </RouterLink>
-        </div>
-      </section>
-
-      <!-- 热门商品 -->
-      <section class="mx-auto w-full max-w-[1180px] px-4 py-9 sm:px-6">
-        <div class="mb-[22px] flex flex-wrap items-end justify-between gap-4">
-          <h2 class="text-[28px] font-extrabold">{{ t('home.featured.title') }}</h2>
-          <Button as-child variant="outline" size="sm" class="rounded-full"><RouterLink to="/products">{{ t('home.featured.viewAll') }}</RouterLink></Button>
+      <!-- 搜索结果：复用列表模式的 useProductList 实例，原地渲染 -->
+      <section v-if="homeSearchActive" ref="homeResultsRef" class="mx-auto w-full max-w-[1180px] px-4 py-7 sm:px-6">
+        <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <p class="min-w-0 truncate text-[13.5px] font-semibold text-muted-foreground">
+            {{ t('vault.resultsCount', { count: listTotal || listProducts.length }) }}
+          </p>
+          <Button variant="ghost" size="sm" class="rounded-full" @click="searchQuery = ''">
+            {{ t('products.clearFilters') }}
+          </Button>
         </div>
 
-        <div v-if="productsLoading" class="grid gap-4 grid-cols-[repeat(auto-fill,minmax(228px,1fr))]">
-          <div v-for="i in 10" :key="i" class="h-[280px] rounded-lg border bg-card"></div>
+        <div v-if="listLoading" class="grid gap-4 grid-cols-[repeat(auto-fill,minmax(228px,1fr))]">
+          <div v-for="i in 9" :key="i" class="h-[280px] rounded-lg border bg-card"></div>
         </div>
-        <div v-else-if="products.length" class="grid gap-4 grid-cols-[repeat(auto-fill,minmax(228px,1fr))]">
+        <div v-else-if="listProducts.length" class="grid gap-4 grid-cols-[repeat(auto-fill,minmax(228px,1fr))]">
           <VaultProductCard
-            v-for="(product, idx) in products"
+            v-for="(product, idx) in listProducts"
             :key="product.id"
             :product="product"
             :index="idx"
             @quick-buy="openQuickBuy"
           />
         </div>
-        <div v-else class="flex flex-col items-center gap-3 rounded-lg border border-dashed py-14 text-center text-muted-foreground">
-          <PackageOpen class="h-12 w-12 opacity-60" />
-          <p>{{ t('home.featured.empty') }}</p>
-        </div>
+        <EmptyState v-else size="lg" icon="search" :title="t('products.emptyFiltered')">
+          <template #action>
+            <Button variant="secondary" class="rounded-full" @click="searchQuery = ''">{{ t('products.clearFilters') }}</Button>
+          </template>
+        </EmptyState>
+
+        <PaginationNav
+          :current-page="listCurrentPage"
+          :total-pages="listTotalPages"
+          :loading="listLoading"
+          compact
+          :scroll-top="false"
+          @change-page="listChangePage"
+        />
       </section>
+
+      <!-- 落地页内容：有搜索词时整体让位给结果 -->
+      <template v-else>
+        <!-- 横幅轮播 + 最新动态：大屏并排，窄屏上下堆叠 -->
+        <VaultBannerHero :with-aside="latestPanelVisible">
+          <template #aside>
+            <aside class="flex h-full flex-col rounded-lg border bg-card p-[18px] shadow-[var(--shadow)]">
+              <div class="flex items-center justify-between gap-3 border-b pb-3">
+                <h2 class="text-[15px] font-extrabold">{{ t('home.latest.title') }}</h2>
+                <div class="flex items-center gap-3 text-[12.5px] font-bold text-muted-foreground">
+                  <RouterLink v-if="blogEnabled" to="/blog" class="transition-colors hover:text-primary">{{ t('nav.blog') }}</RouterLink>
+                  <RouterLink v-if="noticeEnabled" to="/notice" class="transition-colors hover:text-primary">{{ t('nav.notice') }}</RouterLink>
+                </div>
+              </div>
+              <ol class="mt-1 flex-1 divide-y">
+                <li v-for="post in posts" :key="post.id">
+                  <RouterLink
+                    :to="`/blog/${post.slug}`"
+                    class="flex items-center gap-2.5 py-2.5 text-[13px] text-foreground transition-colors hover:text-primary"
+                  >
+                    <span class="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[10.5px] font-bold text-muted-foreground">
+                      {{ postTypeLabel(post) }}
+                    </span>
+                    <span class="min-w-0 flex-1 truncate font-semibold">{{ getLocalizedText(post.title) }}</span>
+                    <time class="shrink-0 text-[11px] font-semibold text-muted-foreground">{{ formatShortDate(post.published_at) }}</time>
+                  </RouterLink>
+                </li>
+              </ol>
+            </aside>
+          </template>
+        </VaultBannerHero>
+
+        <!-- 分类块 -->
+        <section v-if="topCategories.length" class="mx-auto w-full max-w-[1180px] px-4 py-9 sm:px-6">
+          <div class="mb-[22px] flex flex-wrap items-end justify-between gap-4">
+            <h2 class="text-[28px] font-extrabold">{{ t('vault.categoriesTitle') }}</h2>
+            <Button as-child variant="ghost" size="sm" class="rounded-full"><RouterLink to="/products">{{ t('vault.allCategories') }} <ChevronRight /></RouterLink></Button>
+          </div>
+          <div class="grid gap-3.5 grid-cols-[repeat(auto-fill,minmax(150px,1fr))]">
+            <RouterLink
+              v-for="(cat, idx) in topCategories"
+              :key="cat.id"
+              class="relative flex min-h-[116px] flex-col justify-between gap-2.5 overflow-hidden rounded-lg p-[18px] transition hover:-translate-y-[3px] hover:shadow-[var(--shadow)]"
+              :class="catColor(idx)"
+              :to="`/categories/${cat.slug}`"
+            >
+              <span class="grid h-10 w-10 place-items-center rounded-xl bg-white/20">
+                <img v-if="cat.icon" :src="getImageUrl(cat.icon)" :alt="catName(cat)" loading="lazy" class="h-6 w-6 object-contain" />
+                <Tag v-else class="h-[22px] w-[22px]" />
+              </span>
+              <div class="min-w-0"><div class="line-clamp-2 break-words font-bold">{{ catName(cat) }}</div></div>
+            </RouterLink>
+          </div>
+        </section>
+
+        <!-- 热门商品 -->
+        <section class="mx-auto w-full max-w-[1180px] px-4 py-9 sm:px-6">
+          <div class="mb-[22px] flex flex-wrap items-end justify-between gap-4">
+            <h2 class="text-[28px] font-extrabold">{{ t('home.featured.title') }}</h2>
+            <Button as-child variant="outline" size="sm" class="rounded-full"><RouterLink to="/products">{{ t('home.featured.viewAll') }}</RouterLink></Button>
+          </div>
+
+          <div v-if="productsLoading" class="grid gap-4 grid-cols-[repeat(auto-fill,minmax(228px,1fr))]">
+            <div v-for="i in 10" :key="i" class="h-[280px] rounded-lg border bg-card"></div>
+          </div>
+          <div v-else-if="products.length" class="grid gap-4 grid-cols-[repeat(auto-fill,minmax(228px,1fr))]">
+            <VaultProductCard
+              v-for="(product, idx) in products"
+              :key="product.id"
+              :product="product"
+              :index="idx"
+              @quick-buy="openQuickBuy"
+            />
+          </div>
+          <div v-else class="flex flex-col items-center gap-3 rounded-lg border border-dashed py-14 text-center text-muted-foreground">
+            <PackageOpen class="h-12 w-12 opacity-60" />
+            <p>{{ t('home.featured.empty') }}</p>
+          </div>
+        </section>
+      </template>
     </template>
 
     <ProductQuickBuy
@@ -214,8 +256,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ChevronRight, PackageOpen, Search, Tag, X } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
@@ -239,20 +281,11 @@ import AnnouncementTicker from '../../components/AnnouncementTicker.vue'
 import { useAnnouncement, type HomeAnnouncement } from '../../composables/useAnnouncement'
 
 const route = useRoute()
-const router = useRouter()
 const { t } = useI18n()
 const { getLocalizedText } = useLocalized()
 const appStore = useAppStore()
 
 const isListMode = computed(() => appStore.config?.template_mode === 'list')
-
-// ==================== 首页搜索 ====================
-// 卡片模式首页不是货架，关键词交给商品列表页处理
-const homeSearchQuery = ref('')
-const submitHomeSearch = () => {
-  const keyword = homeSearchQuery.value.trim()
-  router.push({ name: 'products', query: keyword ? { q: keyword } : {} })
-}
 
 // ==================== 快速购买 ====================
 const quickBuyProduct = ref<any>(null)
@@ -270,6 +303,7 @@ const {
   searchQuery,
   currentPage: listCurrentPage,
   totalPages: listTotalPages,
+  total: listTotal,
   expandedParentIds,
   categoryGroups,
   categoryMap: listCategoryMap,
@@ -287,6 +321,33 @@ const {
 })
 
 const listProductGroups = useProductListGroups(listProducts, listCategoryMap)
+
+// ==================== 卡片模式：首页搜索 ====================
+// 复用列表模式的 useProductList 实例原地过滤，关键词非空时整段落地页让位给结果网格
+const homeResultsRef = ref<HTMLElement | null>(null)
+const homeSearchActive = computed(() => searchQuery.value.trim() !== '')
+
+// 卡片模式下 useProductList 未初始化（initializing 为 true 会吞掉输入监听），首次搜索时补一次
+let homeListReady = false
+const ensureHomeListReady = async () => {
+  if (homeListReady || isListMode.value) return
+  homeListReady = true
+  await listInitialize()
+}
+
+const scrollToHomeResults = async () => {
+  await ensureHomeListReady()
+  await nextTick()
+  homeResultsRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+watch(
+  () => searchQuery.value.trim(),
+  (keyword) => {
+    if (isListMode.value || !keyword) return
+    void ensureHomeListReady()
+  },
+)
 
 const resetFilters = () => {
   clearSearch()
@@ -406,6 +467,12 @@ onMounted(async () => {
     await listInitialize()
   } else {
     await Promise.all([loadProducts(), loadCategories(), loadPosts()])
+    // 带 ?q= 进来（刷新 / 分享 / 前进后退）时直接落到搜索结果，避免看到空输入框的落地页
+    const keyword = (Array.isArray(route.query.q) ? route.query.q[0] : route.query.q) ?? ''
+    if (String(keyword).trim()) {
+      searchQuery.value = String(keyword).trim()
+      await ensureHomeListReady()
+    }
   }
   showAnnouncementIfNeeded()
 })
