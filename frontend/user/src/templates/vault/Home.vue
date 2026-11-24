@@ -90,7 +90,7 @@
         <form
           class="mx-auto flex max-w-[640px] items-center gap-2 rounded-lg border bg-card p-1.5 shadow-[var(--shadow)] transition-colors focus-within:border-hairline-strong"
           role="search"
-          @submit.prevent="scrollToHomeResults"
+          @submit.prevent="onHomeSearchSubmit"
         >
           <Search class="ml-2.5 h-[18px] w-[18px] shrink-0 text-muted-foreground" aria-hidden="true" />
           <input
@@ -104,23 +104,17 @@
           <button
             v-if="searchQuery"
             type="button"
-            class="grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            class="mr-1 grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
             :aria-label="t('blog.searchClear')"
             @click="searchQuery = ''"
           >
             <X class="h-4 w-4" />
           </button>
-          <button
-            type="submit"
-            class="inline-flex h-10 shrink-0 items-center rounded-full bg-primary px-5 text-[14px] font-bold text-primary-foreground transition hover:bg-primary/90"
-          >
-            {{ t('products.searchLabel') }}
-          </button>
         </form>
       </section>
 
       <!-- 搜索结果：复用列表模式的 useProductList 实例，原地渲染 -->
-      <section v-if="homeSearchActive" ref="homeResultsRef" class="mx-auto w-full max-w-[1180px] px-4 py-7 sm:px-6">
+      <section v-if="homeSearchActive" class="mx-auto w-full max-w-[1180px] px-4 py-7 sm:px-6">
         <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
           <p class="min-w-0 truncate text-[13.5px] font-semibold text-muted-foreground">
             {{ t('vault.resultsCount', { count: listTotal || listProducts.length }) }}
@@ -284,7 +278,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ChevronRight, PackageOpen, Search, Tag, X } from 'lucide-vue-next'
@@ -356,7 +350,6 @@ const listProductGroups = useProductListGroups(listProducts, listCategoryMap)
 
 // ==================== 卡片模式：首页搜索 ====================
 // 复用列表模式的 useProductList 实例原地过滤，关键词非空时整段落地页让位给结果网格
-const homeResultsRef = ref<HTMLElement | null>(null)
 const homeSearchActive = computed(() => searchQuery.value.trim() !== '')
 
 // 卡片模式下 useProductList 未初始化（initializing 为 true 会吞掉输入监听），首次搜索时补一次
@@ -367,10 +360,9 @@ const ensureHomeListReady = async () => {
   await listInitialize()
 }
 
-const scrollToHomeResults = async () => {
-  await ensureHomeListReady()
-  await nextTick()
-  homeResultsRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+// 结果随输入即时更新，回车只需收起移动端软键盘——没有独立的「搜索」按钮可点
+const onHomeSearchSubmit = () => {
+  if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
 }
 
 watch(
