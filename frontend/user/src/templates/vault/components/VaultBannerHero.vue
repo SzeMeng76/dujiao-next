@@ -1,6 +1,8 @@
 <template>
   <section v-if="showHeroSection || withAside" class="mx-auto w-full max-w-[1180px] px-4 pt-6 sm:px-6">
-    <div class="grid gap-4 lg:grid-cols-12">
+    <!-- grid-cols-1 让移动端轨道是 minmax(0,1fr)：隐式 auto 轨道会被内容的 min-content 撑开，
+         导致卡片比父容器宽、整页横向溢出（banner 里的 line-clamp 段落最容易触发） -->
+    <div class="grid grid-cols-1 gap-4 lg:grid-cols-12">
       <div
         v-if="showHeroSection"
         class="relative h-full overflow-hidden rounded-lg border bg-card shadow-[var(--shadow)]"
