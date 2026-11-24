@@ -34,13 +34,49 @@
 
       <!-- 商品区 -->
       <section>
+        <!-- 结果栏：命中数量 + 视图切换 -->
+        <div v-if="!loading && products.length" class="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <p class="text-[13.5px] font-semibold text-muted-foreground">{{ t('vault.resultsCount', { count: total || products.length }) }}</p>
+          <div class="inline-flex items-center gap-0.5 rounded-full border bg-card p-1">
+            <button
+              type="button"
+              class="grid h-8 w-8 place-items-center rounded-full transition-colors"
+              :class="viewMode === 'grid' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'"
+              :aria-label="t('vault.viewGrid')"
+              :aria-pressed="viewMode === 'grid'"
+              @click="viewMode = 'grid'"
+            >
+              <LayoutGrid class="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              class="grid h-8 w-8 place-items-center rounded-full transition-colors"
+              :class="viewMode === 'list' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'"
+              :aria-label="t('vault.viewList')"
+              :aria-pressed="viewMode === 'list'"
+              @click="viewMode = 'list'"
+            >
+              <List class="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
         <div v-if="loading" class="grid gap-4 grid-cols-[repeat(auto-fill,minmax(228px,1fr))]">
           <div v-for="i in 9" :key="i" class="h-[280px] rounded-lg border bg-card"></div>
         </div>
 
         <template v-else-if="products.length">
-          <div class="grid gap-4 grid-cols-[repeat(auto-fill,minmax(228px,1fr))]">
+          <div v-if="viewMode === 'grid'" class="grid gap-4 grid-cols-[repeat(auto-fill,minmax(228px,1fr))]">
             <VaultProductCard
+              v-for="(product, idx) in products"
+              :key="product.id"
+              :product="product"
+              :index="idx"
+              @quick-buy="openQuickBuy"
+            />
+          </div>
+          <div v-else class="grid gap-2">
+            <VaultProductListItem
               v-for="(product, idx) in products"
               :key="product.id"
               :product="product"
@@ -83,13 +119,14 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { ChevronLeft, ChevronRight, PackageOpen, Search, SearchX, X } from 'lucide-vue-next'
+import { ChevronLeft, ChevronRight, LayoutGrid, List, PackageOpen, Search, SearchX, X } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { useProductList } from '../../composables/useProductList'
 import { usePageSeo } from '../../composables/usePageSeo'
 import { useLocalized } from '../../composables/useProduct'
 import type { PublicCategory } from '../../utils/category'
 import VaultProductCard from './components/VaultProductCard.vue'
+import VaultProductListItem from './components/VaultProductListItem.vue'
 import VaultCategorySidebar from './components/VaultCategorySidebar.vue'
 import ProductQuickBuy from '../../components/ProductQuickBuy.vue'
 
@@ -111,6 +148,7 @@ const {
   searchQuery,
   currentPage,
   totalPages,
+  total,
   expandedParentIds,
   categoryGroups,
   categoryMap,
@@ -121,6 +159,9 @@ const {
   initialize,
   cleanup,
 } = useProductList({ pageSize: 12, homeRouteName: 'products' })
+
+// 视图切换只影响本页展示，不写 URL；默认沿用卡片视图
+const viewMode = ref<'grid' | 'list'>('grid')
 
 const catName = (cat: PublicCategory) => getLocalizedText(cat.name) || cat.slug || ''
 

@@ -66,6 +66,9 @@
     },
     "categoriesTitle": "Browse by category",
     "allCategories": "All categories",
+    "viewGrid": "Grid view",
+    "viewList": "List view",
+    "resultsCount": "{count} products",
     "footer": {
       "shop": "Shop",
       "support": "Support",

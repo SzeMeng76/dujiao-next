@@ -84,6 +84,40 @@
 
     <!-- ==================== 卡片模式（默认） ==================== -->
     <template v-else>
+      <!-- 搜索中枢：提交后交给商品列表页（/products?q=，useProductList 会从 URL 恢复关键词） -->
+      <section class="mx-auto w-full max-w-[1180px] px-4 pt-6 sm:px-6">
+        <form
+          class="mx-auto flex max-w-[640px] items-center gap-2 rounded-lg border bg-card p-1.5 shadow-[var(--shadow)] transition-colors focus-within:border-hairline-strong"
+          role="search"
+          @submit.prevent="submitHomeSearch"
+        >
+          <Search class="ml-2.5 h-[18px] w-[18px] shrink-0 text-muted-foreground" aria-hidden="true" />
+          <input
+            v-model="homeSearchQuery"
+            type="search"
+            enterkeyhint="search"
+            class="vault-home-search h-10 min-w-0 flex-1 border-none bg-transparent px-1 text-[15px] text-foreground outline-none placeholder:text-muted-foreground"
+            :placeholder="t('products.searchBoxPlaceholder')"
+            :aria-label="t('products.searchLabel')"
+          />
+          <button
+            v-if="homeSearchQuery"
+            type="button"
+            class="grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            :aria-label="t('blog.searchClear')"
+            @click="homeSearchQuery = ''"
+          >
+            <X class="h-4 w-4" />
+          </button>
+          <button
+            type="submit"
+            class="inline-flex h-10 shrink-0 items-center rounded-full bg-primary px-5 text-[14px] font-bold text-primary-foreground transition hover:bg-primary/90"
+          >
+            {{ t('products.searchLabel') }}
+          </button>
+        </form>
+      </section>
+
       <!-- 分类块 -->
       <section v-if="topCategories.length" class="mx-auto w-full max-w-[1180px] px-4 py-9 sm:px-6">
         <div class="mb-[22px] flex flex-wrap items-end justify-between gap-4">
@@ -171,7 +205,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ChevronLeft, ChevronRight, PackageOpen, Search, SearchX, Tag, X } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
@@ -193,11 +227,20 @@ import AnnouncementTicker from '../../components/AnnouncementTicker.vue'
 import { useAnnouncement, type HomeAnnouncement } from '../../composables/useAnnouncement'
 
 const route = useRoute()
+const router = useRouter()
 const { t } = useI18n()
 const { getLocalizedText } = useLocalized()
 const appStore = useAppStore()
 
 const isListMode = computed(() => appStore.config?.template_mode === 'list')
+
+// ==================== 首页搜索 ====================
+// 卡片模式首页不是货架，关键词交给商品列表页处理
+const homeSearchQuery = ref('')
+const submitHomeSearch = () => {
+  const keyword = homeSearchQuery.value.trim()
+  router.push({ name: 'products', query: keyword ? { q: keyword } : {} })
+}
 
 // ==================== 快速购买 ====================
 const quickBuyProduct = ref<any>(null)
@@ -359,3 +402,10 @@ onMounted(async () => {
 
 onUnmounted(() => listCleanup())
 </script>
+
+<style scoped>
+/* 收起 WebKit 自带的搜索清除按钮，改用自定义的 X */
+.vault-home-search::-webkit-search-cancel-button {
+  display: none;
+}
+</style>
