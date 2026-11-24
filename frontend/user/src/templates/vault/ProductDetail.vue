@@ -1,9 +1,9 @@
 <template>
   <div class="mx-auto w-full max-w-[1180px] px-6 pb-6">
     <!-- Loading -->
-    <div v-if="loading" class="grid gap-11 py-2.5 lg:grid-cols-2">
-      <div class="h-[380px] rounded-xl bg-[linear-gradient(135deg,#3a3950,var(--ink))] opacity-50"></div>
-      <div class="grid content-start gap-4 pt-2">
+    <div v-if="loading" class="grid items-start gap-7 py-2.5 lg:grid-cols-12">
+      <div class="h-[380px] rounded-xl bg-[linear-gradient(135deg,#3a3950,var(--ink))] opacity-50 lg:col-span-7"></div>
+      <div class="grid content-start gap-4 pt-2 lg:col-span-5">
         <div class="h-7 w-3/5 rounded-md border bg-card"></div>
         <div class="h-12 w-2/5 rounded-md border bg-card"></div>
         <div class="h-[120px] rounded-md border bg-card"></div>
@@ -20,9 +20,10 @@
         <span class="text-foreground">{{ getLocalizedText(product.title) }}</span>
       </nav>
 
-      <section class="grid gap-11 py-2.5 lg:grid-cols-2">
+      <!-- 大屏：左列图片 + 详情 + 相关文章，右列购买区吸顶跟随滚动；小屏按 图片 → 购买 → 详情 顺序堆叠 -->
+      <div class="grid items-start gap-7 py-2.5 lg:grid-cols-12">
         <!-- 图区 -->
-        <div>
+        <div class="lg:col-span-7">
           <div class="relative grid aspect-[4/3] place-items-center overflow-hidden rounded-xl" :class="images.length ? '' : 'bg-[linear-gradient(135deg,#7b74f2,var(--red))]'">
             <img v-if="currentImage" :src="currentImage" :alt="getLocalizedText(product.title)" class="absolute inset-0 h-full w-full object-cover" />
             <Package v-else class="h-[110px] w-[110px] text-white/95" />
@@ -40,8 +41,8 @@
           </div>
         </div>
 
-        <!-- 购买区 -->
-        <div>
+        <!-- 购买区：大屏吸顶，滚动查看详情时价格与操作始终可见 -->
+        <aside class="lg:sticky lg:top-[90px] lg:col-span-5 lg:row-span-2 lg:self-start">
           <span v-if="categoryName" class="block truncate text-[13px] font-semibold text-muted-foreground">{{ categoryName }}</span>
           <h1 class="my-2 mb-3 text-[32px] font-extrabold">{{ getLocalizedText(product.title) }}</h1>
 
@@ -186,32 +187,35 @@
             <component :is="product.fulfillment_type === 'manual' ? Pencil : TicketCheck" class="h-[22px] w-[22px] flex-none" />
             <span class="text-sm font-semibold">{{ product.fulfillment_type === 'manual' ? t('productDetail.deliveryReassuranceManual') : t('productDetail.deliveryReassurance') }}</span>
           </div>
-        </div>
-      </section>
+        </aside>
 
-      <!-- 描述 / 详情 -->
-      <section v-if="getLocalizedText(product.description) || product.content" class="py-9">
-        <div class="mb-[22px] mt-3 flex gap-[26px] border-b-2">
-          <span class="-mb-0.5 border-b-[3px] border-primary py-3.5 text-base font-bold text-foreground">{{ t('productDetail.details') }}</span>
-        </div>
-        <div class="prose max-w-none dark:prose-invert prose-a:text-primary prose-img:rounded-md">
-          <p v-if="getLocalizedText(product.description)">{{ getLocalizedText(product.description) }}</p>
-          <div v-if="product.content" v-html="processHtmlForDisplay(getLocalizedText(product.content))"></div>
-        </div>
-      </section>
+        <!-- 左列下半：详情 + 相关文章，与上方图区同列，随页面滚动 -->
+        <div class="min-w-0 space-y-7 lg:col-span-7">
+          <!-- 描述 / 详情 -->
+          <section v-if="getLocalizedText(product.description) || product.content" class="pt-1">
+            <div class="mb-[22px] flex gap-[26px] border-b-2">
+              <span class="-mb-0.5 border-b-[3px] border-primary py-3.5 text-base font-bold text-foreground">{{ t('productDetail.details') }}</span>
+            </div>
+            <div class="prose max-w-none dark:prose-invert prose-a:text-primary prose-img:rounded-md">
+              <p v-if="getLocalizedText(product.description)">{{ getLocalizedText(product.description) }}</p>
+              <div v-if="product.content" v-html="processHtmlForDisplay(getLocalizedText(product.content))"></div>
+            </div>
+          </section>
 
-      <!-- 相关文章 -->
-      <section v-if="relatedPosts.length" class="py-9">
-        <div class="mb-[22px]"><h2 class="text-2xl font-extrabold">{{ t('productDetail.relatedPosts') }}</h2></div>
-        <div class="grid gap-4 grid-cols-[repeat(auto-fill,minmax(228px,1fr))]">
-          <RouterLink v-for="rp in relatedPosts" :key="rp.id" class="block h-full rounded-lg border bg-card p-[22px] transition hover:-translate-y-[3px] hover:border-hairline-strong hover:shadow-[var(--shadow)]" :to="`/blog/${rp.slug}`">
-            <span class="text-[12.5px] font-semibold text-muted-foreground">{{ formatRelatedPostDate(rp.published_at) }}</span>
-            <h3 class="mt-2 line-clamp-2 text-[17px] font-bold">{{ getLocalizedText(rp.title) }}</h3>
-            <p v-if="rp.summary" class="mt-2 line-clamp-2 text-sm text-muted-foreground">{{ getLocalizedText(rp.summary) }}</p>
-            <span class="mt-3.5 inline-flex items-center gap-1.5 text-sm font-bold text-primary">{{ t('blog.readMore') }} <ChevronRight class="h-4 w-4" /></span>
-          </RouterLink>
+          <!-- 相关文章 -->
+          <section v-if="relatedPosts.length">
+            <div class="mb-[22px]"><h2 class="text-2xl font-extrabold">{{ t('productDetail.relatedPosts') }}</h2></div>
+            <div class="grid gap-4 grid-cols-[repeat(auto-fill,minmax(200px,1fr))]">
+              <RouterLink v-for="rp in relatedPosts" :key="rp.id" class="block h-full rounded-lg border bg-card p-[22px] transition hover:-translate-y-[3px] hover:border-hairline-strong hover:shadow-[var(--shadow)]" :to="`/blog/${rp.slug}`">
+                <span class="text-[12.5px] font-semibold text-muted-foreground">{{ formatRelatedPostDate(rp.published_at) }}</span>
+                <h3 class="mt-2 line-clamp-2 text-[17px] font-bold">{{ getLocalizedText(rp.title) }}</h3>
+                <p v-if="rp.summary" class="mt-2 line-clamp-2 text-sm text-muted-foreground">{{ getLocalizedText(rp.summary) }}</p>
+                <span class="mt-3.5 inline-flex items-center gap-1.5 text-sm font-bold text-primary">{{ t('blog.readMore') }} <ChevronRight class="h-4 w-4" /></span>
+              </RouterLink>
+            </div>
+          </section>
         </div>
-      </section>
+      </div>
 
       <div class="py-6 text-center">
         <Button as-child variant="ghost" size="sm" class="rounded-full"><RouterLink :to="backToListTo"><ArrowLeft /> {{ t('productDetail.backToProducts') }}</RouterLink></Button>
