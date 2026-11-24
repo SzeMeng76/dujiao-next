@@ -1,10 +1,13 @@
 <template>
-  <section v-if="showHeroSection" class="mx-auto w-full max-w-[1180px] px-4 pt-6 sm:px-6">
-    <div
-      class="relative overflow-hidden rounded-lg border bg-card shadow-[var(--shadow)]"
-      @touchstart="onBannerTouchStart"
-      @touchend="onBannerTouchEnd"
-    >
+  <section v-if="showHeroSection || withAside" class="mx-auto w-full max-w-[1180px] px-4 pt-6 sm:px-6">
+    <div class="grid gap-4 lg:grid-cols-12">
+      <div
+        v-if="showHeroSection"
+        class="relative h-full overflow-hidden rounded-lg border bg-card shadow-[var(--shadow)]"
+        :class="withAside ? 'lg:col-span-7' : 'lg:col-span-12'"
+        @touchstart="onBannerTouchStart"
+        @touchend="onBannerTouchEnd"
+      >
       <Transition name="vault-banner-fade" mode="out-in">
         <img
           v-if="!bannerLoading && heroImage"
@@ -75,6 +78,14 @@
           ></button>
         </div>
       </div>
+      </div>
+
+      <aside
+        v-if="withAside"
+        :class="showHeroSection ? 'lg:col-span-5' : 'lg:col-span-12'"
+      >
+        <slot name="aside" />
+      </aside>
     </div>
   </section>
 </template>
@@ -86,6 +97,9 @@ import { ArrowRight, ChevronLeft, ChevronRight, Zap } from 'lucide-vue-next'
 import { useBannerCarousel } from '../../../composables/useBannerCarousel'
 
 const { t } = useI18n()
+
+// 传入 #aside 插槽时，横幅收窄到 12 栏网格的左 7 栏，右侧 5 栏留给外部面板
+withDefaults(defineProps<{ withAside?: boolean }>(), { withAside: false })
 
 const {
   banners,

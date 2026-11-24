@@ -5,11 +5,10 @@
       <AnnouncementTicker :announcement="tickerAnnouncement" @close="closeTicker" />
     </div>
 
-    <!-- 站长配置的横幅轮播（两种模式共用，顶部展示） -->
-    <VaultBannerHero />
-
     <!-- ==================== 列表模式 ==================== -->
     <template v-if="isListMode">
+      <!-- 站长配置的横幅轮播 -->
+      <VaultBannerHero />
       <section class="mx-auto w-full max-w-[1180px] px-4 py-6 sm:px-6">
         <div class="grid items-start gap-5 lg:grid-cols-[248px_1fr] lg:gap-7">
           <VaultCategorySidebar
@@ -120,6 +119,35 @@
         </form>
       </section>
 
+      <!-- 横幅轮播 + 最新动态：大屏并排，窄屏上下堆叠 -->
+      <VaultBannerHero :with-aside="latestPanelVisible">
+        <template #aside>
+          <aside class="flex h-full flex-col rounded-lg border bg-card p-[18px] shadow-[var(--shadow)]">
+            <div class="flex items-center justify-between gap-3 border-b pb-3">
+              <h2 class="text-[15px] font-extrabold">{{ t('home.latest.title') }}</h2>
+              <div class="flex items-center gap-3 text-[12.5px] font-bold text-muted-foreground">
+                <RouterLink v-if="blogEnabled" to="/blog" class="transition-colors hover:text-primary">{{ t('nav.blog') }}</RouterLink>
+                <RouterLink v-if="noticeEnabled" to="/notice" class="transition-colors hover:text-primary">{{ t('nav.notice') }}</RouterLink>
+              </div>
+            </div>
+            <ol class="mt-1 flex-1 divide-y">
+              <li v-for="post in posts" :key="post.id">
+                <RouterLink
+                  :to="`/blog/${post.slug}`"
+                  class="flex items-center gap-2.5 py-2.5 text-[13px] text-foreground transition-colors hover:text-primary"
+                >
+                  <span class="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[10.5px] font-bold text-muted-foreground">
+                    {{ postTypeLabel(post) }}
+                  </span>
+                  <span class="min-w-0 flex-1 truncate font-semibold">{{ getLocalizedText(post.title) }}</span>
+                  <time class="shrink-0 text-[11px] font-semibold text-muted-foreground">{{ formatShortDate(post.published_at) }}</time>
+                </RouterLink>
+              </li>
+            </ol>
+          </aside>
+        </template>
+      </VaultBannerHero>
+
       <!-- 分类块 -->
       <section v-if="topCategories.length" class="mx-auto w-full max-w-[1180px] px-4 py-9 sm:px-6">
         <div class="mb-[22px] flex flex-wrap items-end justify-between gap-4">
@@ -165,26 +193,6 @@
         <div v-else class="flex flex-col items-center gap-3 rounded-lg border border-dashed py-14 text-center text-muted-foreground">
           <PackageOpen class="h-12 w-12 opacity-60" />
           <p>{{ t('home.featured.empty') }}</p>
-        </div>
-      </section>
-
-      <!-- 最新动态 -->
-      <section v-if="latestVisible && posts.length" class="mx-auto w-full max-w-[1180px] px-4 py-9 sm:px-6">
-        <div class="mb-[22px] flex flex-wrap items-end justify-between gap-4">
-          <h2 class="text-[28px] font-extrabold">{{ t('home.latest.title') }}</h2>
-        </div>
-        <div class="grid gap-4 grid-cols-[repeat(auto-fill,minmax(228px,1fr))]">
-          <RouterLink
-            v-for="post in posts"
-            :key="post.id"
-            class="block h-full rounded-lg border bg-card p-[22px] transition hover:-translate-y-[3px] hover:border-hairline-strong hover:shadow-[var(--shadow)]"
-            :to="`/blog/${post.slug}`"
-          >
-            <span class="text-[12.5px] font-semibold text-muted-foreground">{{ formatDate(post.published_at) }}</span>
-            <h3 class="mt-2 line-clamp-2 text-[17px] font-bold">{{ getLocalizedText(post.title) }}</h3>
-            <p class="mt-2 line-clamp-2 text-sm text-muted-foreground">{{ getLocalizedText(post.summary) }}</p>
-            <span class="mt-3.5 inline-flex items-center gap-1.5 text-sm font-bold text-primary">{{ t('blog.readMore') }} <ChevronRight class="h-4 w-4" /></span>
-          </RouterLink>
         </div>
       </section>
     </template>
@@ -305,8 +313,17 @@ const navBuiltin = computed(() => (appStore.config?.nav_config as { builtin?: Re
 const blogEnabled = computed(() => navBuiltin.value?.blog !== false)
 const noticeEnabled = computed(() => navBuiltin.value?.notice !== false)
 const latestVisible = computed(() => blogEnabled.value || noticeEnabled.value)
+// 有动态且已拉到内容时才在横幅右侧插卡，避免出现空白栏
+const latestPanelVisible = computed(() => latestVisible.value && posts.value.length > 0)
 
-const formatDate = (value: string) => (value ? new Date(value).toLocaleDateString() : '')
+const postTypeLabel = (post: { type?: string }) => (post.type === 'notice' ? t('nav.notice') : t('nav.blog'))
+
+const formatShortDate = (value: string) => {
+  if (!value) return ''
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return ''
+  return `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
 
 // ==================== 公告弹窗（版本化可关闭，两种模式共用） ====================
 const { shouldShow, shouldShowTicker, closeTickerForSession } = useAnnouncement()
@@ -358,7 +375,7 @@ const loadCategories = async () => {
 const loadPosts = async () => {
   if (!latestVisible.value) return
   try {
-    const params: Record<string, unknown> = { page: 1, page_size: 3 }
+    const params: Record<string, unknown> = { page: 1, page_size: 4 }
     if (blogEnabled.value && !noticeEnabled.value) params.type = 'blog'
     if (!blogEnabled.value && noticeEnabled.value) params.type = 'notice'
     const res = await postAPI.list(params)
