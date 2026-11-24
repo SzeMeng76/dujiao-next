@@ -1,10 +1,12 @@
 <template>
   <div class="mx-auto w-full max-w-[1180px] px-6 pb-6">
-    <nav class="flex items-center gap-1.5 py-5 pb-1 text-[13.5px] font-semibold text-muted-foreground">
-      <RouterLink to="/" class="flex-none hover:text-primary">{{ t('nav.home') }}</RouterLink>
-      <ChevronRight class="h-4 w-4 flex-none" />
-      <span class="min-w-0 truncate text-foreground">{{ pageTitle }}</span>
-    </nav>
+    <BreadcrumbNav
+      class="pb-1 pt-5"
+      :items="[
+        { label: t('nav.home'), to: '/' },
+        { label: pageTitle },
+      ]"
+    />
     <h1 class="mb-3.5 break-words text-3xl font-extrabold">{{ pageTitle }}</h1>
 
     <div class="grid items-start gap-7 py-1.5 pb-9 lg:grid-cols-[248px_1fr]">
@@ -85,24 +87,26 @@
             />
           </div>
 
-          <nav v-if="totalPages > 1" class="mt-[30px] flex justify-center gap-2">
-            <button class="grid h-[42px] min-w-[42px] place-items-center rounded-full border bg-card px-3 font-bold text-muted-foreground hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-40" :disabled="currentPage <= 1" @click="changePage(currentPage - 1)"><ChevronLeft class="h-[17px] w-[17px]" /></button>
-            <button
-              v-for="p in pageWindow"
-              :key="p"
-              class="grid h-[42px] min-w-[42px] place-items-center rounded-full border px-3 text-sm font-bold"
-              :class="p === currentPage ? 'border-primary bg-primary text-white' : 'border-border bg-card text-muted-foreground hover:border-primary hover:text-primary'"
-              @click="changePage(p)"
-            >{{ p }}</button>
-            <button class="grid h-[42px] min-w-[42px] place-items-center rounded-full border bg-card px-3 font-bold text-muted-foreground hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-40" :disabled="currentPage >= totalPages" @click="changePage(currentPage + 1)"><ChevronRight class="h-[17px] w-[17px]" /></button>
-          </nav>
+          <PaginationNav
+            :current-page="currentPage"
+            :total-pages="totalPages"
+            :loading="loading"
+            compact
+            :scroll-top="false"
+            @change-page="changePage"
+          />
         </template>
 
-        <div v-else class="flex flex-col items-center gap-3 rounded-lg border border-dashed py-14 text-center text-muted-foreground">
-          <component :is="searchQuery || selectedCategory ? SearchX : PackageOpen" class="h-12 w-12 opacity-60" />
-          <p>{{ (searchQuery || selectedCategory) ? t('products.emptyFiltered') : t('products.empty') }}</p>
-          <Button v-if="searchQuery || selectedCategory" variant="outline" size="sm" class="mt-2 rounded-full" @click="resetFilters">{{ t('products.clearFilters') }}</Button>
-        </div>
+        <EmptyState
+          v-else
+          size="lg"
+          :icon="(searchQuery || selectedCategory) ? 'search' : 'package'"
+          :title="(searchQuery || selectedCategory) ? t('products.emptyFiltered') : t('products.empty')"
+        >
+          <template v-if="searchQuery || selectedCategory" #action>
+            <Button variant="secondary" class="rounded-full" @click="resetFilters">{{ t('products.clearFilters') }}</Button>
+          </template>
+        </EmptyState>
       </section>
     </div>
 
@@ -119,8 +123,11 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { ChevronLeft, ChevronRight, LayoutGrid, List, PackageOpen, Search, SearchX, X } from 'lucide-vue-next'
+import { LayoutGrid, List, Search, X } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
+import BreadcrumbNav from '../../components/BreadcrumbNav.vue'
+import EmptyState from '../../components/EmptyState.vue'
+import PaginationNav from '../../components/PaginationNav.vue'
 import { useProductList } from '../../composables/useProductList'
 import { usePageSeo } from '../../composables/usePageSeo'
 import { useLocalized } from '../../composables/useProduct'
@@ -177,16 +184,6 @@ const pageTitle = computed(() => {
 })
 
 // 分页窗口：当前页前后各 2 页
-const pageWindow = computed(() => {
-  const total = totalPages.value
-  const cur = currentPage.value
-  const start = Math.max(1, cur - 2)
-  const end = Math.min(total, start + 4)
-  const realStart = Math.max(1, end - 4)
-  const pages: number[] = []
-  for (let p = realStart; p <= end; p++) pages.push(p)
-  return pages
-})
 
 const resetFilters = () => {
   clearSearch()

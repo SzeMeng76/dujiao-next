@@ -12,13 +12,14 @@
 
     <!-- Content -->
     <template v-else-if="product">
-      <nav class="flex flex-wrap items-center gap-1.5 py-5 pb-2 text-[13.5px] font-semibold text-muted-foreground">
-        <RouterLink to="/" class="hover:text-primary">{{ t('nav.home') }}</RouterLink>
-        <ChevronRight class="h-4 w-4 flex-none" />
-        <RouterLink to="/products" class="hover:text-primary">{{ t('nav.products') }}</RouterLink>
-        <ChevronRight class="h-4 w-4 flex-none" />
-        <span class="text-foreground">{{ getLocalizedText(product.title) }}</span>
-      </nav>
+      <BreadcrumbNav
+        class="py-5 pb-2"
+        :items="[
+          { label: t('nav.home'), to: '/' },
+          { label: t('nav.products'), to: '/products' },
+          { label: getLocalizedText(product.title) },
+        ]"
+      />
 
       <!-- 大屏：左列图片 + 详情 + 相关文章，右列购买区吸顶跟随滚动；小屏按 图片 → 购买 → 详情 顺序堆叠 -->
       <div class="grid items-start gap-7 py-2.5 lg:grid-cols-12">
@@ -242,14 +243,12 @@
     </template>
 
     <!-- 错误 -->
-    <div v-else class="my-10 flex flex-col items-center gap-3 rounded-lg border border-dashed py-14 text-center text-muted-foreground">
-      <AlertCircle class="h-12 w-12 opacity-60" />
-      <p>{{ t('productDetail.notFound') }}</p>
-      <div class="mt-2 flex flex-wrap justify-center gap-2.5">
+    <EmptyState v-else class="my-10" size="lg" icon="alert" :title="t('productDetail.notFound')">
+      <template #action>
         <Button size="sm" class="rounded-full" @click="loadProduct"><RotateCw /> {{ t('errorBoundary.retry') }}</Button>
         <Button as-child variant="outline" size="sm" class="rounded-full"><RouterLink :to="backToListTo">{{ t('productDetail.backToProducts') }}</RouterLink></Button>
-      </div>
-    </div>
+      </template>
+    </EmptyState>
   </div>
 </template>
 
@@ -257,10 +256,12 @@
 import { computed, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
-  AlertCircle, ArrowLeft, ChevronRight, Link2, Lock, Minus, Package, Pencil, Plus,
+  ArrowLeft, ChevronRight, Link2, Lock, Minus, Package, Pencil, Plus,
   RotateCw, ShoppingCart, Tag, TicketCheck, UserPlus, Zap,
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
+import BreadcrumbNav from '../../components/BreadcrumbNav.vue'
+import EmptyState from '../../components/EmptyState.vue'
 import { processHtmlForDisplay } from '../../utils/content'
 import { useProductDetail } from '../../composables/useProductDetail'
 import VaultProductMobileBar from './components/VaultProductMobileBar.vue'

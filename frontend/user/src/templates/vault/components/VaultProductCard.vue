@@ -5,8 +5,11 @@
         class="relative grid aspect-[4/3] w-full flex-none place-items-center overflow-hidden rounded-[13px] will-change-transform after:absolute after:inset-0 after:bg-[radial-gradient(130%_80%_at_78%_14%,rgba(255,255,255,0.26),transparent_56%)]"
         :class="coverClass"
       >
-        <img v-if="coverImage" :src="coverImage" :alt="title" loading="lazy" class="absolute inset-0 h-full w-full object-cover" @error="imageErrored = true" />
-        <Package v-else class="relative z-[1] h-[58px] w-[58px] text-white" />
+        <SmartImage :src="coverImage" :alt="title" img-class="absolute inset-0 h-full w-full object-cover">
+          <template #fallback>
+            <Package class="relative z-[1] h-[58px] w-[58px] text-white" />
+          </template>
+        </SmartImage>
         <!-- 商家标签浮层 -->
         <div v-if="!soldOut && product.tags && product.tags.length" class="absolute right-1.5 top-1.5 z-[3] flex max-w-[80%] flex-wrap justify-end gap-1">
           <span v-for="(tag, i) in product.tags.slice(0, 2)" :key="i" class="inline-flex max-w-full items-center truncate rounded-md border border-white/25 bg-black/55 px-2 py-0.5 text-[11px] font-semibold text-white backdrop-blur-sm">{{ tag }}</span>
@@ -65,9 +68,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, type Component } from 'vue'
+import { computed, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { AlarmClock, Lock, Package, Pencil, UserPlus, XCircle, Zap } from 'lucide-vue-next'
+import SmartImage from '../../../components/SmartImage.vue'
 import { getFirstImageUrl, getImageUrl } from '../../../utils/image'
 import { useLocalized, useProductLabels } from '../../../composables/useProduct'
 
@@ -98,9 +102,7 @@ const soldOut = computed(() => isSoldOut(props.product))
 const promo = computed(() => hasPromotionPrice(props.product))
 const exclusivePrice = computed(() => getCardExclusivePrice(props.product))
 
-const imageErrored = ref(false)
 const coverImage = computed(() => {
-  if (imageErrored.value) return ''
   const primary = getFirstImageUrl(props.product?.images)
   if (primary) return primary
   const icon = props.product?.category?.icon

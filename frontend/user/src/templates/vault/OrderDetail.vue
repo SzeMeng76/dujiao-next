@@ -1,12 +1,13 @@
 <template>
   <div class="mx-auto w-full max-w-[1180px] px-6 pb-8">
-    <nav class="my-3.5 mt-[18px] flex flex-wrap items-center gap-2 text-[13px] text-muted-foreground">
-      <RouterLink to="/" class="hover:text-primary">{{ t('nav.home') }}</RouterLink>
-      <span class="text-hairline-strong">/</span>
-      <RouterLink to="/me/orders" class="hover:text-primary">{{ t('orders.title') }}</RouterLink>
-      <span class="text-hairline-strong">/</span>
-      <span class="font-semibold text-foreground">{{ t('orderDetail.title') }}</span>
-    </nav>
+    <BreadcrumbNav
+      class="my-3.5 mt-[18px]"
+      :items="[
+        { label: t('nav.home'), to: '/' },
+        { label: t('orders.title'), to: '/me/orders' },
+        { label: t('orderDetail.title') },
+      ]"
+    />
 
     <header class="mb-[18px]">
       <h1 class="mb-1.5 text-3xl font-extrabold">{{ t('orderDetail.title') }}</h1>
@@ -20,11 +21,11 @@
     </div>
 
     <!-- 不存在 -->
-    <div v-else-if="!order" class="my-6 flex flex-col items-center gap-3 rounded-xl border border-dashed py-16 text-center text-muted-foreground">
-      <AlertCircle class="h-10 w-10 opacity-60" />
-      <p>{{ t('orderDetail.notFound') }}</p>
-      <Button class="mt-2 rounded-full" size="sm" @click="debouncedLoadOrder()">{{ t('errorBoundary.retry') }}</Button>
-    </div>
+    <EmptyState v-else-if="!order" class="my-6" icon="alert" :title="t('orderDetail.notFound')">
+      <template #action>
+        <Button class="rounded-full" size="sm" @click="debouncedLoadOrder()">{{ t('errorBoundary.retry') }}</Button>
+      </template>
+    </EmptyState>
 
     <template v-else>
       <div class="mb-[18px] flex flex-wrap items-start justify-between gap-[18px] rounded-xl border bg-card p-[22px]">
@@ -58,9 +59,10 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { AlertCircle } from 'lucide-vue-next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import BreadcrumbNav from '../../components/BreadcrumbNav.vue'
+import EmptyState from '../../components/EmptyState.vue'
 import VaultOrderBody from './components/VaultOrderBody.vue'
 import { useOrderDetail } from '../../composables/useOrderDetail'
 

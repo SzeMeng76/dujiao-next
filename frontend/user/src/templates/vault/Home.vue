@@ -58,25 +58,27 @@
                 </div>
               </div>
 
-              <nav v-if="listTotalPages > 1" class="mt-[30px] flex flex-wrap justify-center gap-2">
-                <button class="grid h-[42px] min-w-[42px] place-items-center rounded-full border bg-card px-3 font-bold text-muted-foreground hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-40" :disabled="listCurrentPage <= 1" @click="listChangePage(listCurrentPage - 1)"><ChevronLeft class="h-[17px] w-[17px]" /></button>
-                <button
-                  v-for="p in listPageWindow"
-                  :key="p"
-                  class="grid h-[42px] min-w-[42px] place-items-center rounded-full border px-3 text-sm font-bold"
-                  :class="p === listCurrentPage ? 'border-primary bg-primary text-white' : 'border-border bg-card text-muted-foreground hover:border-primary hover:text-primary'"
-                  @click="listChangePage(p)"
-                >{{ p }}</button>
-                <button class="grid h-[42px] min-w-[42px] place-items-center rounded-full border bg-card px-3 font-bold text-muted-foreground hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-40" :disabled="listCurrentPage >= listTotalPages" @click="listChangePage(listCurrentPage + 1)"><ChevronRight class="h-[17px] w-[17px]" /></button>
-              </nav>
+              <PaginationNav
+                :current-page="listCurrentPage"
+                :total-pages="listTotalPages"
+                :loading="listLoading"
+                compact
+                :scroll-top="false"
+                @change-page="listChangePage"
+              />
             </div>
 
             <!-- 空态 -->
-            <div v-else class="flex flex-col items-center gap-3 rounded-lg border border-dashed py-14 text-center text-muted-foreground">
-              <component :is="(searchQuery || selectedCategory) ? SearchX : PackageOpen" class="h-12 w-12 opacity-60" />
-              <p>{{ (searchQuery || selectedCategory) ? t('products.emptyFiltered') : t('products.empty') }}</p>
-              <Button v-if="searchQuery || selectedCategory" variant="outline" size="sm" class="mt-2 rounded-full" @click="resetFilters">{{ t('products.clearFilters') }}</Button>
-            </div>
+            <EmptyState
+              v-else
+              size="lg"
+              :icon="(searchQuery || selectedCategory) ? 'search' : 'package'"
+              :title="(searchQuery || selectedCategory) ? t('products.emptyFiltered') : t('products.empty')"
+            >
+              <template v-if="searchQuery || selectedCategory" #action>
+                <Button variant="secondary" class="rounded-full" @click="resetFilters">{{ t('products.clearFilters') }}</Button>
+              </template>
+            </EmptyState>
           </main>
         </div>
       </section>
@@ -207,8 +209,10 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { ChevronLeft, ChevronRight, PackageOpen, Search, SearchX, Tag, X } from 'lucide-vue-next'
+import { ChevronRight, PackageOpen, Search, Tag, X } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
+import EmptyState from '../../components/EmptyState.vue'
+import PaginationNav from '../../components/PaginationNav.vue'
 import { categoryAPI, postAPI, productAPI } from '../../api'
 import { buildCategoryGroups, type PublicCategory } from '../../utils/category'
 import { getImageUrl } from '../../utils/image'
@@ -275,17 +279,6 @@ const {
 })
 
 const listProductGroups = useProductListGroups(listProducts, listCategoryMap)
-
-const listPageWindow = computed(() => {
-  const total = listTotalPages.value
-  const cur = listCurrentPage.value
-  const start = Math.max(1, cur - 2)
-  const end = Math.min(total, start + 4)
-  const realStart = Math.max(1, end - 4)
-  const pages: number[] = []
-  for (let p = realStart; p <= end; p++) pages.push(p)
-  return pages
-})
 
 const resetFilters = () => {
   clearSearch()

@@ -9,8 +9,11 @@
       class="relative grid h-14 w-14 flex-none place-items-center overflow-hidden rounded-[11px] sm:h-16 sm:w-16"
       :class="coverClass"
     >
-      <img v-if="coverImage" :src="coverImage" :alt="title" loading="lazy" class="absolute inset-0 h-full w-full object-cover" @error="imageErrored = true" />
-      <Package v-else class="relative z-[1] h-6 w-6 text-white" />
+      <SmartImage :src="coverImage" :alt="title" img-class="absolute inset-0 h-full w-full object-cover">
+        <template #fallback>
+          <Package class="relative z-[1] h-6 w-6 text-white" />
+        </template>
+      </SmartImage>
       <span v-if="soldOut" class="absolute inset-0 grid place-items-center bg-black/55 text-[10px] font-bold text-white">{{ t('products.stockStatus.outOfStock') }}</span>
     </span>
 
@@ -69,9 +72,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, type Component } from 'vue'
+import { computed, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { AlarmClock, ChevronRight, Lock, Package, Pencil, ShoppingCart, UserPlus, XCircle, Zap } from 'lucide-vue-next'
+import SmartImage from '../../../components/SmartImage.vue'
 import { getFirstImageUrl, getImageUrl } from '../../../utils/image'
 import { useLocalized, useProductLabels } from '../../../composables/useProduct'
 
@@ -101,9 +105,7 @@ const soldOut = computed(() => isSoldOut(props.product))
 const promo = computed(() => hasPromotionPrice(props.product))
 const exclusivePrice = computed(() => getCardExclusivePrice(props.product))
 
-const imageErrored = ref(false)
 const coverImage = computed(() => {
-  if (imageErrored.value) return ''
   const primary = getFirstImageUrl(props.product?.images)
   if (primary) return primary
   const icon = props.product?.category?.icon

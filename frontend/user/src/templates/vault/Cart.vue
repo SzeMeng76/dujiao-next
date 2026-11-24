@@ -1,10 +1,12 @@
 <template>
   <div class="mx-auto w-full max-w-[1180px] px-6 pb-8">
-    <nav class="flex flex-wrap items-center gap-1.5 py-5 pb-2 text-[13.5px] font-semibold text-muted-foreground">
-      <RouterLink to="/" class="hover:text-primary">{{ t('nav.home') }}</RouterLink>
-      <ChevronRight class="h-4 w-4 flex-none" />
-      <span class="text-foreground">{{ t('cart.title') }}</span>
-    </nav>
+    <BreadcrumbNav
+      class="py-5 pb-2"
+      :items="[
+        { label: t('nav.home'), to: '/' },
+        { label: t('cart.title') },
+      ]"
+    />
 
     <header class="mb-5 mt-2">
       <h1 class="mb-1.5 text-[32px] font-extrabold">{{ t('cart.title') }}</h1>
@@ -14,11 +16,14 @@
     <VaultCheckoutSteps current="cart" />
 
     <!-- 空购物车 -->
-    <div v-if="cartItems.length === 0" class="my-8 flex flex-col items-center gap-3 rounded-xl border border-dashed py-16 text-center text-muted-foreground">
-      <ShoppingCart class="h-10 w-10 opacity-60" />
-      <p>{{ t('cart.empty') }}</p>
-      <Button as-child class="mt-2 rounded-full" size="sm"><RouterLink to="/products">{{ t('cart.emptyAction') }}</RouterLink></Button>
-    </div>
+    <EmptyState
+      v-if="cartItems.length === 0"
+      class="my-8"
+      icon="cart"
+      :title="t('cart.empty')"
+      :action-label="t('cart.emptyAction')"
+      action-to="/products"
+    />
 
     <div v-else class="grid items-start gap-7 lg:grid-cols-[minmax(0,1fr)_340px]">
       <!-- 商品列表 -->
@@ -94,9 +99,11 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { ArrowRight, ChevronRight, Minus, Package, Plus, ShoppingCart, Trash2 } from 'lucide-vue-next'
+import { ArrowRight, Minus, Package, Plus, Trash2 } from 'lucide-vue-next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import BreadcrumbNav from '../../components/BreadcrumbNav.vue'
+import EmptyState from '../../components/EmptyState.vue'
 import VaultCheckoutSteps from './components/VaultCheckoutSteps.vue'
 import { useCart } from '../../composables/useCart'
 
