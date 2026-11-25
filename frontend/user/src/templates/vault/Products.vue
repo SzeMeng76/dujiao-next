@@ -56,7 +56,8 @@
               @quick-buy="openQuickBuy"
             />
           </div>
-          <div v-else class="grid gap-2">
+          <!-- grid-cols-1 让轨道是 minmax(0,1fr)：隐式 auto 轨道会被列表项标题的 min-content 撑开，导致整条行比容器宽、整页横向溢出 -->
+          <div v-else class="grid grid-cols-1 gap-2">
             <VaultProductListItem
               v-for="(product, idx) in products"
               :key="product.id"

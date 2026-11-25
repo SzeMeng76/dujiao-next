@@ -140,7 +140,7 @@
               @quick-buy="openQuickBuy"
             />
           </div>
-          <div v-else class="grid gap-2">
+          <div v-else class="grid grid-cols-1 gap-2">
             <VaultProductListItem
               v-for="(product, idx) in listProducts"
               :key="product.id"
@@ -243,7 +243,7 @@
                 @quick-buy="openQuickBuy"
               />
             </div>
-            <div v-else class="grid gap-2">
+            <div v-else class="grid grid-cols-1 gap-2">
               <VaultProductListItem
                 v-for="(product, idx) in products"
                 :key="product.id"
