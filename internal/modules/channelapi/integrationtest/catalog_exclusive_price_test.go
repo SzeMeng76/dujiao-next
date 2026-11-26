@@ -55,8 +55,8 @@ func (l exclusiveLevels) ResolveUserPrice(userID, _, _ uint, base decimal.Decima
 func (l exclusiveLevels) LoadUserPriceBook(userID uint) (memberlevelapp.UserPriceBook, error) {
 	book := memberlevelapp.UserPriceBook{}
 	if userID == l.exclusiveUserID {
-		book["1:0"] = decimal.NewFromInt(95)
-		book["1:1"] = decimal.NewFromInt(95)
+		book.SetFixed(1, 0, decimal.NewFromInt(95))
+		book.SetFixed(1, 1, decimal.NewFromInt(95))
 	}
 	return book, nil
 }
