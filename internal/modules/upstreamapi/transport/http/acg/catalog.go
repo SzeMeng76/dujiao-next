@@ -304,12 +304,14 @@ func (h *Handler) productRow(userID uint, p *productdomain.Product, sku *product
 	}
 
 	return gin.H{
-		"code":               strconv.FormatUint(uint64(p.ID), 10),
-		"name":               localizedText(p.TitleJSON),
-		"price":              price.StringFixed(2),
-		"user_price":         price.StringFixed(2),
-		"factory_price":      sku.CostPriceAmount.StringFixed(2),
-		"description":        localizedText(p.DescriptionJSON),
+		"code":          strconv.FormatUint(uint64(p.ID), 10),
+		"name":          localizedText(p.TitleJSON),
+		"price":         price.StringFixed(2),
+		"user_price":    price.StringFixed(2),
+		"factory_price": sku.CostPriceAmount.StringFixed(2),
+		// acg 只有一个 description 列，语义是「商品详情」；本站与之对应的是 ContentJSON。
+		// 发简介过去会让下游把简介当成详情展示（反向导入同理）。
+		"description":        localizedText(p.ContentJSON),
 		"introduce":          localizedText(p.ContentJSON),
 		"cover":              coverImage(p),
 		"status":             boolInt(p.IsActive),

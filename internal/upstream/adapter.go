@@ -99,7 +99,11 @@ type CategoryListResult struct {
 
 // UpstreamSKU 上游 SKU 信息
 type UpstreamSKU struct {
-	ID            uint         `json:"id"`
+	ID uint `json:"id"`
+	// UpstreamCode 上游原始 SKU 标识（字符串）。数字 ID 表达不了上游用来承载
+	// 规格选择的编码时（如 acg-faka 的 race + sku[]），由适配器放在这里，
+	// 采购下单时原样回传；dujiao-next 这类数字协议留空。
+	UpstreamCode  string       `json:"upstream_code,omitempty"`
 	SKUCode       string       `json:"sku_code"`
 	SpecValues    jsonmap.JSON `json:"spec_values"`
 	PriceAmount   string       `json:"price_amount"`
@@ -112,7 +116,9 @@ type UpstreamSKU struct {
 
 // CreateUpstreamOrderReq 创建上游采购单请求
 type CreateUpstreamOrderReq struct {
-	SKUID             uint         `json:"sku_id"`
+	SKUID uint `json:"sku_id"`
+	// SKUCode 上游 SKU 的字符串标识（规格选择编码），映射表里有值时透传。
+	SKUCode           string       `json:"sku_code,omitempty"`
 	Quantity          int          `json:"quantity"`
 	ManualFormData    jsonmap.JSON `json:"manual_form_data,omitempty"`
 	DownstreamOrderNo string       `json:"downstream_order_no"`

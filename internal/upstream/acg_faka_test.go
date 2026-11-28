@@ -59,6 +59,9 @@ const acgTestCatalog = `{"code":200,"msg":"success","data":[
 func newAcgTestAdapter(t *testing.T, handler http.HandlerFunc) *AcgFakaAdapter {
 	t.Helper()
 	disableRequestPacing(t)
+	restoreBackoff := acgThrottleBackoff
+	acgThrottleBackoff = 0
+	t.Cleanup(func() { acgThrottleBackoff = restoreBackoff })
 	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
 	return NewAcgFakaAdapter(&siteconnectiondomain.Connection{
@@ -119,6 +122,13 @@ func TestAcgFakaListProducts(t *testing.T) {
 	}
 	if first.Title["zh-CN"] != "商品七" {
 		t.Fatalf("title = %+v", first.Title)
+	}
+	// acg 只有一个 description 列，语义是商品详情：要进本站的「详情」，不能进「简介」。
+	if first.Content["zh-CN"] != "说明" {
+		t.Fatalf("description must land in content, got content=%+v", first.Content)
+	}
+	if len(first.Description) != 0 {
+		t.Fatalf("intro must stay empty, got %+v", first.Description)
 	}
 	if len(first.SKUs) != 1 || first.SKUs[0].ID != 7 {
 		t.Fatalf("sku should reuse product id: %+v", first.SKUs)
@@ -329,13 +339,15 @@ func TestAcgFakaCreateOrderUnknownProduct(t *testing.T) {
 // 余额不足 / 库存不足 / 下架 / 数量越界要归类成采购管道的既有错误码。
 func TestAcgFakaErrorCodeMapping(t *testing.T) {
 	cases := map[string]string{
-		"余额不足":         "insufficient_balance",
-		"餘額不足":         "insufficient_balance",
-		"库存不足":         "product_out_of_stock",
-		"商品不存在或已下架":    "product_unavailable",
-		"低于最少购买数量":     "invalid_request",
-		"超过最多购买数量":     "invalid_request",
-		"服务器频繁请联系客服支持": "acg_upstream_rejected",
+		"余额不足":                      "insufficient_balance",
+		"餘額不足":                      "insufficient_balance",
+		"库存不足":                      "product_out_of_stock",
+		"商品不存在或已下架":                 "product_unavailable",
+		"低于最少购买数量":                  "invalid_request",
+		"超过最多购买数量":                  "invalid_request",
+		"服务器频繁请联系客服支持":              "rate_limited",
+		"request ID already exists": "duplicate_order",
+		"其他未知错误":                    "acg_upstream_rejected",
 	}
 	for message, want := range cases {
 		if got := acgFakaErrorCode(message); got != want {
@@ -391,6 +403,46 @@ func TestAcgFakaCancelNotAllowed(t *testing.T) {
 }
 
 // 上游返回非 200 时要带状态码返回结构化错误，供日志与重试判断使用。
+// 上游限流说明请求没有被处理：应退避后重发，而不是直接判失败。
+func TestAcgFakaRetriesWhenThrottled(t *testing.T) {
+	var calls int
+	adapter := newAcgTestAdapter(t, func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if calls == 1 {
+			_, _ = w.Write([]byte(`{"code":0,"msg":"服务器频繁请联系客服支持"}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"code":200,"msg":"success","data":{"shopName":"店","balance":1.5}}`))
+	})
+
+	result, err := adapter.Ping(context.Background())
+	if err != nil {
+		t.Fatalf("expected retry to succeed, got %v", err)
+	}
+	if calls != 2 {
+		t.Fatalf("expected 2 attempts, got %d", calls)
+	}
+	if result.SiteName != "店" {
+		t.Fatalf("site name = %q", result.SiteName)
+	}
+}
+
+// 持续限流时重试有上限，最终按业务失败返回，调用方能看到真实原因。
+func TestAcgFakaThrottleGivesUp(t *testing.T) {
+	adapter := newAcgTestAdapter(t, func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"code":0,"msg":"服务器频繁请联系客服支持"}`))
+	})
+
+	_, err := adapter.Ping(context.Background())
+	var biz *acgBizError
+	if !errors.As(err, &biz) {
+		t.Fatalf("expected acgBizError, got %v", err)
+	}
+	if !isAcgThrottled(biz.Message) {
+		t.Fatalf("expected throttle message, got %q", biz.Message)
+	}
+}
+
 func TestAcgFakaHTTPError(t *testing.T) {
 	adapter := newAcgTestAdapter(t, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)

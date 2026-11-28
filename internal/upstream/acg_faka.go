@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"io"
 	"net/http"
 	"net/url"
@@ -48,6 +49,17 @@ const (
 type acgBizError struct{ Message string }
 
 func (e *acgBizError) Error() string { return e.Message }
+
+// acgThrottleMarker 上游限流文案。命中说明请求太密被掐了，不是业务失败：
+// 请求没有被处理，退避后重发是安全的。
+const acgThrottleMarker = "服务器频繁"
+
+// acgThrottleBackoff 限流后的退避基数（第 n 次重试等待 n × 该值）。包级变量便于测试清零。
+var acgThrottleBackoff = 10 * time.Second
+
+func isAcgThrottled(message string) bool {
+	return strings.Contains(message, acgThrottleMarker)
+}
 
 // acgNumber acg 的 id / 金额既可能是数字也可能是数字字符串，统一按原始文本收。
 type acgNumber string
@@ -179,6 +191,16 @@ func (a *AcgFakaAdapter) postForm(ctx context.Context, endpoint string, params m
 				if message == "" {
 					message = "acg 接口返回未知错误"
 				}
+				// 限流：请求没有被处理，退避后重发是安全的。当成普通业务失败会直接
+				// 消耗采购的重试档位，而对方的窗口往往要几十秒才恢复。
+				if attempt < maxRequestAttempts && isAcgThrottled(message) {
+					wait := time.Duration(attempt) * acgThrottleBackoff
+					if deadline, ok := ctx.Deadline(); !ok || time.Until(deadline) > wait {
+						if waitErr := sleepCtx(ctx, wait); waitErr == nil {
+							continue
+						}
+					}
+				}
 				return &acgBizError{Message: message}
 			}
 			if out != nil {
@@ -258,37 +280,75 @@ type acgProductRow struct {
 }
 
 // acgConfigCategories 返回商品 config 里配置的种类数量（[category] 段条目数）。
-// config 可能是 INI 字符串（标准 acg-faka），也可能是上游直接给出的解析对象。
 func acgConfigCategories(raw json.RawMessage) int {
+	return len(parseAcgSpec(raw).Race)
+}
+
+// acgSpecConfig 商品 config 里的规格配置。
+//   - Race：[category] 段，种类名 → 单价（元），每个种类独立定价
+//   - SKU：[sku] 段，规格维度 → 选项 → 加价（元）
+type acgSpecConfig struct {
+	Race map[string]string
+	SKU  map[string]map[string]string
+}
+
+// acgMaxCombos 组合数护栏：种类 × 各规格选项的笛卡尔积超限时整品不收录，
+// 避免把价格语义不完整的商品放给下游（对齐 zcard 的护栏口径）。
+const acgMaxCombos = 64
+
+// parseAcgSpec 解析商品 config。config 可能是 INI 字符串（标准 acg-faka），
+// 也可能是上游直接给出的解析对象。
+func parseAcgSpec(raw json.RawMessage) acgSpecConfig {
 	text := strings.TrimSpace(string(raw))
 	if text == "" || text == "null" {
-		return 0
+		return acgSpecConfig{}
 	}
 	if strings.HasPrefix(text, "{") {
-		var obj map[string]json.RawMessage
-		if err := json.Unmarshal(raw, &obj); err != nil {
-			return 0
-		}
-		section, ok := obj["category"]
-		if !ok {
-			return 0
-		}
-		var entries map[string]json.RawMessage
-		if err := json.Unmarshal(section, &entries); err != nil {
-			return 0
-		}
-		return len(entries)
+		return parseAcgSpecObject(raw)
 	}
 	var content string
 	if err := json.Unmarshal(raw, &content); err != nil {
-		return 0
+		return acgSpecConfig{}
 	}
-	return countAcgIniSectionEntries(content, "category")
+	return parseAcgSpecINI(content)
 }
 
-// countAcgIniSectionEntries 统计 INI 文本里某段的条目数（段名大小写不敏感）。
-func countAcgIniSectionEntries(content, want string) int {
-	count := 0
+// parseAcgSpecObject 解析「已反序列化」形态的 config 对象。
+func parseAcgSpecObject(raw json.RawMessage) acgSpecConfig {
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &obj); err != nil {
+		return acgSpecConfig{}
+	}
+	spec := acgSpecConfig{}
+	if section, ok := obj["category"]; ok {
+		var race map[string]acgNumber
+		if err := json.Unmarshal(section, &race); err == nil && len(race) > 0 {
+			spec.Race = make(map[string]string, len(race))
+			for name, price := range race {
+				spec.Race[name] = string(price)
+			}
+		}
+	}
+	if section, ok := obj["sku"]; ok {
+		var dims map[string]map[string]acgNumber
+		if err := json.Unmarshal(section, &dims); err == nil && len(dims) > 0 {
+			spec.SKU = make(map[string]map[string]string, len(dims))
+			for dim, options := range dims {
+				values := make(map[string]string, len(options))
+				for option, premium := range options {
+					values[option] = string(premium)
+				}
+				spec.SKU[dim] = values
+			}
+		}
+	}
+	return spec
+}
+
+// parseAcgSpecINI 极简 INI 解析：只取 [category] 与 [sku] 两段；
+// [sku] 用点号表达一层嵌套（`颜色.黑色=0` → 颜色 → 黑色 → 0）。
+func parseAcgSpecINI(content string) acgSpecConfig {
+	spec := acgSpecConfig{}
 	section := ""
 	for _, line := range strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n") {
 		line = strings.TrimSpace(line)
@@ -299,11 +359,172 @@ func countAcgIniSectionEntries(content, want string) int {
 			section = strings.TrimSpace(line[1 : len(line)-1])
 			continue
 		}
-		if strings.EqualFold(section, want) && strings.Contains(line, "=") {
-			count++
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+		switch {
+		case strings.EqualFold(section, "category"):
+			if spec.Race == nil {
+				spec.Race = map[string]string{}
+			}
+			spec.Race[key] = value
+		case strings.EqualFold(section, "sku"):
+			dot := strings.Index(key, ".")
+			if dot <= 0 || dot == len(key)-1 {
+				continue
+			}
+			dim := strings.TrimSpace(key[:dot])
+			option := strings.TrimSpace(key[dot+1:])
+			if dim == "" || option == "" {
+				continue
+			}
+			if spec.SKU == nil {
+				spec.SKU = map[string]map[string]string{}
+			}
+			if spec.SKU[dim] == nil {
+				spec.SKU[dim] = map[string]string{}
+			}
+			spec.SKU[dim][option] = value
 		}
 	}
-	return count
+	return spec
+}
+
+// acgCombo 一个可购组合（种类 × 各规格选项）。
+type acgCombo struct {
+	Race    string
+	Choices map[string]string
+	Price   string
+}
+
+// buildAcgCombos 把规格配置展开成可购组合。无规格时返回单个空组合（沿用商品价）。
+func buildAcgCombos(spec acgSpecConfig, basePrice string) ([]acgCombo, error) {
+	if len(spec.Race) == 0 && len(spec.SKU) == 0 {
+		return []acgCombo{{Price: basePrice}}, nil
+	}
+
+	races := make([]string, 0, len(spec.Race))
+	for name := range spec.Race {
+		races = append(races, name)
+	}
+	sort.Strings(races)
+	if len(races) == 0 {
+		races = []string{""}
+	}
+
+	dims := make([]string, 0, len(spec.SKU))
+	for dim := range spec.SKU {
+		dims = append(dims, dim)
+	}
+	sort.Strings(dims)
+
+	total := len(races)
+	for _, dim := range dims {
+		total *= len(spec.SKU[dim])
+	}
+	if total > acgMaxCombos {
+		return nil, fmt.Errorf("规格组合数 %d 超过上限 %d", total, acgMaxCombos)
+	}
+
+	combos := make([]acgCombo, 0, total)
+	choices := make(map[string]string, len(dims))
+	var walk func(index int, premium float64)
+	walk = func(index int, premium float64) {
+		if index == len(dims) {
+			for _, race := range races {
+				price := basePrice
+				if race != "" {
+					price = spec.Race[race]
+				}
+				copied := make(map[string]string, len(choices))
+				for dim, option := range choices {
+					copied[dim] = option
+				}
+				combos = append(combos, acgCombo{
+					Race:    race,
+					Choices: copied,
+					Price:   acgAddAmount(price, premium),
+				})
+			}
+			return
+		}
+		dim := dims[index]
+		options := make([]string, 0, len(spec.SKU[dim]))
+		for option := range spec.SKU[dim] {
+			options = append(options, option)
+		}
+		sort.Strings(options)
+		for _, option := range options {
+			choices[dim] = option
+			walk(index+1, premium+acgParseAmount(spec.SKU[dim][option]))
+			delete(choices, dim)
+		}
+	}
+	walk(0, 0)
+	return combos, nil
+}
+
+// acgSelection 下单时回传给上游的规格选择（编码进 sku_mappings.upstream_sku_code）。
+type acgSelection struct {
+	Race string            `json:"r,omitempty"`
+	SKU  map[string]string `json:"s,omitempty"`
+}
+
+// encodeAcgSelection 组合 → 编码；无规格时返回空串（沿用单 SKU 路径）。
+func encodeAcgSelection(combo acgCombo) string {
+	if combo.Race == "" && len(combo.Choices) == 0 {
+		return ""
+	}
+	data, err := json.Marshal(acgSelection{Race: combo.Race, SKU: combo.Choices})
+	if err != nil {
+		return ""
+	}
+	return string(data)
+}
+
+// decodeAcgSelection 编码 → 种类 + 规格选择。
+func decodeAcgSelection(code string) (string, map[string]string, bool) {
+	text := strings.TrimSpace(code)
+	if text == "" || !strings.HasPrefix(text, "{") {
+		return "", nil, false
+	}
+	var selection acgSelection
+	if err := json.Unmarshal([]byte(text), &selection); err != nil {
+		return "", nil, false
+	}
+	return selection.Race, selection.SKU, true
+}
+
+// acgComboID 组合的数字身份（映射表只存 uint）：对编码取 FNV-1a 32 位。
+// 同一个组合内容总是得到同一个 ID，上游改配置导致组合消失时旧映射会被判失效，
+// 不会误指向另一个组合。
+func acgComboID(encoded string) uint {
+	if encoded == "" {
+		return 0
+	}
+	hash := fnv.New32a()
+	_, _ = hash.Write([]byte(encoded))
+	if id := hash.Sum32(); id != 0 {
+		return uint(id)
+	}
+	return 1
+}
+
+// acgParseAmount 元字符串 → float64；解析失败按 0 处理。
+func acgParseAmount(raw string) float64 {
+	value, err := strconv.ParseFloat(strings.TrimSpace(raw), 64)
+	if err != nil {
+		return 0
+	}
+	return value
+}
+
+// acgAddAmount 基准价 + 加价，输出两位小数元字符串。
+func acgAddAmount(base string, premium float64) string {
+	return strconv.FormatFloat(acgParseAmount(base)+premium, 'f', 2, 64)
 }
 
 // acgCatalogTTL 目录缓存寿命。acg 的 items 一次返回整站目录（实测 8000+ 商品、近 1MB、
@@ -512,16 +733,18 @@ func acgToProduct(row acgProductRow, categoryID uint) (UpstreamProduct, bool) {
 		stockStatus = constants.ProductStockStatusInStock
 	}
 
-	description := jsonmap.JSON{}
+	// acg 只有一个 description 列，里面装的就是商品详情（富文本），它没有单独的「简介」。
+	// 本站 简介/详情 是两栏，这里放进详情，简介留空——否则详情会显示在商品简介位置。
+	detail := jsonmap.JSON{}
 	if text := strings.TrimSpace(row.Description); text != "" {
-		description = acgLocalized(text)
+		detail = acgLocalized(text)
 	}
 
 	return UpstreamProduct{
 		ID:              id,
 		Title:           acgLocalized(row.Name),
-		Description:     description,
-		Content:         jsonmap.JSON{},
+		Description:     jsonmap.JSON{},
+		Content:         detail,
 		Images:          acgImages(row.Cover),
 		PriceAmount:     price,
 		Currency:        constants.SiteCurrencyDefault,
@@ -713,6 +936,12 @@ func acgFakaErrorCode(message string) string {
 		return "product_unavailable"
 	case strings.Contains(message, "最少购买"), strings.Contains(message, "最多购买"):
 		return "invalid_request"
+	case isAcgThrottled(message):
+		return "rate_limited"
+	case strings.Contains(message, "request ID already exists"), strings.Contains(message, "订单已存在"):
+		// request_no 是「重复即报错」的防重键：说明同键请求已被受理过，
+		// 结果可能已扣款发货，不能重试（重试永远撞同一堵墙），转人工核对。
+		return "duplicate_order"
 	default:
 		return "acg_upstream_rejected"
 	}
