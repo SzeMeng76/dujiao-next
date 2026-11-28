@@ -7,9 +7,9 @@ const props = defineProps<{ src?: string }>()
 
 const { t } = useI18n()
 
-// 16/24 是 atelier 模板筛选 chip 与分组标题的尺寸，46 是 vault 首页分类卡，
+// 16/24 是 atelier 模板筛选 chip 与分组标题的尺寸，62 是 vault 首页分类卡，
 // 96 用来确认放大后是否发虚。四个尺寸覆盖了现有模板的全部用法。
-const SIZES = [16, 24, 46, 96]
+const SIZES = [16, 24, 62, 96]
 
 const url = computed(() => (props.src ? getImageUrl(props.src) : ''))
 const natural = ref<{ w: number; h: number } | null>(null)
