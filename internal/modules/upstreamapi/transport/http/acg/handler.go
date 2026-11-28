@@ -44,6 +44,7 @@ const (
 	msgNoBalance   = "余额不足"
 	msgNoStock     = "库存不足"
 	msgUnavailable = "商品不存在或已下架"
+	msgRaceInvalid = "商品种类不存在或已下架"
 	msgMinPurchase = "低于最少购买数量"
 	msgMaxPurchase = "超过最多购买数量"
 	msgUnknownKey  = "商户ID不存在"

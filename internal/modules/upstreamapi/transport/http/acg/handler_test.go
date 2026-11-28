@@ -110,29 +110,41 @@ func TestLocalizedText(t *testing.T) {
 	}
 }
 
-func TestSingleActiveSKU(t *testing.T) {
-	tests := []struct {
-		name   string
-		skus   []productdomain.ProductSKU
-		wantID uint
-		wantOK bool
-	}{
-		{"single active", []productdomain.ProductSKU{{ID: 7, IsActive: true}}, 7, true},
-		{"ignore inactive", []productdomain.ProductSKU{{ID: 7, IsActive: true}, {ID: 8, IsActive: false}}, 7, true},
-		{"no active", []productdomain.ProductSKU{{ID: 7, IsActive: false}}, 0, false},
-		{"multiple active unsupported", []productdomain.ProductSKU{{ID: 7, IsActive: true}, {ID: 8, IsActive: true}}, 0, false},
-		{"no sku", nil, 0, false},
+// 规格 → acg 种类名的映射必须稳定、唯一；选择时单规格忽略 race，多规格必须命中。
+func TestSKUOptionsAndSelection(t *testing.T) {
+	product := &productdomain.Product{SKUs: []productdomain.ProductSKU{
+		{ID: 9, SKUCode: "C2", IsActive: true, SpecValuesJSON: jsonmap.JSON{"颜色": "黑色"}},
+		{ID: 7, SKUCode: "C1", IsActive: true, SpecValuesJSON: jsonmap.JSON{"颜色": "白色"}},
+		{ID: 8, SKUCode: "C3", IsActive: false, SpecValuesJSON: jsonmap.JSON{"颜色": "红色"}},
+	}}
+
+	options := skuOptions(product)
+	if len(options) != 2 {
+		t.Fatalf("only active skus count, got %d", len(options))
 	}
-	for _, tc := range tests {
-		product := &productdomain.Product{SKUs: tc.skus}
-		sku, ok := singleActiveSKU(product)
-		if ok != tc.wantOK {
-			t.Errorf("%s: want ok=%v got %v", tc.name, tc.wantOK, ok)
-			continue
-		}
-		if ok && sku.ID != tc.wantID {
-			t.Errorf("%s: want sku %d got %d", tc.name, tc.wantID, sku.ID)
-		}
+	if options[0].sku.ID != 7 || options[0].label != "白色" {
+		t.Fatalf("options must be sorted by id and labelled by spec value, got %+v", options[0])
+	}
+	if options[1].sku.ID != 9 || options[1].label != "黑色" {
+		t.Fatalf("unexpected second option %+v", options[1])
+	}
+
+	single := skuOptions(&productdomain.Product{SKUs: []productdomain.ProductSKU{{ID: 7, IsActive: true}}})
+	if sku, ok := selectSKU(single, ""); !ok || sku.ID != 7 {
+		t.Fatal("single-sku product must ignore race")
+	}
+
+	if _, ok := selectSKU(options, ""); ok {
+		t.Fatal("multi-sku product must not default to a sku when race is missing")
+	}
+	if sku, ok := selectSKU(options, "黑色"); !ok || sku.ID != 9 {
+		t.Fatal("race must select the matching sku")
+	}
+	if _, ok := selectSKU(options, "红色"); ok {
+		t.Fatal("inactive sku must not be selectable")
+	}
+	if sku, ok := selectSKU(options, "c1"); !ok || sku.ID != 7 {
+		t.Fatal("race should also match the sku code")
 	}
 }
 
@@ -359,20 +371,32 @@ func TestTradeReturnsReceiptAndReplaysIdempotently(t *testing.T) {
 	}
 }
 
-func TestTradeRejectsMultiSKUProduct(t *testing.T) {
+// 多规格商品必须按 race 选规格：不传 race 直接拒绝（绝不默认取第一个，那是卖错货），
+// 传对种类才下单成功。
+func TestTradeRequiresRaceForMultiSKUProduct(t *testing.T) {
 	handler, orders, payments, _, products := newTestHandler(t)
+	products.product.SKUs[0].SpecValuesJSON = jsonmap.JSON{"颜色": "白色"}
 	products.product.SKUs = append(products.product.SKUs,
-		productdomain.ProductSKU{ID: 202, ProductID: 101, IsActive: true})
+		productdomain.ProductSKU{ID: 202, ProductID: 101, IsActive: true, SpecValuesJSON: jsonmap.JSON{"颜色": "黑色"}})
 
-	form := signedForm(map[string]string{
+	payload := postForm(t, handler.Trade, signedForm(map[string]string{
 		"app_id": "key-1", "shared_code": "101", "num": "1", "request_no": "r-2",
-	})
-	payload := postForm(t, handler.Trade, form)
-	if payload["msg"] != msgUnavailable {
-		t.Fatalf("multi-SKU product must be unavailable, got %v", payload["msg"])
+	}))
+	if payload["msg"] != msgRaceInvalid {
+		t.Fatalf("multi-sku product without race must be rejected, got %v", payload["msg"])
 	}
 	if orders.createCall != 0 || payments.calls != 0 {
-		t.Fatal("unsupported product must not reach the money path")
+		t.Fatal("missing race must not reach the money path")
+	}
+
+	data, ok := postForm(t, handler.Trade, signedForm(map[string]string{
+		"app_id": "key-1", "shared_code": "101", "num": "1", "request_no": "r-2", "race": "黑色",
+	}))["data"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("race order should return a receipt")
+	}
+	if data["secret"] != "CARD-1\nCARD-2" {
+		t.Fatalf("expected cards in receipt, got %v", data["secret"])
 	}
 }
 
@@ -414,8 +438,18 @@ func TestCatalogExcludesNonAutoDeliveryProducts(t *testing.T) {
 	}
 }
 
-func TestItemsOnlyListsSingleSKUAutoProducts(t *testing.T) {
+// 多规格商品现在也出现在目录里：config 带 [category] 种类价格表，下游据此渲染选择器。
+func TestItemsListsMultiSKUProductWithCategoryConfig(t *testing.T) {
 	handler, _, _, _, products := newTestHandler(t)
+	products.product.SKUs[0].SpecValuesJSON = jsonmap.JSON{"颜色": "白色"}
+	products.product.SKUs = append(products.product.SKUs,
+		productdomain.ProductSKU{
+			ID:             202,
+			ProductID:      101,
+			IsActive:       true,
+			PriceAmount:    money.FromDecimal(decimal.NewFromInt(20)),
+			SpecValuesJSON: jsonmap.JSON{"颜色": "黑色"},
+		})
 
 	tree, ok := postForm(t, handler.Items, signedForm(map[string]string{"app_id": "key-1"}))["data"].([]interface{})
 	if !ok || len(tree) == 0 {
@@ -424,20 +458,13 @@ func TestItemsOnlyListsSingleSKUAutoProducts(t *testing.T) {
 	category, _ := tree[0].(map[string]interface{})
 	children, _ := category["children"].([]interface{})
 	if len(children) != 1 {
-		t.Fatalf("expected one purchasable product, got %v", children)
+		t.Fatalf("expected one product, got %v", children)
 	}
-
-	// 多一个在售 SKU 后该商品必须从目录消失，避免下游导入后无法下单。
-	products.product.SKUs = append(products.product.SKUs,
-		productdomain.ProductSKU{ID: 202, ProductID: 101, IsActive: true})
-	products.listCalls = 0
-	tree, ok = postForm(t, handler.Items, signedForm(map[string]string{"app_id": "key-1"}))["data"].([]interface{})
-	if !ok {
-		t.Fatalf("expected category tree, got %v", tree)
-	}
-	category, _ = tree[0].(map[string]interface{})
-	children, _ = category["children"].([]interface{})
-	if len(children) != 0 {
-		t.Fatalf("multi-SKU product must not be listed, got %v", children)
+	row, _ := children[0].(map[string]interface{})
+	config, _ := row["config"].(string)
+	for _, want := range []string{"[category]", "白色=", "黑色=", "20.00"} {
+		if !strings.Contains(config, want) {
+			t.Fatalf("config must contain %q, got %q", want, config)
+		}
 	}
 }

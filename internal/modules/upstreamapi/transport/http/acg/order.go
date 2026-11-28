@@ -37,9 +37,14 @@ func (h *Handler) Trade(c *gin.Context) {
 		return
 	}
 
-	product, sku, found := h.loadProduct(code)
+	product, options, found := h.loadProduct(code)
 	if !found {
 		respondError(c, msgUnavailable)
+		return
+	}
+	sku, skuOK := selectSKU(options, form["race"])
+	if !skuOK {
+		respondError(c, msgRaceInvalid)
 		return
 	}
 	if product.MinPurchaseQuantity > 0 && quantity < product.MinPurchaseQuantity {

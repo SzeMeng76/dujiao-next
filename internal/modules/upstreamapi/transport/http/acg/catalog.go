@@ -1,6 +1,8 @@
 package acg
 
 import (
+	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -55,11 +57,11 @@ func (h *Handler) Items(c *gin.Context) {
 		if product.FulfillmentType != constants.FulfillmentTypeAuto {
 			continue
 		}
-		sku, hasSKU := singleActiveSKU(product)
-		if !hasSKU {
+		options := skuOptions(product)
+		if len(options) == 0 {
 			continue
 		}
-		byCategory[product.CategoryID] = append(byCategory[product.CategoryID], h.productRow(credential.UserID, product, sku))
+		byCategory[product.CategoryID] = append(byCategory[product.CategoryID], h.productRow(credential.UserID, product, options))
 	}
 
 	categories, err := h.base.Categories.List()
@@ -111,12 +113,12 @@ func (h *Handler) Item(c *gin.Context) {
 	if !ok {
 		return
 	}
-	product, sku, found := h.loadProduct(form["code"])
+	product, options, found := h.loadProduct(form["code"])
 	if !found {
 		respondError(c, msgUnavailable)
 		return
 	}
-	respondOK(c, h.productRow(credential.UserID, product, sku))
+	respondOK(c, h.productRow(credential.UserID, product, options))
 }
 
 // Stock POST /shared/commodity/stock（code）
@@ -125,9 +127,14 @@ func (h *Handler) Stock(c *gin.Context) {
 	if !ok {
 		return
 	}
-	product, sku, found := h.loadProduct(form["code"])
+	product, options, found := h.loadProduct(form["code"])
 	if !found {
 		respondError(c, msgUnavailable)
+		return
+	}
+	sku, ok := selectSKU(options, form["race"])
+	if !ok {
+		respondError(c, msgRaceInvalid)
 		return
 	}
 	_, stock := skuStock(*product, *sku)
@@ -140,9 +147,14 @@ func (h *Handler) Valuation(c *gin.Context) {
 	if !ok {
 		return
 	}
-	product, sku, found := h.loadProduct(form["code"])
+	product, options, found := h.loadProduct(form["code"])
 	if !found {
 		respondError(c, msgUnavailable)
+		return
+	}
+	sku, ok := selectSKU(options, form["race"])
+	if !ok {
+		respondError(c, msgRaceInvalid)
 		return
 	}
 	quantity := atoiOr(form["num"], 1)
@@ -159,9 +171,14 @@ func (h *Handler) Inventory(c *gin.Context) {
 	if !ok {
 		return
 	}
-	product, sku, found := h.loadProduct(form["sharedCode"])
+	product, options, found := h.loadProduct(form["sharedCode"])
 	if !found {
 		respondError(c, msgUnavailable)
+		return
+	}
+	sku, ok := selectSKU(options, form["race"])
+	if !ok {
+		respondError(c, msgRaceInvalid)
 		return
 	}
 	_, stock := skuStock(*product, *sku)
@@ -183,10 +200,15 @@ func (h *Handler) InventoryState(c *gin.Context) {
 	if !ok {
 		return
 	}
-	product, sku, found := h.loadProduct(form["shared_code"])
+	product, options, found := h.loadProduct(form["shared_code"])
 	quantity := atoiOr(form["num"], 0)
 	if !found || quantity < 1 {
 		respondError(c, "商品或购买数量非法")
+		return
+	}
+	sku, ok := selectSKU(options, form["race"])
+	if !ok {
+		respondError(c, msgRaceInvalid)
 		return
 	}
 	_, stock := skuStock(*product, *sku)
@@ -199,10 +221,9 @@ func (h *Handler) InventoryState(c *gin.Context) {
 
 // ── 商品解析 ───────────────────────────────────────────────
 
-// loadProduct code（商品 ID）→ 商品 + 唯一在售 SKU。
-// 只接受「恰好一个在售 SKU」且自动交付的商品：acg 的单品视图没有多规格维度，
-// 多规格商品强行映射会卖错规格，因此不进入 acg 目录。
-func (h *Handler) loadProduct(code string) (*productdomain.Product, *productdomain.ProductSKU, bool) {
+// loadProduct code（商品 ID）→ 商品 + 全部在售规格。
+// 只接受本地自动交付商品：acg 的 trade 必须同步返回卡密，上游对接商品走采购队列。
+func (h *Handler) loadProduct(code string) (*productdomain.Product, []skuOption, bool) {
 	productID, err := strconv.ParseUint(strings.TrimSpace(code), 10, 64)
 	if err != nil || productID == 0 {
 		return nil, nil, false
@@ -220,11 +241,11 @@ func (h *Handler) loadProduct(code string) (*productdomain.Product, *productdoma
 	if product.FulfillmentType != constants.FulfillmentTypeAuto {
 		return nil, nil, false
 	}
-	sku, ok := singleActiveSKU(product)
-	if !ok {
+	options := skuOptions(product)
+	if len(options) == 0 {
 		return nil, nil, false
 	}
-	return product, sku, true
+	return product, options, true
 }
 
 // hydrateStock 填充自动发货库存计数，供 skuStock 使用。
@@ -236,22 +257,101 @@ func (h *Handler) hydrateStock(products []productdomain.Product) {
 	}
 }
 
-// singleActiveSKU 返回唯一在售 SKU；没有或多于一个时不可售。
-func singleActiveSKU(p *productdomain.Product) (*productdomain.ProductSKU, bool) {
-	var selected *productdomain.ProductSKU
+// skuOption 一个可售规格，对应 acg 的「种类」。
+type skuOption struct {
+	label string
+	sku   *productdomain.ProductSKU
+}
+
+// skuOptions 返回商品的在售 SKU（按 ID 升序），并给每个规格算一个稳定且唯一的种类名。
+// 顺序稳定很重要：下游会把种类名存下来，下次下单原样传回来。
+func skuOptions(p *productdomain.Product) []skuOption {
+	active := make([]*productdomain.ProductSKU, 0, len(p.SKUs))
 	for i := range p.SKUs {
-		if !p.SKUs[i].IsActive {
-			continue
+		if p.SKUs[i].IsActive {
+			active = append(active, &p.SKUs[i])
 		}
-		if selected != nil {
-			return nil, false
-		}
-		selected = &p.SKUs[i]
 	}
-	if selected == nil {
+	sort.Slice(active, func(i, j int) bool { return active[i].ID < active[j].ID })
+
+	options := make([]skuOption, 0, len(active))
+	used := make(map[string]int, len(active))
+	for _, sku := range active {
+		base := raceLabel(sku)
+		label := base
+		for used[label] > 0 {
+			used[base]++
+			label = base + " (" + strconv.Itoa(used[base]) + ")"
+		}
+		used[label] = 1
+		options = append(options, skuOption{label: label, sku: sku})
+	}
+	return options
+}
+
+// raceLabel SKU → acg 种类名：优先规格值组合（「黑色 / 月付」，按键名排序保证稳定），
+// 没有规格值时退到 SKU 编码。换行和 '=' 会破坏下游的 INI 解析，统一处理掉。
+func raceLabel(sku *productdomain.ProductSKU) string {
+	keys := make([]string, 0, len(sku.SpecValuesJSON))
+	for key := range sku.SpecValuesJSON {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	parts := make([]string, 0, len(keys))
+	for _, key := range keys {
+		if text := specValueText(sku.SpecValuesJSON[key]); text != "" {
+			parts = append(parts, text)
+		}
+	}
+	label := strings.Join(parts, " / ")
+	if label == "" {
+		label = strings.TrimSpace(sku.SKUCode)
+	}
+	if label == "" {
+		label = "SKU" + strconv.FormatUint(uint64(sku.ID), 10)
+	}
+	label = strings.NewReplacer("\r", " ", "\n", " ", "=", "-").Replace(label)
+	return strings.TrimSpace(label)
+}
+
+// specValueText 规格值统一成文本，用于拼种类名。
+func specValueText(value interface{}) string {
+	switch typed := value.(type) {
+	case nil:
+		return ""
+	case string:
+		return strings.TrimSpace(typed)
+	default:
+		return strings.TrimSpace(fmt.Sprint(typed))
+	}
+}
+
+// selectSKU 按 acg 的 race 选出规格。单规格商品忽略 race（旧下游不会传）；
+// 多规格商品必须命中，否则返回 false 让调用方报错——绝不默认取第一个，那是卖错货。
+func selectSKU(options []skuOption, race string) (*productdomain.ProductSKU, bool) {
+	if len(options) == 0 {
 		return nil, false
 	}
-	return selected, true
+	if len(options) == 1 {
+		return options[0].sku, true
+	}
+	race = strings.TrimSpace(race)
+	if race == "" {
+		return nil, false
+	}
+	for _, option := range options {
+		if option.label == race {
+			return option.sku, true
+		}
+	}
+	// 兼容下游按 SKU 编码传 race 的情况
+	for _, option := range options {
+		if strings.EqualFold(strings.TrimSpace(option.sku.SKUCode), race) {
+			return option.sku, true
+		}
+	}
+	return nil, false
 }
 
 // skuStock 计算 SKU 可用库存。
@@ -290,9 +390,19 @@ func (h *Handler) effectivePrice(userID, productID, skuID uint, base money.Amoun
 }
 
 // productRow 商品行（字段全集对齐 acg 3.5.7+ 客户端 sync() 读取）。
-func (h *Handler) productRow(userID uint, p *productdomain.Product, sku *productdomain.ProductSKU) gin.H {
-	price := h.effectivePrice(userID, p.ID, sku.ID, sku.PriceAmount)
-	_, stock := skuStock(*p, *sku)
+func (h *Handler) productRow(userID uint, p *productdomain.Product, options []skuOption) gin.H {
+	primary := options[0].sku
+	price := h.effectivePrice(userID, p.ID, primary.ID, primary.PriceAmount)
+	totalStock := 0
+	for _, option := range options {
+		if _, stock := skuStock(*p, *option.sku); stock > 0 {
+			totalStock += stock
+		}
+	}
+	config := ""
+	if len(options) > 1 {
+		config = h.raceConfigINI(userID, p, options)
+	}
 
 	minimum := p.MinPurchaseQuantity
 	if minimum < 1 {
@@ -308,7 +418,7 @@ func (h *Handler) productRow(userID uint, p *productdomain.Product, sku *product
 		"name":          localizedText(p.TitleJSON),
 		"price":         price.StringFixed(2),
 		"user_price":    price.StringFixed(2),
-		"factory_price": sku.CostPriceAmount.StringFixed(2),
+		"factory_price": primary.CostPriceAmount.StringFixed(2),
 		// acg 只有一个 description 列，语义是「商品详情」；本站与之对应的是 ContentJSON。
 		// 发简介过去会让下游把简介当成详情展示（反向导入同理）。
 		"description":        localizedText(p.ContentJSON),
@@ -320,8 +430,8 @@ func (h *Handler) productRow(userID uint, p *productdomain.Product, sku *product
 		"draft_premium":      "0",
 		"minimum":            minimum,
 		"maximum":            maximum,
-		"stock":              stock,
-		"config":             "",
+		"stock":              totalStock,
+		"config":             config,
 		"widget":             nil,
 		"category_id":        p.CategoryID,
 		"seckill_status":     0,
@@ -329,6 +439,28 @@ func (h *Handler) productRow(userID uint, p *productdomain.Product, sku *product
 		"seckill_end_time":   nil,
 		"contact_type":       0, // 任意：避免下游把 null 写进 NOT NULL 列
 	}
+}
+
+// raceConfigINI 多规格商品的出站配置：[category] 是种类名 → 售价，
+// 下游靠它渲染种类选择器；[category_factory] 是给下游算拿货价的成本快照。
+// 单规格商品不发 config，保持原有行为。
+func (h *Handler) raceConfigINI(userID uint, p *productdomain.Product, options []skuOption) string {
+	var builder strings.Builder
+	builder.WriteString("[category]\n")
+	for _, option := range options {
+		builder.WriteString(option.label)
+		builder.WriteString("=")
+		builder.WriteString(h.effectivePrice(userID, p.ID, option.sku.ID, option.sku.PriceAmount).StringFixed(2))
+		builder.WriteString("\n")
+	}
+	builder.WriteString("[category_factory]\n")
+	for _, option := range options {
+		builder.WriteString(option.label)
+		builder.WriteString("=")
+		builder.WriteString(option.sku.CostPriceAmount.StringFixed(2))
+		builder.WriteString("\n")
+	}
+	return builder.String()
 }
 
 func coverImage(p *productdomain.Product) string {
