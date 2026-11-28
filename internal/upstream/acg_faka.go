@@ -472,33 +472,40 @@ func buildAcgCombos(spec acgSpecConfig, basePrice string) ([]acgCombo, error) {
 
 // acgSelection 下单时回传给上游的规格选择（编码进 sku_mappings.upstream_sku_code）。
 type acgSelection struct {
-	Race string            `json:"r,omitempty"`
-	SKU  map[string]string `json:"s,omitempty"`
+	// Product 商品 id。组合 SKU 的数字身份是选择编码的哈希，不是商品 id，
+	// 下单时要靠它把 shared_code 换回来。
+	Product uint              `json:"p,omitempty"`
+	Race    string            `json:"r,omitempty"`
+	SKU     map[string]string `json:"s,omitempty"`
 }
 
 // encodeAcgSelection 组合 → 编码；无规格时返回空串（沿用单 SKU 路径）。
-func encodeAcgSelection(combo acgCombo) string {
+func encodeAcgSelection(combo acgCombo, productID uint) string {
 	if combo.Race == "" && len(combo.Choices) == 0 {
 		return ""
 	}
-	data, err := json.Marshal(acgSelection{Race: combo.Race, SKU: combo.Choices})
+	data, err := json.Marshal(acgSelection{
+		Product: productID,
+		Race:    combo.Race,
+		SKU:     combo.Choices,
+	})
 	if err != nil {
 		return ""
 	}
 	return string(data)
 }
 
-// decodeAcgSelection 编码 → 种类 + 规格选择。
-func decodeAcgSelection(code string) (string, map[string]string, bool) {
+// decodeAcgSelection 编码 → 商品 id + 种类 + 规格选择。
+func decodeAcgSelection(code string) (acgSelection, bool) {
 	text := strings.TrimSpace(code)
 	if text == "" || !strings.HasPrefix(text, "{") {
-		return "", nil, false
+		return acgSelection{}, false
 	}
 	var selection acgSelection
 	if err := json.Unmarshal([]byte(text), &selection); err != nil {
-		return "", nil, false
+		return acgSelection{}, false
 	}
-	return selection.Race, selection.SKU, true
+	return selection, true
 }
 
 // acgComboID 组合的数字身份（映射表只存 uint）：对编码取 FNV-1a 32 位。
@@ -748,7 +755,7 @@ func acgToProduct(row acgProductRow, categoryID uint) (UpstreamProduct, bool) {
 	skus := make([]UpstreamSKU, 0, len(combos))
 	lowest := price
 	for index, combo := range combos {
-		encoded := encodeAcgSelection(combo)
+		encoded := encodeAcgSelection(combo, id)
 		skuID := id
 		code := strconv.FormatUint(uint64(id), 10)
 		if encoded != "" {
@@ -807,8 +814,14 @@ func (a *AcgFakaAdapter) CreateOrder(ctx context.Context, req CreateUpstreamOrde
 		quantity = 1
 	}
 
-	// trade 只认商品的 code（字符串），映射表里存的是数字 id，先换算。
-	code, err := a.productCode(ctx, req.SKUID)
+	// trade 只认商品的 code（字符串）。单规格 SKU 的数字身份就是商品 id；
+	// 组合 SKU 的身份是选择编码的哈希，真正的商品 id 编码在 SKUCode 里。
+	productID := req.SKUID
+	selection, hasSelection := decodeAcgSelection(req.SKUCode)
+	if hasSelection && selection.Product != 0 {
+		productID = selection.Product
+	}
+	code, err := a.productCode(ctx, productID)
 	if err != nil {
 		return nil, err
 	}
@@ -832,17 +845,17 @@ func (a *AcgFakaAdapter) CreateOrder(ctx context.Context, req CreateUpstreamOrde
 	}
 	// 规格选择：种类走 race，规格走 sku[维度]=选项。PHP 侧把 sku[..] 解析成嵌套数组，
 	// 签名与表单都按展平后的键排序，与服务端 http_build_query 的输出字节一致。
-	if race, choices, ok := decodeAcgSelection(req.SKUCode); ok {
-		if race != "" {
-			params["race"] = race
+	if hasSelection {
+		if selection.Race != "" {
+			params["race"] = selection.Race
 		}
-		dims := make([]string, 0, len(choices))
-		for dim := range choices {
+		dims := make([]string, 0, len(selection.SKU))
+		for dim := range selection.SKU {
 			dims = append(dims, dim)
 		}
 		sort.Strings(dims)
 		for _, dim := range dims {
-			params["sku["+dim+"]"] = choices[dim]
+			params["sku["+dim+"]"] = selection.SKU[dim]
 		}
 	}
 

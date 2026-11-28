@@ -530,6 +530,54 @@ func TestAcgFakaThrottleGivesUp(t *testing.T) {
 	}
 }
 
+// 组合 SKU 的数字身份是选择编码的哈希、不是商品 id：下单要能从编码里取回商品 id
+// 再换 shared_code，否则会误报「上游商品不存在」。
+func TestAcgFakaCreateOrderForComboSku(t *testing.T) {
+	var form map[string]string
+	adapter := newAcgTestAdapter(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/shared/commodity/items":
+			_, _ = w.Write([]byte(acgSpecCatalog))
+		case "/shared/commodity/trade":
+			if err := r.ParseForm(); err != nil {
+				t.Fatalf("parse form: %v", err)
+			}
+			form = map[string]string{}
+			for key := range r.PostForm {
+				form[key] = r.PostForm.Get(key)
+			}
+			_, _ = w.Write([]byte(`{"code":200,"msg":"success","data":{"amount":20.9,"tradeNo":"9","secret":"CARD"}}`))
+		default:
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+	})
+
+	list, err := adapter.ListProducts(context.Background(), ListProductsOpts{Page: 1})
+	if err != nil {
+		t.Fatalf("list products: %v", err)
+	}
+	sku := list.Items[0].SKUs[0]
+	if sku.ID == 7 {
+		t.Fatalf("combo sku should not reuse the product id, got %d", sku.ID)
+	}
+
+	resp, err := adapter.CreateOrder(context.Background(), CreateUpstreamOrderReq{
+		SKUID: sku.ID, SKUCode: sku.UpstreamCode, Quantity: 1, DownstreamOrderNo: "R1",
+	})
+	if err != nil {
+		t.Fatalf("create order: %v", err)
+	}
+	if !resp.OK {
+		t.Fatalf("unexpected response %+v", resp)
+	}
+	if form["shared_code"] != "AAA" {
+		t.Fatalf("shared_code = %q", form["shared_code"])
+	}
+	if form["race"] == "" {
+		t.Fatal("race must be sent for a categorized product")
+	}
+}
+
 func TestAcgFakaHTTPError(t *testing.T) {
 	adapter := newAcgTestAdapter(t, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
