@@ -114,12 +114,22 @@
 
               <!-- Integration guide -->
               <div class="rounded-2xl bg-secondary/60 p-4">
-                <div class="text-xs text-muted-foreground">{{ t('personalCenter.apiPanel.integrationTitle') }}</div>
-                <ul class="mt-2 space-y-2 text-xs text-muted-foreground">
-                  <li>{{ t('personalCenter.apiPanel.integrationAcg') }}</li>
-                  <li>{{ t('personalCenter.apiPanel.integrationDujiao') }}</li>
-                </ul>
-                <p class="mt-2 text-xs text-muted-foreground">
+                <div class="text-xs font-medium text-muted-foreground">{{ t('personalCenter.apiPanel.integrationTitle') }}</div>
+                <div class="mt-3 space-y-2.5">
+                  <div class="flex items-start gap-3 rounded-xl bg-card/70 p-3">
+                    <Badge variant="accent" size="sm" class="mt-0.5 shrink-0">acg-faka</Badge>
+                    <p class="text-xs leading-relaxed text-muted-foreground">
+                      {{ t('personalCenter.apiPanel.integrationAcg') }}
+                    </p>
+                  </div>
+                  <div class="flex items-start gap-3 rounded-xl bg-card/70 p-3">
+                    <Badge variant="info" size="sm" class="mt-0.5 shrink-0">dujiao-next</Badge>
+                    <p class="text-xs leading-relaxed text-muted-foreground">
+                      {{ t('personalCenter.apiPanel.integrationDujiao') }}
+                    </p>
+                  </div>
+                </div>
+                <p class="mt-3 rounded-lg bg-info/10 px-3 py-2 text-xs leading-relaxed text-info/90">
                   {{ t('personalCenter.apiPanel.integrationNote') }}
                 </p>
               </div>
