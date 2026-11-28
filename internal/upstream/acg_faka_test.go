@@ -141,6 +141,54 @@ func TestAcgFakaListProducts(t *testing.T) {
 	}
 }
 
+// 配置了「种类」的商品暂时不收录：下单必须按种类传 race，
+// 不带 race 会按未选种类处理，等于悄悄买错档位。
+func TestAcgFakaSkipsCategorizedProducts(t *testing.T) {
+	adapter := newAcgTestAdapter(t, func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"code":200,"msg":"success","data":[
+			{"id":1,"name":"分类A","children":[
+				{"id":7,"code":"AAA","name":"单规格","price":"9.9","status":1,"stock":5,"config":""},
+				{"id":8,"code":"BBB","name":"有种类INI","price":"9.9","status":1,"stock":5,"config":"[category]\n标准=9.90\n高级=19.90\n"},
+				{"id":9,"code":"CCC","name":"有种类对象","price":"9.9","status":1,"stock":5,"config":{"category":{"标准":"9.90"}}},
+				{"id":10,"code":"DDD","name":"只有规格","price":"9.9","status":1,"stock":5,"config":"[sku]\n颜色.黑色=0\n"}
+			]}
+		]}`))
+	})
+
+	result, err := adapter.ListProducts(context.Background(), ListProductsOpts{Page: 1, PageSize: 200})
+	if err != nil {
+		t.Fatalf("list products: %v", err)
+	}
+	if len(result.Items) != 2 {
+		t.Fatalf("expected 2 importable products, got %d", len(result.Items))
+	}
+	if result.Items[0].ID != 7 || result.Items[1].ID != 10 {
+		t.Fatalf("unexpected product ids: %d, %d", result.Items[0].ID, result.Items[1].ID)
+	}
+}
+
+func TestAcgFakaConfigCategories(t *testing.T) {
+	cases := []struct {
+		name string
+		raw  string
+		want int
+	}{
+		{"empty", `null`, 0},
+		{"blank string", `""`, 0},
+		{"no category", `"[sku]\n颜色.黑色=0\n"`, 0},
+		{"ini two", `"[category]\n标准=9.90\n高级=19.90\n"`, 2},
+		{"ini whitespace", `"\r\n  [category]  \r\n  标准 = 9.90  \r\n"`, 1},
+		{"object one", `{"category":{"标准":"9.90"}}`, 1},
+		{"object empty", `{"category":{}}`, 0},
+		{"object no category", `{"sku":{}}`, 0},
+	}
+	for _, tc := range cases {
+		if got := acgConfigCategories([]byte(tc.raw)); got != tc.want {
+			t.Fatalf("%s: got %d want %d", tc.name, got, tc.want)
+		}
+	}
+}
+
 // acg 的 items 不分页，第 2 页起返回空，让调用方翻页循环正常收尾。
 func TestAcgFakaListProductsSecondPageEmpty(t *testing.T) {
 	adapter := newAcgTestAdapter(t, func(w http.ResponseWriter, r *http.Request) {

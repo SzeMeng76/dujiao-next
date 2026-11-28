@@ -234,22 +234,76 @@ type acgCategory struct {
 	Children []acgProductRow `json:"children"`
 }
 
-// acgProductRow acg 商品行。acg 没有多规格维度，一个商品就是一个 SKU。
+// acgProductRow acg 商品行。
 //
 // id 与 code 分工：id 是数据库主键（数字），code 是下游对接用的商品编号（任意字符串，
 // 实测为 16 位十六进制）。trade 只认 code，所以两者都必须留下。
+//
+// config 是规格配置（INI 字符串或已解析对象）：[category] 是「种类」（每种一个价），
+// [sku] 是「规格」（维度 → 选项 → 加价）。下单时必须带 race / sku[...]，否则上游会
+// 按「未选种类」处理——库存跨种类合并、成交走基础价，等于悄悄买错档位。
 type acgProductRow struct {
-	ID           acgNumber `json:"id"`
-	Code         string    `json:"code"`
-	Name         string    `json:"name"`
-	Price        acgNumber `json:"price"`
-	FactoryPrice acgNumber `json:"factory_price"`
-	Description  string    `json:"description"`
-	Introduce    string    `json:"introduce"`
-	Cover        string    `json:"cover"`
-	Status       int       `json:"status"`
-	Stock        int       `json:"stock"`
-	CategoryID   acgNumber `json:"category_id"`
+	ID           acgNumber       `json:"id"`
+	Code         string          `json:"code"`
+	Name         string          `json:"name"`
+	Price        acgNumber       `json:"price"`
+	FactoryPrice acgNumber       `json:"factory_price"`
+	Description  string          `json:"description"`
+	Introduce    string          `json:"introduce"`
+	Cover        string          `json:"cover"`
+	Status       int             `json:"status"`
+	Stock        int             `json:"stock"`
+	CategoryID   acgNumber       `json:"category_id"`
+	Config       json.RawMessage `json:"config"`
+}
+
+// acgConfigCategories 返回商品 config 里配置的种类数量（[category] 段条目数）。
+// config 可能是 INI 字符串（标准 acg-faka），也可能是上游直接给出的解析对象。
+func acgConfigCategories(raw json.RawMessage) int {
+	text := strings.TrimSpace(string(raw))
+	if text == "" || text == "null" {
+		return 0
+	}
+	if strings.HasPrefix(text, "{") {
+		var obj map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &obj); err != nil {
+			return 0
+		}
+		section, ok := obj["category"]
+		if !ok {
+			return 0
+		}
+		var entries map[string]json.RawMessage
+		if err := json.Unmarshal(section, &entries); err != nil {
+			return 0
+		}
+		return len(entries)
+	}
+	var content string
+	if err := json.Unmarshal(raw, &content); err != nil {
+		return 0
+	}
+	return countAcgIniSectionEntries(content, "category")
+}
+
+// countAcgIniSectionEntries 统计 INI 文本里某段的条目数（段名大小写不敏感）。
+func countAcgIniSectionEntries(content, want string) int {
+	count := 0
+	section := ""
+	for _, line := range strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, ";") {
+			continue
+		}
+		if strings.HasPrefix(line, "[") && strings.HasSuffix(line, "]") {
+			section = strings.TrimSpace(line[1 : len(line)-1])
+			continue
+		}
+		if strings.EqualFold(section, want) && strings.Contains(line, "=") {
+			count++
+		}
+	}
+	return count
 }
 
 // acgCatalogTTL 目录缓存寿命。acg 的 items 一次返回整站目录（实测 8000+ 商品、近 1MB、
@@ -299,6 +353,7 @@ func (a *AcgFakaAdapter) refreshCatalog(ctx context.Context) (*acgCatalogEntry, 
 		items:     make([]acgCachedProduct, 0),
 		byID:      make(map[uint]acgCachedProduct),
 	}
+	skippedCategorized := 0
 	for _, node := range tree {
 		categoryID := acgUint(node.ID)
 		for _, row := range node.Children {
@@ -306,10 +361,21 @@ func (a *AcgFakaAdapter) refreshCatalog(ctx context.Context) (*acgCatalogEntry, 
 			if id == 0 {
 				continue
 			}
+			// 配置了「种类」的商品暂不收录：下单必须按种类传 race，否则上游按未选种类
+			// 处理——库存跨种类合并、成交走基础价，属于「悄悄买错」而不是报错。
+			// 宁可先不展示，也不要卖错。支持种类后在这里改为展开组合。
+			if acgConfigCategories(row.Config) > 0 {
+				skippedCategorized++
+				continue
+			}
 			cached := acgCachedProduct{row: row, categoryID: categoryID}
 			entry.items = append(entry.items, cached)
 			entry.byID[id] = cached
 		}
+	}
+	if skippedCategorized > 0 {
+		logger.Warnw("acg_catalog_skip_categorized_products",
+			"base_url", a.baseURL, "skipped", skippedCategorized)
 	}
 	acgCatalogStore.mu.Lock()
 	acgCatalogStore.entries[a.catalogKey()] = entry
