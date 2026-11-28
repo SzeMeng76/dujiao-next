@@ -45,6 +45,8 @@ type CreateOrderResult struct {
 	Currency     string
 	ErrorCode    string
 	ErrorMessage string
+	// Fulfillment 下单即交付的内容（acg-faka 等同步协议）。为 nil 时走原有轮询链路。
+	Fulfillment *Fulfillment
 }
 
 type UpstreamOrder struct {

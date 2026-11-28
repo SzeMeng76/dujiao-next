@@ -465,6 +465,7 @@ const (
 // 对接协议类型常量
 const (
 	ConnectionProtocolDujiaoNext = "dujiao-next"
+	ConnectionProtocolAcgFaka    = "acg-faka"
 )
 
 // API 凭证状态常量

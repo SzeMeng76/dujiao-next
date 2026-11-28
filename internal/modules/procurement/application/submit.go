@@ -136,6 +136,20 @@ func (s *Service) SubmitToUpstream(procurementOrderID uint) error {
 		"updated_at": now,
 	})
 
+	// 同步交付协议（acg-faka 等）：下单响应里已经带了卡密，直接走交付链路，
+	// 不再入队轮询。dujiao-next 这类异步协议这里恒为 nil，行为不变。
+	if resp.Fulfillment != nil {
+		if deliverErr := s.HandleUpstreamCallback(procOrder.ID, "delivered", resp.Fulfillment); deliverErr != nil {
+			logger.Warnw("procurement_sync_fulfillment_failed",
+				"procurement_order_id", procOrder.ID,
+				"error", deliverErr,
+			)
+			// 交付写入失败时继续入队轮询兜底：上游已交付，GetOrder 还能再取一次卡密。
+		} else {
+			return nil
+		}
+	}
+
 	// 入队轮询任务（30s 延迟，作为回调的 fallback）
 	if s.queue != nil {
 		_ = s.queue.EnqueuePoll(procOrder.ID, 30*time.Second)

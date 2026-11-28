@@ -8,10 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
-	"os"
-	"path"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -20,8 +16,6 @@ import (
 	siteconnectiondomain "github.com/dujiao-next/internal/modules/siteconnection/domain"
 
 	"github.com/dujiao-next/internal/logger"
-
-	"github.com/google/uuid"
 )
 
 const (
@@ -272,82 +266,11 @@ func (a *DujiaoNextAdapter) CancelOrder(ctx context.Context, orderID uint) error
 	return nil
 }
 
-// maxUpstreamImageBytes 单张上游图片的下载上限，防止异常响应写满磁盘。
-const maxUpstreamImageBytes = 10 << 20
-
-var allowedUpstreamImageExts = map[string]bool{".jpg": true, ".jpeg": true, ".png": true, ".gif": true, ".webp": true}
-
 // DownloadImage 下载图片到本地。
 // 只下载与上游站点同主机的图片（含重定向），防止上游返回内网/元数据地址把内部响应落到公开的 /uploads；
 // 其它主机的图片由调用方保留原始 URL。
 func (a *DujiaoNextAdapter) DownloadImage(ctx context.Context, imageURL string) (string, error) {
-	// 相对路径转绝对 URL
-	fullURL := imageURL
-	if strings.HasPrefix(imageURL, "/") {
-		fullURL = a.baseURL + imageURL
-	}
-	base, err := url.Parse(a.baseURL)
-	if err != nil {
-		return "", fmt.Errorf("parse base url: %w", err)
-	}
-	target, err := url.Parse(fullURL)
-	if err != nil || !strings.EqualFold(target.Host, base.Host) {
-		return "", fmt.Errorf("download image: host not allowed: %s", fullURL)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target.String(), nil)
-	if err != nil {
-		return "", fmt.Errorf("create download request: %w", err)
-	}
-
-	client := *a.client
-	client.CheckRedirect = func(next *http.Request, _ []*http.Request) error {
-		if !strings.EqualFold(next.URL.Host, base.Host) {
-			return fmt.Errorf("download image: redirect host not allowed: %s", next.URL.Host)
-		}
-		return nil
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("download image: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("download image: status %d", resp.StatusCode)
-	}
-
-	ext := strings.ToLower(path.Ext(target.Path))
-	if !allowedUpstreamImageExts[ext] {
-		ext = ".jpg"
-	}
-
-	filename := uuid.New().String() + ext
-	dir := filepath.Join(a.uploadsDir, "upstream")
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return "", fmt.Errorf("create uploads dir: %w", err)
-	}
-
-	filePath := filepath.Join(dir, filename)
-	f, err := os.Create(filePath)
-	if err != nil {
-		return "", fmt.Errorf("create file: %w", err)
-	}
-	written, err := io.Copy(f, io.LimitReader(resp.Body, maxUpstreamImageBytes+1))
-	closeErr := f.Close()
-	if err == nil && written > maxUpstreamImageBytes {
-		err = fmt.Errorf("image exceeds %d bytes", maxUpstreamImageBytes)
-	}
-	if err == nil {
-		err = closeErr
-	}
-	if err != nil {
-		_ = os.Remove(filePath)
-		return "", fmt.Errorf("write file: %w", err)
-	}
-
-	// 返回相对路径
-	return "/uploads/upstream/" + filename, nil
+	return downloadUpstreamImage(ctx, a.client, a.baseURL, a.uploadsDir, imageURL)
 }
 
 // doRequest 发送签名请求。被限流（429）时按 Retry-After 或退避等待后重试，

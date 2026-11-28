@@ -130,6 +130,9 @@ type CreateUpstreamOrderResp struct {
 	Currency     string `json:"currency,omitempty"`
 	ErrorCode    string `json:"error_code,omitempty"`
 	ErrorMessage string `json:"error_message,omitempty"`
+	// Fulfillment 同步交付内容。异步协议（dujiao-next）恒为 nil；
+	// acg-faka 这类下单即发卡的协议在这里带回卡密，采购管道据此跳过轮询。
+	Fulfillment *UpstreamFulfillment `json:"fulfillment,omitempty"`
 }
 
 // UpstreamFulfillment 上游交付信息
@@ -186,6 +189,8 @@ func NewAdapter(conn *siteconnectiondomain.Connection, uploadsDir string) (Adapt
 	switch conn.Protocol {
 	case constants.ConnectionProtocolDujiaoNext:
 		return NewDujiaoNextAdapter(conn, uploadsDir), nil
+	case constants.ConnectionProtocolAcgFaka:
+		return NewAcgFakaAdapter(conn, uploadsDir), nil
 	default:
 		return nil, fmt.Errorf("unsupported protocol: %s", conn.Protocol)
 	}

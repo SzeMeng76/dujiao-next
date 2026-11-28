@@ -63,6 +63,7 @@ func (s *session) CreateOrder(ctx context.Context, request procurementcontract.C
 		OK: result.OK, OrderID: result.OrderID, OrderNo: result.OrderNo,
 		Status: result.Status, Amount: result.Amount, Currency: result.Currency,
 		ErrorCode: result.ErrorCode, ErrorMessage: result.ErrorMessage,
+		Fulfillment: fromUpstreamFulfillment(result.Fulfillment),
 	}, nil
 }
 

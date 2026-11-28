@@ -514,6 +514,7 @@ onMounted(() => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="dujiao-next">dujiao-next</SelectItem>
+                  <SelectItem value="acg-faka">acg-faka</SelectItem>
                 </SelectContent>
               </Select>
             </div>

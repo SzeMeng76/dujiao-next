@@ -372,3 +372,66 @@ func TestSubmitToUpstream_StatusChangedDuringRequest_KeepsStatusAndRecordsUpstre
 		})
 	}
 }
+
+// 同步交付协议（acg-faka 一类）：下单响应自带交付内容时，采购单直接 fulfilled、
+// 本地订单直接交付，不必等轮询。dujiao-next 这类异步协议不带该字段，走原有轮询链路。
+func TestSubmitToUpstream_SyncFulfillmentDeliversImmediately(t *testing.T) {
+	db := setupProcurementTestDB(t)
+
+	order := createProcTestOrder(t, db, "PROC-SYNC-001", constants.OrderStatusPaid, constants.FulfillmentTypeUpstream)
+	pm := &mappingdomain.Mapping{ConnectionID: 1, LocalProductID: 1, UpstreamProductID: 101, IsActive: true}
+	db.Create(pm)
+	sm := &mappingdomain.SKUMapping{ProductMappingID: pm.ID, LocalSKUID: 1, UpstreamSKUID: 201, UpstreamIsActive: true}
+	db.Create(sm)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"ok":       true,
+			"order_id": 999,
+			"order_no": "UP-999",
+			"status":   "delivered",
+			"amount":   "50.00",
+			"currency": "CNY",
+			"fulfillment": map[string]any{
+				"type":    "auto",
+				"status":  "delivered",
+				"payload": "CARD-A\nCARD-B",
+			},
+		})
+	}))
+	defer server.Close()
+
+	connSvc := newTestSiteConnectionService(db, "test-key", t.TempDir())
+	conn, err := connSvc.Create(siteconnectionapp.CreateInput{
+		Name: "test-upstream", BaseURL: server.URL,
+		ApiKey: "key", ApiSecret: "secret", Protocol: constants.ConnectionProtocolDujiaoNext,
+	})
+	if err != nil {
+		t.Fatalf("create connection: %v", err)
+	}
+
+	proc := createTestProcurementOrder(t, db, conn.ID, order.ID, order.OrderNo, "pending")
+	svc := newTestProcurementService(db, connSvc)
+
+	if err := svc.SubmitToUpstream(proc.ID); err != nil {
+		t.Fatalf("SubmitToUpstream: %v", err)
+	}
+
+	var updatedProc ProcurementOrder
+	db.First(&updatedProc, proc.ID)
+	if updatedProc.Status != constants.ProcurementStatusFulfilled {
+		t.Fatalf("expected procurement status %q, got %q", constants.ProcurementStatusFulfilled, updatedProc.Status)
+	}
+
+	var updatedOrder orderdomain.Order
+	if err := db.Preload("Fulfillment").First(&updatedOrder, order.ID).Error; err != nil {
+		t.Fatalf("reload order: %v", err)
+	}
+	if updatedOrder.Status != constants.OrderStatusDelivered {
+		t.Fatalf("expected order status %q, got %q", constants.OrderStatusDelivered, updatedOrder.Status)
+	}
+	if updatedOrder.Fulfillment == nil || updatedOrder.Fulfillment.Payload != "CARD-A\nCARD-B" {
+		t.Fatalf("unexpected fulfillment %+v", updatedOrder.Fulfillment)
+	}
+}
