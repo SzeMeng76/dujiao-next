@@ -213,10 +213,19 @@
             >
               <!-- 顶部径向高光：把平铺色块变成有材质的面，避免整张卡抢走图标的注意力 -->
               <span class="pointer-events-none absolute inset-0 bg-[radial-gradient(125%_115%_at_20%_-10%,rgba(255,255,255,.26),transparent_58%)]" />
-              <!-- 白边只留 5px 做贴纸描边：既隔开图标与卡片色，又不会形成第二层相框；内外圆角同心(22-5=17) -->
-              <span class="relative grid h-[72px] w-[72px] place-items-center rounded-[22px] bg-[linear-gradient(180deg,#ffffff,#f0f1f8)] shadow-[0_8px_18px_-8px_rgba(18,16,40,.55)] transition-transform duration-200 group-hover:scale-[1.04]">
-                <img v-if="tile.cat.icon" :src="getImageUrl(tile.cat.icon)" :alt="catName(tile.cat)" loading="lazy" class="h-[62px] w-[62px] rounded-[17px] object-cover" />
-                <span v-else class="text-[28px] font-extrabold leading-none text-[#1c1b2e]">{{ categoryInitial(tile.cat) }}</span>
+              <!-- 图标自带底色时不再套白牌，否则会在图标外形成第二层同色边；只留投影把它从卡片上抬起来 -->
+              <span class="relative transition-transform duration-200 group-hover:scale-[1.04]">
+                <img
+                  v-if="tile.cat.icon"
+                  :src="getImageUrl(tile.cat.icon)"
+                  :alt="catName(tile.cat)"
+                  loading="lazy"
+                  class="h-[68px] w-[68px] rounded-[20px] object-cover shadow-[0_10px_22px_-10px_rgba(18,16,40,.55)] ring-1 ring-black/[.06]"
+                />
+                <!-- 无图标时才需要一块底板来承载首字 -->
+                <span v-else class="grid h-[68px] w-[68px] place-items-center rounded-[20px] bg-white shadow-[0_10px_22px_-10px_rgba(18,16,40,.55)]">
+                  <span class="text-[28px] font-extrabold leading-none text-[#1c1b2e]">{{ categoryInitial(tile.cat) }}</span>
+                </span>
               </span>
               <span class="relative line-clamp-2 break-words text-[15px] font-bold leading-tight">{{ catName(tile.cat) }}</span>
             </RouterLink>
