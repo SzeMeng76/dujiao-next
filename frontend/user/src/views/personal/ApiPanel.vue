@@ -112,6 +112,18 @@
                 </p>
               </div>
 
+              <!-- Integration guide -->
+              <div class="rounded-2xl bg-secondary/60 p-4">
+                <div class="text-xs text-muted-foreground">{{ t('personalCenter.apiPanel.integrationTitle') }}</div>
+                <ul class="mt-2 space-y-2 text-xs text-muted-foreground">
+                  <li>{{ t('personalCenter.apiPanel.integrationAcg') }}</li>
+                  <li>{{ t('personalCenter.apiPanel.integrationDujiao') }}</li>
+                </ul>
+                <p class="mt-2 text-xs text-muted-foreground">
+                  {{ t('personalCenter.apiPanel.integrationNote') }}
+                </p>
+              </div>
+
               <!-- Newly generated secret (shown once) -->
               <div
                 v-if="newSecret"

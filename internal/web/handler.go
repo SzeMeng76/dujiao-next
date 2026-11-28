@@ -18,7 +18,7 @@ import (
 // /guide 是 SEO 静态引导页（见 internal/modules/seoguide），以显式路由注册，
 // 加入此列表是为了：admin_path 不能与它冲突；/guide 下未命中的子路径应 404
 // 而不是被 SPA 兜底成 index.html。
-var reservedPaths = []string{"/api", "/uploads", "/health", "/guide"}
+var reservedPaths = []string{"/api", "/uploads", "/health", "/guide", "/shared"}
 
 // isReservedPath 报告请求路径是否落在后端保留前缀之下。
 func isReservedPath(p string) bool {
