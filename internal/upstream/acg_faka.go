@@ -181,7 +181,7 @@ func (a *AcgFakaAdapter) doForm(ctx context.Context, endpoint string, params map
 
 		resp, err := a.client.Do(req)
 		if err != nil {
-			return fmt.Errorf("send request: %w", err)
+			return fmt.Errorf("%s: send request: %w", path, err)
 		}
 		respBody, readErr := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()
@@ -225,15 +225,15 @@ func (a *AcgFakaAdapter) doForm(ctx context.Context, endpoint string, params map
 		if attempt < maxRequestAttempts && resp.StatusCode == http.StatusTooManyRequests {
 			wait := upstreamRetryWait(resp, attempt)
 			if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) <= wait {
-				return newUpstreamHTTPError(resp.StatusCode, respBody)
+				return fmt.Errorf("%s: %w", path, newUpstreamHTTPError(resp.StatusCode, respBody))
 			}
 			if waitErr := sleepCtx(ctx, wait); waitErr != nil {
-				return newUpstreamHTTPError(resp.StatusCode, respBody)
+				return fmt.Errorf("%s: %w", path, newUpstreamHTTPError(resp.StatusCode, respBody))
 			}
 			continue
 		}
 
-		return newUpstreamHTTPError(resp.StatusCode, respBody)
+		return fmt.Errorf("%s: %w", path, newUpstreamHTTPError(resp.StatusCode, respBody))
 	}
 }
 
