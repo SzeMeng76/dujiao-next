@@ -28,7 +28,9 @@ type Fulfillment struct {
 }
 
 type CreateOrderRequest struct {
-	SKUID             uint
+	SKUID uint
+	// SKUCode 上游 SKU 的字符串标识（规格选择编码），映射表为空时也传空。
+	SKUCode           string
 	Quantity          int
 	ManualFormData    jsonmap.JSON
 	DownstreamOrderNo string

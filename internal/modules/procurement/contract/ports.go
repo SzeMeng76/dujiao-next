@@ -30,7 +30,9 @@ type ProductMappingReader interface {
 }
 
 type SKUMappingReader interface {
-	FindUpstreamSKUID(skuID uint) (upstreamSKUID uint, found bool, err error)
+	// FindUpstreamSKURef 返回上游 SKU 的数字身份与字符串标识。
+	// 字符串标识用于上游把规格选择编码在里面时原样回传（acg-faka 的 race + sku[]）。
+	FindUpstreamSKURef(skuID uint) (upstreamSKUID uint, upstreamSKUCode string, found bool, err error)
 }
 
 type ConnectionProvider interface {

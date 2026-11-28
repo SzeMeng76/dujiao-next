@@ -62,7 +62,7 @@ func (s *Service) SubmitToUpstream(procurementOrderID uint) error {
 	item := localOrder.Items[0]
 
 	// 查找 SKU 映射
-	upstreamSKUID, found, err := s.skuMapRepo.FindUpstreamSKUID(item.SKUID)
+	upstreamSKUID, upstreamSKUCode, found, err := s.skuMapRepo.FindUpstreamSKURef(item.SKUID)
 	if err != nil {
 		s.markProcurementError(procOrder, fmt.Sprintf("lookup sku mapping failed: %v", err))
 		return fmt.Errorf("lookup sku mapping: %w", err)
@@ -75,6 +75,7 @@ func (s *Service) SubmitToUpstream(procurementOrderID uint) error {
 	// 构建上游请求
 	req := procurementcontract.CreateOrderRequest{
 		SKUID:             upstreamSKUID,
+		SKUCode:           upstreamSKUCode,
 		Quantity:          item.Quantity,
 		DownstreamOrderNo: localOrder.OrderNo,
 		TraceID:           procOrder.TraceID,

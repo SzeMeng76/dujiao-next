@@ -41,10 +41,14 @@ func (Mapping) TableName() string {
 
 // SKUMapping SKU 映射表
 type SKUMapping struct {
-	ID               uint         `gorm:"primarykey" json:"id"`
-	ProductMappingID uint         `gorm:"index;not null" json:"product_mapping_id"`
-	LocalSKUID       uint         `gorm:"column:local_sku_id;index;not null" json:"local_sku_id"`
-	UpstreamSKUID    uint         `gorm:"column:upstream_sku_id;not null" json:"upstream_sku_id"`
+	ID               uint `gorm:"primarykey" json:"id"`
+	ProductMappingID uint `gorm:"index;not null" json:"product_mapping_id"`
+	LocalSKUID       uint `gorm:"column:local_sku_id;index;not null" json:"local_sku_id"`
+	UpstreamSKUID    uint `gorm:"column:upstream_sku_id;not null" json:"upstream_sku_id"`
+	// UpstreamSKUCode 上游 SKU 的字符串标识。数字 ID 表达不了上游用来承载规格选择的
+	// 编码时（如 acg-faka 的 race + sku[]），适配器把选择编码放这里，下单时原样回传。
+	// dujiao-next 这类纯数字协议恒为空串。
+	UpstreamSKUCode  string       `gorm:"column:upstream_sku_code;type:varchar(512);not null;default:''" json:"upstream_sku_code"`
 	UpstreamPrice    money.Amount `gorm:"type:decimal(20,2);not null;default:0" json:"upstream_price"`
 	UpstreamStock    int          `gorm:"not null;default:0" json:"upstream_stock"`
 	UpstreamIsActive bool         `gorm:"not null;default:true" json:"upstream_is_active"`

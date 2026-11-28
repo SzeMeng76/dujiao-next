@@ -287,11 +287,6 @@ type acgProductRow struct {
 	Config       json.RawMessage `json:"config"`
 }
 
-// acgConfigCategories 返回商品 config 里配置的种类数量（[category] 段条目数）。
-func acgConfigCategories(raw json.RawMessage) int {
-	return len(parseAcgSpec(raw).Race)
-}
-
 // acgSpecConfig 商品 config 里的规格配置。
 //   - Race：[category] 段，种类名 → 单价（元），每个种类独立定价
 //   - SKU：[sku] 段，规格维度 → 选项 → 加价（元）
@@ -582,7 +577,7 @@ func (a *AcgFakaAdapter) refreshCatalog(ctx context.Context) (*acgCatalogEntry, 
 		items:     make([]acgCachedProduct, 0),
 		byID:      make(map[uint]acgCachedProduct),
 	}
-	skippedCategorized := 0
+	skippedInvalidSpec := 0
 	for _, node := range tree {
 		categoryID := acgUint(node.ID)
 		for _, row := range node.Children {
@@ -590,11 +585,9 @@ func (a *AcgFakaAdapter) refreshCatalog(ctx context.Context) (*acgCatalogEntry, 
 			if id == 0 {
 				continue
 			}
-			// 配置了「种类」的商品暂不收录：下单必须按种类传 race，否则上游按未选种类
-			// 处理——库存跨种类合并、成交走基础价，属于「悄悄买错」而不是报错。
-			// 宁可先不展示，也不要卖错。支持种类后在这里改为展开组合。
-			if acgConfigCategories(row.Config) > 0 {
-				skippedCategorized++
+			// 规格组合超护栏时整品不收录：价格语义不完整，放给下游只会卖错。
+			if _, err := buildAcgCombos(parseAcgSpec(row.Config), acgAmountString(row.Price)); err != nil {
+				skippedInvalidSpec++
 				continue
 			}
 			cached := acgCachedProduct{row: row, categoryID: categoryID}
@@ -602,9 +595,9 @@ func (a *AcgFakaAdapter) refreshCatalog(ctx context.Context) (*acgCatalogEntry, 
 			entry.byID[id] = cached
 		}
 	}
-	if skippedCategorized > 0 {
-		logger.Warnw("acg_catalog_skip_categorized_products",
-			"base_url", a.baseURL, "skipped", skippedCategorized)
+	if skippedInvalidSpec > 0 {
+		logger.Warnw("acg_catalog_skip_invalid_spec_products",
+			"base_url", a.baseURL, "skipped", skippedInvalidSpec)
 	}
 	acgCatalogStore.mu.Lock()
 	acgCatalogStore.entries[a.catalogKey()] = entry
@@ -733,6 +726,10 @@ func acgToProduct(row acgProductRow, categoryID uint) (UpstreamProduct, bool) {
 	if price == "" {
 		price = "0.00"
 	}
+	combos, err := buildAcgCombos(parseAcgSpec(row.Config), price)
+	if err != nil {
+		return UpstreamProduct{}, false
+	}
 	stockStatus := constants.ProductStockStatusOutOfStock
 	switch {
 	case row.Stock < 0:
@@ -748,25 +745,51 @@ func acgToProduct(row acgProductRow, categoryID uint) (UpstreamProduct, bool) {
 		detail = acgLocalized(text)
 	}
 
+	skus := make([]UpstreamSKU, 0, len(combos))
+	lowest := price
+	for index, combo := range combos {
+		encoded := encodeAcgSelection(combo)
+		skuID := id
+		code := strconv.FormatUint(uint64(id), 10)
+		if encoded != "" {
+			// 数字 ID 表达不了规格选择：身份取选择编码的哈希，选择本身放 UpstreamCode。
+			skuID = acgComboID(encoded)
+			code = "C" + strconv.Itoa(index+1)
+		}
+		specValues := jsonmap.JSON{}
+		if combo.Race != "" {
+			specValues["种类"] = combo.Race
+		}
+		for dim, option := range combo.Choices {
+			specValues[dim] = option
+		}
+		if index == 0 || acgParseAmount(combo.Price) < acgParseAmount(lowest) {
+			lowest = combo.Price
+		}
+		skus = append(skus, UpstreamSKU{
+			ID:            skuID,
+			UpstreamCode:  encoded,
+			SKUCode:       code,
+			SpecValues:    specValues,
+			PriceAmount:   combo.Price,
+			StockStatus:   stockStatus,
+			StockQuantity: row.Stock,
+			IsActive:      row.Status == 1,
+		})
+	}
+
 	return UpstreamProduct{
 		ID:              id,
 		Title:           acgLocalized(row.Name),
 		Description:     jsonmap.JSON{},
 		Content:         detail,
 		Images:          acgImages(row.Cover),
-		PriceAmount:     price,
+		PriceAmount:     lowest,
 		Currency:        constants.SiteCurrencyDefault,
 		FulfillmentType: constants.FulfillmentTypeAuto,
 		IsActive:        row.Status == 1,
 		CategoryID:      categoryID,
-		SKUs: []UpstreamSKU{{
-			ID:            id,
-			SKUCode:       strings.TrimSpace(row.Code),
-			PriceAmount:   price,
-			StockStatus:   stockStatus,
-			StockQuantity: row.Stock,
-			IsActive:      row.Status == 1,
-		}},
+		SKUs:            skus,
 	}, true
 }
 
@@ -802,12 +825,29 @@ func (a *AcgFakaAdapter) CreateOrder(ctx context.Context, req CreateUpstreamOrde
 		TradeNo acgNumber `json:"tradeNo"`
 		Secret  string    `json:"secret"`
 	}
-	// 下单不因限流重发（见 doForm 的说明）。
-	err = a.doForm(ctx, acgFakaTrade, map[string]string{
+	params := map[string]string{
 		"shared_code": code,
 		"num":         strconv.Itoa(quantity),
 		"request_no":  req.DownstreamOrderNo,
-	}, &data, false)
+	}
+	// 规格选择：种类走 race，规格走 sku[维度]=选项。PHP 侧把 sku[..] 解析成嵌套数组，
+	// 签名与表单都按展平后的键排序，与服务端 http_build_query 的输出字节一致。
+	if race, choices, ok := decodeAcgSelection(req.SKUCode); ok {
+		if race != "" {
+			params["race"] = race
+		}
+		dims := make([]string, 0, len(choices))
+		for dim := range choices {
+			dims = append(dims, dim)
+		}
+		sort.Strings(dims)
+		for _, dim := range dims {
+			params["sku["+dim+"]"] = choices[dim]
+		}
+	}
+
+	// 下单不因限流重发（见 doForm 的说明）。
+	err = a.doForm(ctx, acgFakaTrade, params, &data, false)
 	if err != nil {
 		var biz *acgBizError
 		if errors.As(err, &biz) {

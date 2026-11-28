@@ -133,8 +133,13 @@ func TestAcgFakaListProducts(t *testing.T) {
 	if len(first.SKUs) != 1 || first.SKUs[0].ID != 7 {
 		t.Fatalf("sku should reuse product id: %+v", first.SKUs)
 	}
-	if first.SKUs[0].SKUCode != "1C5CFB8023144BFB" {
-		t.Fatalf("sku code must be preserved verbatim, got %q", first.SKUs[0].SKUCode)
+	// 单规格商品没有规格选择，SKUCode 用数字身份即可；真实商品 code 由目录缓存
+	// 在下单时按 id 换回来，不需要存在映射里。
+	if first.SKUs[0].SKUCode != "7" {
+		t.Fatalf("sku code = %q", first.SKUs[0].SKUCode)
+	}
+	if first.SKUs[0].UpstreamCode != "" {
+		t.Fatalf("spec-less sku must not carry a selection code, got %q", first.SKUs[0].UpstreamCode)
 	}
 	if first.SKUs[0].StockStatus != "in_stock" || first.SKUs[0].StockQuantity != 5 {
 		t.Fatalf("unexpected stock %+v", first.SKUs[0])
@@ -153,49 +158,104 @@ func TestAcgFakaListProducts(t *testing.T) {
 
 // 配置了「种类」的商品暂时不收录：下单必须按种类传 race，
 // 不带 race 会按未选种类处理，等于悄悄买错档位。
-func TestAcgFakaSkipsCategorizedProducts(t *testing.T) {
+// acgSpecCatalog 一个带「种类 + 规格」的商品：2 种类 × 2 颜色 = 4 个组合。
+const acgSpecCatalog = `{"code":200,"msg":"success","data":[
+	{"id":1,"name":"分类A","children":[
+		{"id":7,"code":"AAA","name":"有种类","price":"9.9","status":1,"stock":5,
+		 "config":"[category]\n标准=9.90\n高级=19.90\n[sku]\n颜色.黑色=1.00\n颜色.白色=0\n"}
+	]}
+]}`
+
+// 配置了种类的商品要展开成组合 SKU：种类决定基价，规格加价叠加。
+func TestAcgFakaExpandsCategorizedSpecs(t *testing.T) {
 	adapter := newAcgTestAdapter(t, func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(`{"code":200,"msg":"success","data":[
-			{"id":1,"name":"分类A","children":[
-				{"id":7,"code":"AAA","name":"单规格","price":"9.9","status":1,"stock":5,"config":""},
-				{"id":8,"code":"BBB","name":"有种类INI","price":"9.9","status":1,"stock":5,"config":"[category]\n标准=9.90\n高级=19.90\n"},
-				{"id":9,"code":"CCC","name":"有种类对象","price":"9.9","status":1,"stock":5,"config":{"category":{"标准":"9.90"}}},
-				{"id":10,"code":"DDD","name":"只有规格","price":"9.9","status":1,"stock":5,"config":"[sku]\n颜色.黑色=0\n"}
-			]}
-		]}`))
+		_, _ = w.Write([]byte(acgSpecCatalog))
 	})
 
 	result, err := adapter.ListProducts(context.Background(), ListProductsOpts{Page: 1, PageSize: 200})
 	if err != nil {
 		t.Fatalf("list products: %v", err)
 	}
-	if len(result.Items) != 2 {
-		t.Fatalf("expected 2 importable products, got %d", len(result.Items))
+	if len(result.Items) != 1 {
+		t.Fatalf("expected 1 product, got %d", len(result.Items))
 	}
-	if result.Items[0].ID != 7 || result.Items[1].ID != 10 {
-		t.Fatalf("unexpected product ids: %d, %d", result.Items[0].ID, result.Items[1].ID)
+	product := result.Items[0]
+	if len(product.SKUs) != 4 {
+		t.Fatalf("expected 2 kinds x 2 colors = 4 skus, got %d", len(product.SKUs))
+	}
+	if product.PriceAmount != "9.90" {
+		t.Fatalf("product price should be the lowest combo, got %q", product.PriceAmount)
+	}
+
+	prices := map[string]string{}
+	ids := map[uint]struct{}{}
+	for _, sku := range product.SKUs {
+		if sku.UpstreamCode == "" {
+			t.Fatalf("combo sku must carry an upstream selection code: %+v", sku)
+		}
+		if _, dup := ids[sku.ID]; dup {
+			t.Fatalf("combo sku ids must be unique: %d", sku.ID)
+		}
+		ids[sku.ID] = struct{}{}
+		race, _ := sku.SpecValues["种类"].(string)
+		color, _ := sku.SpecValues["颜色"].(string)
+		prices[race+"/"+color] = sku.PriceAmount
+	}
+
+	want := map[string]string{
+		"标准/白色": "9.90",
+		"标准/黑色": "10.90",
+		"高级/白色": "19.90",
+		"高级/黑色": "20.90",
+	}
+	for key, price := range want {
+		if prices[key] != price {
+			t.Fatalf("combo %s price = %q want %q (all: %+v)", key, prices[key], price, prices)
+		}
 	}
 }
 
-func TestAcgFakaConfigCategories(t *testing.T) {
-	cases := []struct {
-		name string
-		raw  string
-		want int
-	}{
-		{"empty", `null`, 0},
-		{"blank string", `""`, 0},
-		{"no category", `"[sku]\n颜色.黑色=0\n"`, 0},
-		{"ini two", `"[category]\n标准=9.90\n高级=19.90\n"`, 2},
-		{"ini whitespace", `"\r\n  [category]  \r\n  标准 = 9.90  \r\n"`, 1},
-		{"object one", `{"category":{"标准":"9.90"}}`, 1},
-		{"object empty", `{"category":{}}`, 0},
-		{"object no category", `{"sku":{}}`, 0},
-	}
-	for _, tc := range cases {
-		if got := acgConfigCategories([]byte(tc.raw)); got != tc.want {
-			t.Fatalf("%s: got %d want %d", tc.name, got, tc.want)
+// 下单要把规格选择翻成 race + sku[维度] 表单字段，并参与签名。
+func TestAcgFakaCreateOrderSendsSpecSelection(t *testing.T) {
+	var form map[string]string
+	adapter := newAcgTestAdapter(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/shared/commodity/items":
+			_, _ = w.Write([]byte(acgSpecCatalog))
+		case "/shared/commodity/trade":
+			if err := r.ParseForm(); err != nil {
+				t.Fatalf("parse form: %v", err)
+			}
+			form = map[string]string{}
+			for key := range r.PostForm {
+				form[key] = r.PostForm.Get(key)
+			}
+			_, _ = w.Write([]byte(`{"code":200,"msg":"success","data":{"amount":20.9,"tradeNo":"123","secret":"CARD"}}`))
+		default:
+			t.Errorf("unexpected path %s", r.URL.Path)
 		}
+	})
+
+	resp, err := adapter.CreateOrder(context.Background(), CreateUpstreamOrderReq{
+		SKUID: 7, SKUCode: `{"r":"高级","s":{"颜色":"黑色"}}`, Quantity: 1, DownstreamOrderNo: "R1",
+	})
+	if err != nil {
+		t.Fatalf("create order: %v", err)
+	}
+	if !resp.OK {
+		t.Fatalf("unexpected response %+v", resp)
+	}
+	if form["shared_code"] != "AAA" {
+		t.Fatalf("shared_code = %q", form["shared_code"])
+	}
+	if form["race"] != "高级" {
+		t.Fatalf("race = %q", form["race"])
+	}
+	if form["sku[颜色]"] != "黑色" {
+		t.Fatalf("sku[颜色] = %q", form["sku[颜色]"])
+	}
+	if want := acgFakaSign(form, "S"); form["sign"] != want {
+		t.Fatalf("sign mismatch: got %q want %q", form["sign"], want)
 	}
 }
 
@@ -223,7 +283,7 @@ func TestAcgFakaGetProductByID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get product: %v", err)
 	}
-	if product.ID != 7 || product.SKUs[0].SKUCode != "1C5CFB8023144BFB" {
+	if product.ID != 7 || product.SKUs[0].SKUCode != "7" {
 		t.Fatalf("unexpected product %+v", product)
 	}
 

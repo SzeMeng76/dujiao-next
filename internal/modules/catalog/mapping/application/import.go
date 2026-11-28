@@ -409,6 +409,7 @@ func createSKUMappings(
 			ProductMappingID: mappingID,
 			LocalSKUID:       localSKU.ID,
 			UpstreamSKUID:    upSKU.ID,
+			UpstreamSKUCode:  upSKU.UpstreamCode,
 			UpstreamPrice:    money.FromDecimal(upPrice.Round(2)),
 			UpstreamIsActive: upSKU.IsActive,
 			UpstreamStock:    upSKU.StockQuantity,

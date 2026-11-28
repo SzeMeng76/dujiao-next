@@ -53,7 +53,8 @@ func (s *session) RetryIntervals() string { return s.connection.RetryIntervals }
 
 func (s *session) CreateOrder(ctx context.Context, request procurementcontract.CreateOrderRequest) (*procurementcontract.CreateOrderResult, error) {
 	result, err := s.adapter.CreateOrder(ctx, upstream.CreateUpstreamOrderReq{
-		SKUID: request.SKUID, Quantity: request.Quantity, ManualFormData: request.ManualFormData,
+		SKUID: request.SKUID, SKUCode: request.SKUCode,
+		Quantity: request.Quantity, ManualFormData: request.ManualFormData,
 		DownstreamOrderNo: request.DownstreamOrderNo, TraceID: request.TraceID, CallbackURL: request.CallbackURL,
 	})
 	if err != nil {
