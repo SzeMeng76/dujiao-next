@@ -203,19 +203,22 @@
             <h2 class="text-[28px] font-extrabold">{{ t('vault.categoriesTitle') }}</h2>
             <Button as-child variant="ghost" size="sm" class="rounded-full"><RouterLink to="/products">{{ t('vault.allCategories') }} <ChevronRight /></RouterLink></Button>
           </div>
-          <div class="grid gap-3.5 grid-cols-[repeat(auto-fill,minmax(150px,1fr))]">
+          <div class="grid gap-4 grid-cols-[repeat(auto-fill,minmax(152px,1fr))]">
             <RouterLink
-              v-for="(cat, idx) in topCategories"
-              :key="cat.id"
-              class="relative flex min-h-[116px] flex-col justify-between gap-2.5 overflow-hidden rounded-lg p-[18px] transition hover:-translate-y-[3px] hover:shadow-[var(--shadow)]"
-              :class="catColor(idx)"
-              :to="`/categories/${cat.slug}`"
+              v-for="tile in categoryTiles"
+              :key="tile.cat.id"
+              class="group relative flex min-h-[148px] flex-col items-center justify-center gap-3 overflow-hidden rounded-[18px] px-4 py-4 text-center transition duration-200 hover:-translate-y-[3px] hover:shadow-[var(--shadow)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2"
+              :class="tile.color"
+              :to="`/categories/${tile.cat.slug}`"
             >
-              <span class="grid h-10 w-10 place-items-center rounded-xl bg-white/20">
-                <img v-if="cat.icon" :src="getImageUrl(cat.icon)" :alt="catName(cat)" loading="lazy" class="h-6 w-6 object-contain" />
-                <Tag v-else class="h-[22px] w-[22px]" />
+              <!-- 顶部径向高光：把平铺色块变成有材质的面，避免整张卡抢走图标的注意力 -->
+              <span class="pointer-events-none absolute inset-0 bg-[radial-gradient(125%_115%_at_20%_-10%,rgba(255,255,255,.26),transparent_58%)]" />
+              <!-- 白色实底：图标对比度不再受卡片底色影响，W3C G207 的 3:1 门槛恒定成立 -->
+              <span class="relative grid h-16 w-16 place-items-center rounded-[20px] bg-white shadow-[0_6px_16px_-6px_rgba(18,16,40,.5),0_0_0_1px_rgba(18,16,40,.06)] transition-transform duration-200 group-hover:scale-[1.05]">
+                <img v-if="tile.cat.icon" :src="getImageUrl(tile.cat.icon)" :alt="catName(tile.cat)" loading="lazy" class="h-[46px] w-[46px] rounded-[13px] object-cover" />
+                <span v-else class="text-[24px] font-extrabold leading-none text-[#1c1b2e]">{{ categoryInitial(tile.cat) }}</span>
               </span>
-              <div class="min-w-0"><div class="line-clamp-2 break-words font-bold">{{ catName(cat) }}</div></div>
+              <span class="relative line-clamp-2 break-words text-[15px] font-bold leading-tight">{{ catName(tile.cat) }}</span>
             </RouterLink>
           </div>
         </section>
@@ -281,7 +284,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { ChevronRight, PackageOpen, Search, Tag, X } from 'lucide-vue-next'
+import { ChevronRight, PackageOpen, Search, X } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import EmptyState from '../../components/EmptyState.vue'
 import PaginationNav from '../../components/PaginationNav.vue'
@@ -391,8 +394,25 @@ const catColors = [
   'bg-[color:var(--gold)] text-[color:var(--on-gold)]',
   'bg-[color:var(--ink)] text-[color:var(--bg)]',
 ]
-const catColor = (idx: number) => catColors[idx % catColors.length]
+// 按 slug 哈希取色：同一分类在不同页面、不同排序下保持同色，颜色才可能沉淀成记忆锚点
+const colorIndexOf = (key: string) => {
+  let hash = 0
+  for (let i = 0; i < key.length; i += 1) hash = (hash * 31 + key.charCodeAt(i)) >>> 0
+  return hash % catColors.length
+}
 const catName = (cat: PublicCategory) => getLocalizedText(cat.name) || cat.slug || ''
+// 相邻两张卡片同色会打断网格节奏，撞色时顺延一位
+const categoryTiles = computed(() => {
+  let prev = -1
+  return topCategories.value.map((cat) => {
+    let idx = colorIndexOf(cat.slug || String(cat.id))
+    if (idx === prev) idx = (idx + 1) % catColors.length
+    prev = idx
+    return { cat, color: catColors[idx] }
+  })
+})
+// 无图标时用分类首字兜底，比通用图标更可辨认
+const categoryInitial = (cat: PublicCategory) => (catName(cat).trim().slice(0, 1) || '?').toUpperCase()
 
 const navBuiltin = computed(() => (appStore.config?.nav_config as { builtin?: Record<string, boolean> } | undefined)?.builtin)
 const blogEnabled = computed(() => navBuiltin.value?.blog !== false)
