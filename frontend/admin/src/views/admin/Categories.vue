@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import TableSkeleton from '@/components/TableSkeleton.vue'
 import MediaPicker from '@/components/admin/MediaPicker.vue'
+import IconSizePreview from '@/components/admin/IconSizePreview.vue'
 import AutoTranslateButton from '@/components/admin/AutoTranslateButton.vue'
 import { useAutoTranslate } from '@/composables/useAutoTranslate'
 import { getLocalizedText } from '@/utils/format'
@@ -370,6 +371,9 @@ watch(
           <div>
             <label class="block text-xs font-medium text-muted-foreground mb-1.5">{{ t('admin.categories.form.icon') }}</label>
             <MediaPicker v-model="form.icon" scene="category" />
+            <div class="mt-2">
+              <IconSizePreview :src="form.icon" />
+            </div>
           </div>
 
           <div>
