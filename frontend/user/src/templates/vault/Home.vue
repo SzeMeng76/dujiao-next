@@ -207,16 +207,16 @@
             <RouterLink
               v-for="tile in categoryTiles"
               :key="tile.cat.id"
-              class="group relative flex min-h-[148px] flex-col items-center justify-center gap-3 overflow-hidden rounded-[18px] px-4 py-4 text-center transition duration-200 hover:-translate-y-[3px] hover:shadow-[var(--shadow)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2"
+              class="group relative flex min-h-[172px] flex-col items-center justify-center gap-3.5 overflow-hidden rounded-[18px] px-4 py-4 text-center transition duration-200 hover:-translate-y-[3px] hover:shadow-[var(--shadow)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2"
               :class="tile.color"
               :to="`/categories/${tile.cat.slug}`"
             >
               <!-- 顶部径向高光：把平铺色块变成有材质的面，避免整张卡抢走图标的注意力 -->
               <span class="pointer-events-none absolute inset-0 bg-[radial-gradient(125%_115%_at_20%_-10%,rgba(255,255,255,.26),transparent_58%)]" />
-              <!-- 白色实底：图标对比度不再受卡片底色影响，W3C G207 的 3:1 门槛恒定成立 -->
-              <span class="relative grid h-16 w-16 place-items-center rounded-[20px] bg-white shadow-[0_6px_16px_-6px_rgba(18,16,40,.5),0_0_0_1px_rgba(18,16,40,.06)] transition-transform duration-200 group-hover:scale-[1.05]">
-                <img v-if="tile.cat.icon" :src="getImageUrl(tile.cat.icon)" :alt="catName(tile.cat)" loading="lazy" class="h-[46px] w-[46px] rounded-[13px] object-cover" />
-                <span v-else class="text-[24px] font-extrabold leading-none text-[#1c1b2e]">{{ categoryInitial(tile.cat) }}</span>
+              <!-- 白边只留 5px 做贴纸描边：既隔开图标与卡片色，又不会形成第二层相框；内外圆角同心(22-5=17) -->
+              <span class="relative grid h-[72px] w-[72px] place-items-center rounded-[22px] bg-[linear-gradient(180deg,#ffffff,#f0f1f8)] shadow-[0_8px_18px_-8px_rgba(18,16,40,.55)] transition-transform duration-200 group-hover:scale-[1.04]">
+                <img v-if="tile.cat.icon" :src="getImageUrl(tile.cat.icon)" :alt="catName(tile.cat)" loading="lazy" class="h-[62px] w-[62px] rounded-[17px] object-cover" />
+                <span v-else class="text-[28px] font-extrabold leading-none text-[#1c1b2e]">{{ categoryInitial(tile.cat) }}</span>
               </span>
               <span class="relative line-clamp-2 break-words text-[15px] font-bold leading-tight">{{ catName(tile.cat) }}</span>
             </RouterLink>
