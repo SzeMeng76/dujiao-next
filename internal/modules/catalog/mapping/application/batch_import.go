@@ -28,7 +28,7 @@ const upstreamBatchScanMinIDs = 50
 // （大型上游上选 50 个扫全站反而更慢）。
 // 拿不到 total（旧上游）时保持旧行为——选中够多就扫。
 func shouldScanUpstreamProducts(adapter upstream.Adapter, selected int) bool {
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), upstreamCatalogTimeout)
 	defer cancel()
 	result, err := adapter.ListProducts(ctx, upstream.ListProductsOpts{
 		Page:     1,
@@ -105,7 +105,7 @@ func (s *Service) BatchImportUpstreamProducts(
 	needCatMap := (autoCreateCategory && categoryID == 0) || len(conn.CategoryMarkups) > 0
 	var catMap map[uint]upstream.UpstreamCategory
 	if needCatMap {
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), upstreamCatalogTimeout)
 		defer cancel()
 		fetched, fetchErr := s.fetchUpstreamCategoryMap(ctx, adapter)
 		if fetchErr != nil {

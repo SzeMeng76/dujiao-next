@@ -252,10 +252,11 @@ type acgProductRow struct {
 	CategoryID   acgNumber `json:"category_id"`
 }
 
-// acgCatalogTTL 目录缓存寿命。acg 的 items 一次返回整站目录（实测 8000+ 商品、近 1MB），
-// 而 id→code 的换算是下单与单品同步的必需信息：每次现拉既慢又会撞上游限流，
-// 所以按连接做短 TTL 缓存。
-const acgCatalogTTL = 5 * time.Minute
+// acgCatalogTTL 目录缓存寿命。acg 的 items 一次返回整站目录（实测 8000+ 商品、近 1MB、
+// 生成一次要几十秒），而 id→code 的换算是下单与单品同步的必需信息：每次现拉既慢
+// 又会撞上游限流，所以按连接做 TTL 缓存。批量导入时一轮同步就可能超过 5 分钟，
+// TTL 太短会在导入中途反复现拉。
+const acgCatalogTTL = 15 * time.Minute
 
 // acgCachedProduct 目录里的一条商品记录。
 type acgCachedProduct struct {

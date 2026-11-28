@@ -721,9 +721,11 @@ export const adminAPI = {
   batchSyncProductMappings: (ids: number[]) => api.post('/admin/product-mappings/batch-sync', { ids }),
   batchUpdateProductMappingStatus: (ids: number[], isActive: boolean) => api.post('/admin/product-mappings/batch-status', { ids, is_active: isActive }),
   batchDeleteProductMappings: (ids: number[]) => api.post('/admin/product-mappings/batch-delete', { ids }),
-  getUpstreamProducts: (params?: Record<string, unknown>) => api.get('/admin/upstream-products', { params }),
-  getUpstreamCategories: (params: { connection_id: string }) => api.get('/admin/upstream-categories', { params }),
-  getUpstreamCategoryCounts: (params: { connection_id: string }) => api.get('/admin/upstream-category-counts', { params }),
+  // 目录接口放宽到 120 秒：acg 系上游的 items 要一次生成整站目录（实测 8000+ 商品），
+  // 默认 60 秒会被前端 abort 掉。后端对应超时见 upstreamCatalogTimeout。
+  getUpstreamProducts: (params?: Record<string, unknown>) => api.get('/admin/upstream-products', { params, timeoutMs: 120000 }),
+  getUpstreamCategories: (params: { connection_id: string }) => api.get('/admin/upstream-categories', { params, timeoutMs: 120000 }),
+  getUpstreamCategoryCounts: (params: { connection_id: string }) => api.get('/admin/upstream-category-counts', { params, timeoutMs: 120000 }),
   batchImportByCategory: (data: Record<string, unknown>) => api.post('/admin/product-mappings/batch-import-by-category', data),
   // Procurement Orders
   getProcurementOrders: (params?: Record<string, unknown>) => api.get('/admin/procurement-orders', { params }),

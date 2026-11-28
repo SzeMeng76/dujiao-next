@@ -673,7 +673,7 @@ func (s *Service) ListUpstreamProducts(connectionID uint, page, pageSize int) (*
 		return nil, err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), upstreamCatalogTimeout)
 	defer cancel()
 
 	return adapter.ListProducts(ctx, upstream.ListProductsOpts{
@@ -698,7 +698,7 @@ func (s *Service) ListUpstreamCategories(connectionID uint) ([]upstream.Upstream
 		return nil, false, err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), upstreamCatalogTimeout)
 	defer cancel()
 
 	result, err := adapter.ListCategories(ctx)
@@ -744,6 +744,12 @@ const maxUpstreamProductPages = 1000
 // upstreamProductPageSize 全量翻页时每页请求的商品数。上游 page_size 上限为 200，
 // 按上限请求能把翻页次数（以及触达上游 60 次/分钟限流的概率）压到四分之一。
 const upstreamProductPageSize = 200
+
+// upstreamCatalogTimeout 拉商品目录/分类的超时。
+// 目录是只读的批量读取，和下单不是一回事：acg 系上游的 items 要一次生成整站目录
+// （实测 8000+ 商品、近 1MB），15 秒根本不够，会被 context deadline 直接掐断。
+// 采购下单仍走各自的短超时，不受这里影响。
+const upstreamCatalogTimeout = 120 * time.Second
 
 // listAllUpstreamProducts 逐页拉取上游全部商品。
 // 旧版上游会把 page_size 压到 50，所以不能拿"返回条数 < 请求条数"直接判定最后一页，
