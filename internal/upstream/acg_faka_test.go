@@ -40,10 +40,21 @@ func TestAcgFakaNormalizeBaseURL(t *testing.T) {
 	}
 	for input, want := range cases {
 		if got := normalizeAcgBaseURL(input); got != want {
-			t.Fatalf("normalize %q: got %q want %q", input, got, want)
+			t.Fatalf("normalize %q: got %q want %q", input, want, got)
 		}
 	}
 }
+
+// acgTestCatalog 真实站点的形状：商品 code 是 16 位十六进制，不是数字。
+const acgTestCatalog = `{"code":200,"msg":"success","data":[
+	{"id":1,"name":"分类A","children":[
+		{"id":7,"code":"1C5CFB8023144BFB","name":"商品七","price":"9.9","description":"说明","cover":"https://cdn.example/a.png","status":1,"stock":5},
+		{"id":8,"code":"E6F59FD14374DAC5","name":"售罄","price":"1","status":1,"stock":0},
+		{"id":9,"code":"58310DE1BCC3EFB4","name":"已下架","price":"2","status":0,"stock":-1},
+		{"id":0,"code":"","name":"无编号脏数据","price":"1","status":1,"stock":1}
+	]},
+	{"id":0,"name":"默认分类","children":[]}
+]}`
 
 func newAcgTestAdapter(t *testing.T, handler http.HandlerFunc) *AcgFakaAdapter {
 	t.Helper()
@@ -80,21 +91,15 @@ func TestAcgFakaPing(t *testing.T) {
 	}
 }
 
-// acg 目录是「分类 → children 商品」的树，一个商品只有一条隐式 SKU（ID 取 code）。
+// acg 目录是「分类 → children 商品」的树，一个商品只有一条隐式 SKU。
+// 身份用数字 id（映射表只存 uint），真实商品编号 code 放进 SKUCode。
+// 关键是 code 不是纯数字时不能被丢掉——真实站点全是 16 位十六进制。
 func TestAcgFakaListProducts(t *testing.T) {
 	adapter := newAcgTestAdapter(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/shared/commodity/items" {
 			t.Errorf("unexpected path %s", r.URL.Path)
 		}
-		_, _ = w.Write([]byte(`{"code":200,"msg":"success","data":[
-			{"id":1,"name":"分类A","children":[
-				{"code":"7","name":"商品七","price":"9.9","description":"说明","cover":"https://cdn.example/a.png","status":1,"stock":5},
-				{"code":"8","name":"售罄","price":"1","status":1,"stock":0},
-				{"code":"9","name":"已下架","price":"2","status":0,"stock":-1},
-				{"code":0,"name":"无编号脏数据","price":"1","status":1,"stock":1}
-			]},
-			{"id":0,"name":"默认分类","children":[]}
-		]}`))
+		_, _ = w.Write([]byte(acgTestCatalog))
 	})
 
 	result, err := adapter.ListProducts(context.Background(), ListProductsOpts{Page: 1, PageSize: 200})
@@ -116,7 +121,10 @@ func TestAcgFakaListProducts(t *testing.T) {
 		t.Fatalf("title = %+v", first.Title)
 	}
 	if len(first.SKUs) != 1 || first.SKUs[0].ID != 7 {
-		t.Fatalf("sku should mirror product id: %+v", first.SKUs)
+		t.Fatalf("sku should reuse product id: %+v", first.SKUs)
+	}
+	if first.SKUs[0].SKUCode != "1C5CFB8023144BFB" {
+		t.Fatalf("sku code must be preserved verbatim, got %q", first.SKUs[0].SKUCode)
 	}
 	if first.SKUs[0].StockStatus != "in_stock" || first.SKUs[0].StockQuantity != 5 {
 		t.Fatalf("unexpected stock %+v", first.SKUs[0])
@@ -147,29 +155,56 @@ func TestAcgFakaListProductsSecondPageEmpty(t *testing.T) {
 	}
 }
 
-// 下单必须带 acg 约定的表单字段与有效签名；响应里的 secret 要转成交付内容。
+// 单品同步按数字 id 在目录里找，而不是拿 id 去当 code 查。
+func TestAcgFakaGetProductByID(t *testing.T) {
+	adapter := newAcgTestAdapter(t, func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(acgTestCatalog))
+	})
+
+	product, err := adapter.GetProduct(context.Background(), 7)
+	if err != nil {
+		t.Fatalf("get product: %v", err)
+	}
+	if product.ID != 7 || product.SKUs[0].SKUCode != "1C5CFB8023144BFB" {
+		t.Fatalf("unexpected product %+v", product)
+	}
+
+	if _, err := adapter.GetProduct(context.Background(), 999); !errors.Is(err, ErrUpstreamProductUnavailable) {
+		t.Fatalf("expected ErrUpstreamProductUnavailable, got %v", err)
+	}
+}
+
+// 下单必须用商品的 code（不是 id）作为 shared_code，并带 acg 约定的表单字段与有效签名；
+// 响应里的 secret 要转成交付内容。
 func TestAcgFakaCreateOrderReturnsFulfillment(t *testing.T) {
 	adapter := newAcgTestAdapter(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/shared/commodity/trade" {
+		switch r.URL.Path {
+		case "/shared/commodity/items":
+			_, _ = w.Write([]byte(acgTestCatalog))
+		case "/shared/commodity/trade":
+			if err := r.ParseForm(); err != nil {
+				t.Fatalf("parse form: %v", err)
+			}
+			form := map[string]string{}
+			for key := range r.PostForm {
+				form[key] = r.PostForm.Get(key)
+			}
+			if form["app_id"] != "K" {
+				t.Errorf("app_id = %q", form["app_id"])
+			}
+			if form["shared_code"] != "1C5CFB8023144BFB" {
+				t.Errorf("shared_code must be the commodity code, got %q", form["shared_code"])
+			}
+			if form["num"] != "2" || form["request_no"] != "R1" {
+				t.Errorf("unexpected business fields %+v", form)
+			}
+			if want := acgFakaSign(form, "S"); form["sign"] != want {
+				t.Errorf("sign mismatch: got %q want %q", form["sign"], want)
+			}
+			_, _ = w.Write([]byte(`{"code":200,"msg":"success","data":{"url":null,"amount":19.8,"tradeNo":"123","secret":"卡密1\n卡密2"}}`))
+		default:
 			t.Errorf("unexpected path %s", r.URL.Path)
 		}
-		if err := r.ParseForm(); err != nil {
-			t.Fatalf("parse form: %v", err)
-		}
-		form := map[string]string{}
-		for key := range r.PostForm {
-			form[key] = r.PostForm.Get(key)
-		}
-		if form["app_id"] != "K" {
-			t.Errorf("app_id = %q", form["app_id"])
-		}
-		if form["shared_code"] != "7" || form["num"] != "2" || form["request_no"] != "R1" {
-			t.Errorf("unexpected business fields %+v", form)
-		}
-		if want := acgFakaSign(form, "S"); form["sign"] != want {
-			t.Errorf("sign mismatch: got %q want %q", form["sign"], want)
-		}
-		_, _ = w.Write([]byte(`{"code":200,"msg":"success","data":{"url":null,"amount":19.8,"tradeNo":"123","secret":"卡密1\n卡密2"}}`))
 	})
 
 	resp, err := adapter.CreateOrder(context.Background(), CreateUpstreamOrderReq{
@@ -199,6 +234,10 @@ func TestAcgFakaCreateOrderReturnsFulfillment(t *testing.T) {
 // 调用方会用同一 request_no 重试并命中原订单幂等。
 func TestAcgFakaCreateOrderPendingIsRetryable(t *testing.T) {
 	adapter := newAcgTestAdapter(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/shared/commodity/items" {
+			_, _ = w.Write([]byte(acgTestCatalog))
+			return
+		}
 		_, _ = w.Write([]byte(`{"code":0,"msg":"订单未完成，请检查库存、规格或余额后再试"}`))
 	})
 
@@ -216,6 +255,26 @@ func TestAcgFakaCreateOrderPendingIsRetryable(t *testing.T) {
 	}
 	if resp.ErrorCode != "acg_upstream_rejected" {
 		t.Fatalf("error code = %q", resp.ErrorCode)
+	}
+}
+
+// 上游目录里已经没有这个商品时，不能发 trade 去撞「商品不存在」，直接按不可购返回。
+func TestAcgFakaCreateOrderUnknownProduct(t *testing.T) {
+	adapter := newAcgTestAdapter(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/shared/commodity/trade" {
+			t.Fatal("trade must not be called for an unknown product")
+		}
+		_, _ = w.Write([]byte(acgTestCatalog))
+	})
+
+	resp, err := adapter.CreateOrder(context.Background(), CreateUpstreamOrderReq{
+		SKUID: 999, Quantity: 1, DownstreamOrderNo: "R1",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.OK || resp.ErrorCode != "product_unavailable" {
+		t.Fatalf("unexpected response %+v", resp)
 	}
 }
 

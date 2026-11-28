@@ -27,6 +27,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/dujiao-next/internal/constants"
@@ -39,7 +40,6 @@ import (
 const (
 	acgFakaConnect = "authentication/connect"
 	acgFakaItems   = "commodity/items"
-	acgFakaItem    = "commodity/item"
 	acgFakaTrade   = "commodity/trade"
 	acgFakaQuery   = "commodity/query"
 )
@@ -235,8 +235,12 @@ type acgCategory struct {
 }
 
 // acgProductRow acg 商品行。acg 没有多规格维度，一个商品就是一个 SKU。
+//
+// id 与 code 分工：id 是数据库主键（数字），code 是下游对接用的商品编号（任意字符串，
+// 实测为 16 位十六进制）。trade 只认 code，所以两者都必须留下。
 type acgProductRow struct {
-	Code         acgNumber `json:"code"`
+	ID           acgNumber `json:"id"`
+	Code         string    `json:"code"`
 	Name         string    `json:"name"`
 	Price        acgNumber `json:"price"`
 	FactoryPrice acgNumber `json:"factory_price"`
@@ -246,6 +250,100 @@ type acgProductRow struct {
 	Status       int       `json:"status"`
 	Stock        int       `json:"stock"`
 	CategoryID   acgNumber `json:"category_id"`
+}
+
+// acgCatalogTTL 目录缓存寿命。acg 的 items 一次返回整站目录（实测 8000+ 商品、近 1MB），
+// 而 id→code 的换算是下单与单品同步的必需信息：每次现拉既慢又会撞上游限流，
+// 所以按连接做短 TTL 缓存。
+const acgCatalogTTL = 5 * time.Minute
+
+// acgCachedProduct 目录里的一条商品记录。
+type acgCachedProduct struct {
+	row        acgProductRow
+	categoryID uint
+}
+
+type acgCatalogEntry struct {
+	fetchedAt time.Time
+	items     []acgCachedProduct
+	byID      map[uint]acgCachedProduct
+}
+
+var acgCatalogStore = struct {
+	mu      sync.Mutex
+	entries map[string]*acgCatalogEntry
+}{entries: make(map[string]*acgCatalogEntry)}
+
+func (a *AcgFakaAdapter) catalogKey() string { return a.baseURL + "|" + a.appID }
+
+// cachedCatalog 返回未过期的目录缓存，没有时返回 nil。
+func (a *AcgFakaAdapter) cachedCatalog() *acgCatalogEntry {
+	acgCatalogStore.mu.Lock()
+	defer acgCatalogStore.mu.Unlock()
+	entry := acgCatalogStore.entries[a.catalogKey()]
+	if entry == nil || time.Since(entry.fetchedAt) > acgCatalogTTL {
+		return nil
+	}
+	return entry
+}
+
+// refreshCatalog 现拉一次目录并写入缓存。
+func (a *AcgFakaAdapter) refreshCatalog(ctx context.Context) (*acgCatalogEntry, error) {
+	tree, err := a.fetchTree(ctx)
+	if err != nil {
+		return nil, err
+	}
+	entry := &acgCatalogEntry{
+		fetchedAt: time.Now(),
+		items:     make([]acgCachedProduct, 0),
+		byID:      make(map[uint]acgCachedProduct),
+	}
+	for _, node := range tree {
+		categoryID := acgUint(node.ID)
+		for _, row := range node.Children {
+			id := acgUint(row.ID)
+			if id == 0 {
+				continue
+			}
+			cached := acgCachedProduct{row: row, categoryID: categoryID}
+			entry.items = append(entry.items, cached)
+			entry.byID[id] = cached
+		}
+	}
+	acgCatalogStore.mu.Lock()
+	acgCatalogStore.entries[a.catalogKey()] = entry
+	acgCatalogStore.mu.Unlock()
+	return entry, nil
+}
+
+// catalogOrFetch 取目录：优先缓存，force=true 或无缓存时现拉。
+func (a *AcgFakaAdapter) catalogOrFetch(ctx context.Context, force bool) (*acgCatalogEntry, error) {
+	if !force {
+		if entry := a.cachedCatalog(); entry != nil {
+			return entry, nil
+		}
+	}
+	return a.refreshCatalog(ctx)
+}
+
+// productCode 用商品 id 换 trade 需要的 shared_code。
+// 缓存未命中时强制刷新一次，仍找不到返回空串（商品已下架或删除）。
+func (a *AcgFakaAdapter) productCode(ctx context.Context, productID uint) (string, error) {
+	entry, err := a.catalogOrFetch(ctx, false)
+	if err != nil {
+		return "", err
+	}
+	if cached, ok := entry.byID[productID]; ok {
+		return strings.TrimSpace(cached.row.Code), nil
+	}
+	entry, err = a.catalogOrFetch(ctx, true)
+	if err != nil {
+		return "", err
+	}
+	if cached, ok := entry.byID[productID]; ok {
+		return strings.TrimSpace(cached.row.Code), nil
+	}
+	return "", nil
 }
 
 // ListCategories 拉取上游分类列表。
@@ -271,20 +369,17 @@ func (a *AcgFakaAdapter) ListProducts(ctx context.Context, opts ListProductsOpts
 	if opts.Page > 1 {
 		return &ProductListResult{Items: []UpstreamProduct{}, Page: opts.Page}, nil
 	}
-	tree, err := a.fetchTree(ctx)
+	entry, err := a.refreshCatalog(ctx)
 	if err != nil {
 		return nil, err
 	}
-	items := make([]UpstreamProduct, 0)
-	for _, node := range tree {
-		categoryID := acgUint(node.ID)
-		for _, row := range node.Children {
-			product, ok := acgToProduct(row, categoryID)
-			if !ok {
-				continue
-			}
-			items = append(items, product)
+	items := make([]UpstreamProduct, 0, len(entry.items))
+	for _, cached := range entry.items {
+		product, ok := acgToProduct(cached.row, cached.categoryID)
+		if !ok {
+			continue
 		}
+		items = append(items, product)
 	}
 	return &ProductListResult{
 		Total:            len(items),
@@ -300,20 +395,21 @@ func (a *AcgFakaAdapter) GetProduct(ctx context.Context, productID uint) (*Upstr
 	if productID == 0 {
 		return nil, ErrUpstreamProductDeleted
 	}
-	var row acgProductRow
-	if err := a.postForm(ctx, acgFakaItem, map[string]string{
-		"code": strconv.FormatUint(uint64(productID), 10),
-	}, &row); err != nil {
-		var biz *acgBizError
-		if errors.As(err, &biz) {
-			// acg 不区分「已删除」与「已下架」，按可恢复的下架处理更安全。
-			return nil, ErrUpstreamProductUnavailable
-		}
+	entry, err := a.catalogOrFetch(ctx, false)
+	if err != nil {
 		return nil, err
 	}
-	// 单品接口带 category_id；同步流程会用它更新映射上的上游分类，
-	// 返回 0 会把已经存好的分类（以及基于分类的加价）覆盖掉。
-	product, ok := acgToProduct(row, acgUint(row.CategoryID))
+	cached, ok := entry.byID[productID]
+	if !ok {
+		// 缓存可能还停留在商品上架时：强制刷新一次再判定是否真的没了。
+		if entry, err = a.catalogOrFetch(ctx, true); err != nil {
+			return nil, err
+		}
+		if cached, ok = entry.byID[productID]; !ok {
+			return nil, ErrUpstreamProductUnavailable
+		}
+	}
+	product, ok := acgToProduct(cached.row, cached.categoryID)
 	if !ok {
 		return nil, ErrUpstreamProductUnavailable
 	}
@@ -330,9 +426,10 @@ func (a *AcgFakaAdapter) fetchTree(ctx context.Context) ([]acgCategory, error) {
 }
 
 // acgToProduct 商品行 → 内部商品模型。
-// acg 一个商品只有一条隐式 SKU，因此 SKU ID 取商品 code。
+// acg 一个商品只有一条隐式 SKU：SKU ID 复用商品 id（数字主键，本站映射表只存 uint），
+// 真正的上游商品编号 code 放在 SKUCode 里，下单时再换回去。
 func acgToProduct(row acgProductRow, categoryID uint) (UpstreamProduct, bool) {
-	id := acgUint(row.Code)
+	id := acgUint(row.ID)
 	if id == 0 {
 		return UpstreamProduct{}, false
 	}
@@ -366,7 +463,7 @@ func acgToProduct(row acgProductRow, categoryID uint) (UpstreamProduct, bool) {
 		CategoryID:      categoryID,
 		SKUs: []UpstreamSKU{{
 			ID:            id,
-			SKUCode:       strconv.FormatUint(uint64(id), 10),
+			SKUCode:       strings.TrimSpace(row.Code),
 			PriceAmount:   price,
 			StockStatus:   stockStatus,
 			StockQuantity: row.Stock,
@@ -389,13 +486,26 @@ func (a *AcgFakaAdapter) CreateOrder(ctx context.Context, req CreateUpstreamOrde
 		quantity = 1
 	}
 
+	// trade 只认商品的 code（字符串），映射表里存的是数字 id，先换算。
+	code, err := a.productCode(ctx, req.SKUID)
+	if err != nil {
+		return nil, err
+	}
+	if code == "" {
+		return &CreateUpstreamOrderResp{
+			OK:           false,
+			ErrorCode:    "product_unavailable",
+			ErrorMessage: "上游商品不存在或已下架",
+		}, nil
+	}
+
 	var data struct {
 		Amount  acgNumber `json:"amount"`
 		TradeNo acgNumber `json:"tradeNo"`
 		Secret  string    `json:"secret"`
 	}
-	err := a.postForm(ctx, acgFakaTrade, map[string]string{
-		"shared_code": strconv.FormatUint(uint64(req.SKUID), 10),
+	err = a.postForm(ctx, acgFakaTrade, map[string]string{
+		"shared_code": code,
 		"num":         strconv.Itoa(quantity),
 		"request_no":  req.DownstreamOrderNo,
 	}, &data)
