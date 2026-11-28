@@ -138,9 +138,17 @@ type acgEnvelope struct {
 	Data json.RawMessage `json:"data"`
 }
 
-// postForm 发送带签名表单请求，成功时把 data 解到 out。
-// 被限流（429）时退避重试——429 表示上游没有处理，重发安全。
+// postForm 发送带签名表单请求（读取类）：限流时退避重试。
 func (a *AcgFakaAdapter) postForm(ctx context.Context, endpoint string, params map[string]string, out interface{}) error {
+	return a.doForm(ctx, endpoint, params, out, true)
+}
+
+// doForm 发送带签名表单请求，成功时把 data 解到 out。
+//
+// retryThrottle 只对读取类接口开启。下单（trade）遇到限流不重发：
+// 「上游回限流就说明没受理」只是推断，不是协议保证；一旦推断错了就是重复下单，
+// 代价远大于让采购层按 30/60/300 秒重试。这与 zcard 的 `withoutRetries` 口径一致。
+func (a *AcgFakaAdapter) doForm(ctx context.Context, endpoint string, params map[string]string, out interface{}, retryThrottle bool) error {
 	form := make(map[string]string, len(params)+2)
 	for key, value := range params {
 		if value != "" {
@@ -193,7 +201,7 @@ func (a *AcgFakaAdapter) postForm(ctx context.Context, endpoint string, params m
 				}
 				// 限流：请求没有被处理，退避后重发是安全的。当成普通业务失败会直接
 				// 消耗采购的重试档位，而对方的窗口往往要几十秒才恢复。
-				if attempt < maxRequestAttempts && isAcgThrottled(message) {
+				if retryThrottle && attempt < maxRequestAttempts && isAcgThrottled(message) {
 					wait := time.Duration(attempt) * acgThrottleBackoff
 					if deadline, ok := ctx.Deadline(); !ok || time.Until(deadline) > wait {
 						if waitErr := sleepCtx(ctx, wait); waitErr == nil {
@@ -794,11 +802,12 @@ func (a *AcgFakaAdapter) CreateOrder(ctx context.Context, req CreateUpstreamOrde
 		TradeNo acgNumber `json:"tradeNo"`
 		Secret  string    `json:"secret"`
 	}
-	err = a.postForm(ctx, acgFakaTrade, map[string]string{
+	// 下单不因限流重发（见 doForm 的说明）。
+	err = a.doForm(ctx, acgFakaTrade, map[string]string{
 		"shared_code": code,
 		"num":         strconv.Itoa(quantity),
 		"request_no":  req.DownstreamOrderNo,
-	}, &data)
+	}, &data, false)
 	if err != nil {
 		var biz *acgBizError
 		if errors.As(err, &biz) {

@@ -427,6 +427,33 @@ func TestAcgFakaRetriesWhenThrottled(t *testing.T) {
 	}
 }
 
+// 下单遇到限流不能重发：「上游没受理」只是推断，错了就是重复下单。
+// 交由采购层按 30/60/300 秒重试。
+func TestAcgFakaCreateOrderDoesNotRetryWhenThrottled(t *testing.T) {
+	var tradeCalls int
+	adapter := newAcgTestAdapter(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/shared/commodity/items" {
+			_, _ = w.Write([]byte(acgTestCatalog))
+			return
+		}
+		tradeCalls++
+		_, _ = w.Write([]byte(`{"code":0,"msg":"服务器频繁请联系客服支持"}`))
+	})
+
+	resp, err := adapter.CreateOrder(context.Background(), CreateUpstreamOrderReq{
+		SKUID: 7, Quantity: 1, DownstreamOrderNo: "R1",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if tradeCalls != 1 {
+		t.Fatalf("purchase must not be retried, got %d trade calls", tradeCalls)
+	}
+	if resp.OK || resp.ErrorCode != "rate_limited" {
+		t.Fatalf("unexpected response %+v", resp)
+	}
+}
+
 // 持续限流时重试有上限，最终按业务失败返回，调用方能看到真实原因。
 func TestAcgFakaThrottleGivesUp(t *testing.T) {
 	adapter := newAcgTestAdapter(t, func(w http.ResponseWriter, r *http.Request) {
