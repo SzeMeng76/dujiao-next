@@ -220,7 +220,7 @@
                   :src="getImageUrl(tile.cat.icon)"
                   :alt="catName(tile.cat)"
                   loading="lazy"
-                  class="h-[68px] w-[68px] rounded-[20px] object-cover shadow-[0_10px_22px_-10px_rgba(18,16,40,.55)] ring-1 ring-black/[.06]"
+                  class="h-[68px] w-[68px] rounded-[20px] object-cover shadow-[0_10px_22px_-10px_rgba(18,16,40,.55),0_0_0_1px_rgba(255,255,255,.22)]"
                 />
                 <!-- 无图标时才需要一块底板来承载首字 -->
                 <span v-else class="grid h-[68px] w-[68px] place-items-center rounded-[20px] bg-white shadow-[0_10px_22px_-10px_rgba(18,16,40,.55)]">
