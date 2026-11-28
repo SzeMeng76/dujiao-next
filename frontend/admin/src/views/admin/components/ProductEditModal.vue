@@ -18,7 +18,9 @@ import { Dialog, DialogScrollContent, DialogHeader, DialogTitle } from '@/compon
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Sparkles, Loader2 } from 'lucide-vue-next'
 import { notifyError, notifySuccess } from '@/utils/notify'
+import { confirmAction } from '@/utils/confirm'
 import { getLocalizedText } from '@/utils/format'
+import { hasDraft, useFormDraft } from '@/composables/useFormDraft'
 import { buildAdminCategoryPath, createAdminCategoryChildCountMap, createAdminCategoryMap, flattenAdminCategories, isAdminProductCategorySelectable } from '@/utils/category'
 
 const props = defineProps<{
@@ -206,6 +208,34 @@ const form = reactive({
   sort_order: 0,
   manual_form_schema: { fields: [] as ManualFormField[] },
 })
+
+const productDraftKey = (productId: number | null | undefined) =>
+  productId != null && productId > 0 ? `product-${productId}` : 'product-new'
+
+const productDraft = useFormDraft({
+  key: () => (props.modelValue ? productDraftKey(props.productId) : ''),
+  snapshot: () => JSON.parse(JSON.stringify(form)) as typeof form,
+  apply: (draft) => {
+    Object.assign(form, draft)
+  },
+  hasContent: (draft) =>
+    Object.values(draft.title || {}).some((value) => String(value || '').trim() !== '') ||
+    String(draft.slug || '').trim() !== '',
+})
+
+const offerProductDraftRestore = async (key: string) => {
+  if (!hasDraft(key)) return
+  const restore = await confirmAction({
+    description: t('draft.found'),
+    confirmText: t('draft.restore'),
+    cancelText: t('draft.discard'),
+  })
+  if (restore) {
+    productDraft.restore(key)
+  } else {
+    productDraft.clear(key)
+  }
+}
 
 const loadPaymentChannels = async () => {
   try {
@@ -807,6 +837,7 @@ const handleSubmit = async () => {
     } else {
       await adminAPI.createProduct(payload as unknown as Partial<AdminProduct>)
     }
+    productDraft.clear(productDraftKey(isEditing.value ? form.id : null))
     closeModal()
     emit('success')
   } catch (err: any) {
@@ -842,6 +873,8 @@ watch(
         const product = res.data.data
         editingIsMapped.value = Boolean(product.is_mapped)
         populateForm(product)
+        productDraft.markClean()
+        void offerProductDraftRestore(productDraftKey(newId))
       } catch (err: any) {
         if (isNotifiedError(err)) return
         notifyError(t('admin.products.errors.operationFailed', { message: err?.message || '' }))
@@ -852,6 +885,8 @@ watch(
       isEditing.value = false
       editingIsMapped.value = false
       resetForm()
+      productDraft.markClean()
+      void offerProductDraftRestore(productDraftKey(null))
     }
   }
 )
@@ -871,6 +906,8 @@ watch(
         const product = res.data.data
         editingIsMapped.value = Boolean(product.is_mapped)
         populateForm(product)
+        productDraft.markClean()
+        void offerProductDraftRestore(productDraftKey(props.productId))
       }).catch((err: any) => {
         if (isNotifiedError(err)) return
         notifyError(t('admin.products.errors.operationFailed', { message: err?.message || '' }))
@@ -880,6 +917,8 @@ watch(
       isEditing.value = false
       editingIsMapped.value = false
       resetForm()
+      productDraft.markClean()
+      void offerProductDraftRestore(productDraftKey(null))
     }
   }
 )

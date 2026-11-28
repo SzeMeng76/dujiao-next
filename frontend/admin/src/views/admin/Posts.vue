@@ -24,6 +24,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { notifyError } from '@/utils/notify'
 import { confirmAction } from '@/utils/confirm'
 import { useFormValidation, rules } from '@/composables/useFormValidation'
+import { hasDraft, useFormDraft } from '@/composables/useFormDraft'
 
 interface RelatedProductRef {
   id: number
@@ -84,6 +85,46 @@ const form = reactive({
   category_id: null as number | null,
   product_ids: [] as number[],
 })
+
+const DRAFT_NEW_POST = 'post-new'
+const postDraftKey = (postId: number) => (postId > 0 ? `post-${postId}` : DRAFT_NEW_POST)
+
+const postDraft = useFormDraft({
+  key: () => (showModal.value ? postDraftKey(isEditing.value ? form.id : 0) : ''),
+  snapshot: () => ({
+    id: form.id,
+    title: { ...form.title },
+    slug: form.slug,
+    summary: { ...form.summary },
+    content: { ...form.content },
+    type: form.type,
+    thumbnail: form.thumbnail,
+    is_published: form.is_published,
+    category_id: form.category_id,
+    product_ids: [...form.product_ids],
+  }),
+  apply: (draft) => {
+    Object.assign(form, draft)
+  },
+  hasContent: (draft) =>
+    Object.values(draft.title || {}).some((value) => String(value || '').trim() !== '') ||
+    String(draft.slug || '').trim() !== '' ||
+    Object.values(draft.content || {}).some((value) => String(value || '').trim() !== ''),
+})
+
+const offerDraftRestore = async (key: string) => {
+  if (!hasDraft(key)) return
+  const restore = await confirmAction({
+    description: t('draft.found'),
+    confirmText: t('draft.restore'),
+    cancelText: t('draft.discard'),
+  })
+  if (restore) {
+    postDraft.restore(key)
+  } else {
+    postDraft.clear(key)
+  }
+}
 
 const relatedProducts = ref<RelatedProductRef[]>([])
 const productSearch = ref('')
@@ -270,6 +311,8 @@ const openCreateModal = () => {
     product_ids: [],
   })
   showModal.value = true
+  postDraft.markClean()
+  void offerDraftRestore(DRAFT_NEW_POST)
 }
 
 const openEditModal = (post: AdminPost) => {
@@ -289,6 +332,8 @@ const openEditModal = (post: AdminPost) => {
     product_ids: [],
   })
   showModal.value = true
+  postDraft.markClean()
+  void offerDraftRestore(postDraftKey(post.id))
   if (post.type === 'blog') {
     fetchPostRelatedProducts(post.id)
   }
@@ -312,6 +357,7 @@ const handleSubmit = async () => {
     } else {
       await adminAPI.createPost(payload)
     }
+    postDraft.clear(postDraftKey(isEditing.value ? form.id : 0))
     closeModal()
     fetchPosts()
   } catch (err) {
